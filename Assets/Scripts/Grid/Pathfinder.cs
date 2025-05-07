@@ -28,8 +28,13 @@ public class Pathfinder : MonoBehaviour
             return new List<Tile>(_pathCache[key]); // Return copy to avoid modifying cache
         }
 
-        if (!_gridManager.GetTile(start.x, start.y) || !_gridManager.GetTile(end.x, end.y))
+        Tile startTile = _gridManager.GetTile(start.x, start.y);
+        Tile endTile = _gridManager.GetTile(end.x, end.y);
+        if (startTile == null || endTile == null || !endTile.CanBeOccupied(null))
+        {
+            Debug.LogWarning($"Invalid start {start} or end {end} tile for pathfinding.");
             return null;
+        }
 
         var openSet = new PriorityQueue<Vector2Int>();
         var nodes = new Dictionary<Vector2Int, PathNode>();
@@ -58,12 +63,11 @@ public class Pathfinder : MonoBehaviour
 
             foreach (Vector2Int neighbor in _gridManager.GetNeighbors(current, false))
             {
-                Tile currentTile = _gridManager.GetTile(current.x, current.y);
                 Tile neighborTile = _gridManager.GetTile(neighbor.x, neighbor.y);
                 if (neighborTile == null || !neighborTile.CanBeOccupied(null) || (nodes.ContainsKey(neighbor) && nodes[neighbor].Closed))
                     continue;
 
-                // Calculate movement cost with height penalty
+                Tile currentTile = _gridManager.GetTile(current.x, current.y);
                 int heightDifference = neighborTile.HeightLevel - currentTile.HeightLevel;
                 int heightPenalty = heightDifference > 0 ? heightDifference * 2 : 0; // 2 extra cost per height level climbed
                 int movementCost = neighborTile.MovementCost + heightPenalty;
@@ -87,18 +91,25 @@ public class Pathfinder : MonoBehaviour
             }
         }
 
+        Debug.LogWarning($"No path found from {start} to {end}.");
         return null;
     }
 
     private List<Tile> ReconstructPath(Dictionary<Vector2Int, PathNode> nodes, Vector2Int current)
     {
-        List<Tile> path = new List<Tile> { _gridManager.GetTile(current.x, current.y) };
+        List<Tile> path = new List<Tile>();
         int totalCost = nodes[current].G; // Store total cost for logging
-        while (nodes.ContainsKey(current) && nodes[current].Parent != current)
+
+        // Build path from end to start
+        while (nodes.ContainsKey(current))
         {
+            Tile tile = _gridManager.GetTile(current.x, current.y);
+            if (tile != null && tile.CanBeOccupied(null)) // Only include passable tiles
+                path.Add(tile);
+            if (current == nodes[current].Parent) break; // Avoid infinite loop
             current = nodes[current].Parent;
-            path.Add(_gridManager.GetTile(current.x, current.y));
         }
+
         path.Reverse();
         Debug.Log($"Path cost: {totalCost}");
         return path;
