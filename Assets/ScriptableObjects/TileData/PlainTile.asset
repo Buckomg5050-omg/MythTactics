@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0cd6f9ed57e8e574fb3d0a50e6911f7d, type: 3}
+  m_Name: PlainTile
+  m_EditorClassIdentifier: 
+  DisplayName: 
+  TileSprite: {fileID: 21300000, guid: 2410a253522a3fd4ca9800744b9a5e65, type: 3}
+  MovementCostMultiplier: 1
+  IsPassable: 1

@@ -3,12 +3,16 @@ using UnityEngine;
 
 public class GridManager : MonoBehaviour
 {
-    [SerializeField] private int _width = 10; // Grid width (tiles)
-    [SerializeField] private int _height = 10; // Grid height (tiles)
-    [SerializeField] private float _tileSize = 1f; // Size of each tile in world units
-    [SerializeField] private GameObject _tilePrefab; // Reference to tile prefab
+    [SerializeField] private int _width = 10;
+    [SerializeField] private int _height = 10;
+    [SerializeField] private float _tileSize = 1f;
+    [SerializeField] private GameObject _tilePrefab;
+    [SerializeField] private TileTypeSO _plainTileType;
+    [SerializeField] private TileTypeSO _forestTileType;
+    [SerializeField] private TileTypeSO _mountainTileType;
+    [SerializeField] private TileTypeSO _waterTileType;
 
-    private Tile[,] _tiles; // 2D array to store tiles
+    private Tile[,] _tiles;
 
     private void Awake()
     {
@@ -27,18 +31,17 @@ public class GridManager : MonoBehaviour
                 GameObject tileObj = Instantiate(_tilePrefab, worldPos, Quaternion.identity, transform);
                 Tile tile = tileObj.GetComponent<Tile>();
 
-                TerrainType terrainType;
+                TileTypeSO tileType;
                 if (x == 0 || x == _width - 1 || y == 0 || y == _height - 1)
-                    terrainType = TerrainType.Water;
+                    tileType = _waterTileType;
                 else if ((x + y) % 3 == 0)
-                    terrainType = TerrainType.Forest;
+                    tileType = _forestTileType;
                 else if ((x + y) % 5 == 0)
-                    terrainType = TerrainType.Mountain;
+                    tileType = _mountainTileType;
                 else
-                    terrainType = TerrainType.Plain;
+                    tileType = _plainTileType;
 
-                tile.SetTerrainType(terrainType);
-                tile.Initialize(new Vector2Int(x, y));
+                tile.Initialize(new Vector2Int(x, y), tileType);
                 _tiles[x, y] = tile;
             }
         }
@@ -47,18 +50,14 @@ public class GridManager : MonoBehaviour
     public Tile GetTile(int x, int y)
     {
         if (IsInBounds(new Vector2Int(x, y)))
-        {
             return _tiles[x, y];
-        }
         Debug.LogWarning($"Tile at ({x}, {y}) is out of bounds.");
         return null;
     }
 
     public Vector3 GridToWorld(Vector2Int gridPos)
     {
-        return new Vector3(gridPos.x * _tileSize + _tileSize / 2,
-                           gridPos.y * _tileSize + _tileSize / 2,
-                           0);
+        return new Vector3(gridPos.x * _tileSize + _tileSize / 2, gridPos.y * _tileSize + _tileSize / 2, 0);
     }
 
     public Vector2Int WorldToGrid(Vector3 worldPos)
@@ -115,23 +114,11 @@ public class GridManager : MonoBehaviour
     }
 
     public int ManhattanDistance(Vector2Int a, Vector2Int b)
-{
-    return Mathf.Abs(a.x - b.x) + Mathf.Abs(a.y - b.y);
-}
-
-    // Temporary workaround for setting terrain type on Tile
-    public void SetTerrainType(TerrainType terrainType)
     {
-        var tile = GetComponent<Tile>();
-        tile.GetType()
-            .GetField("_terrainType", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-            .SetValue(tile, terrainType);
-        tile.GetType()
-            .GetMethod("UpdateVisual", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-            .Invoke(tile, null);
+        return Mathf.Abs(a.x - b.x) + Mathf.Abs(a.y - b.y);
     }
 
-    // Temporary debug for pathfinding and coordinate tests
+    // Temporary debug for testing
     private void Update()
     {
         if (Input.GetKeyDown(KeyCode.Space))
@@ -139,6 +126,7 @@ public class GridManager : MonoBehaviour
             TestPathfinding();
             TestCoordinateSystem();
         }
+        TestHighlighting();
     }
 
     private void TestPathfinding()
@@ -149,7 +137,9 @@ public class GridManager : MonoBehaviour
         {
             Debug.Log("Path found:");
             foreach (Tile tile in path)
-                Debug.Log($"Tile: {tile.GridPosition}, Terrain: {tile.TerrainType}");
+            {
+                Debug.Log($"Tile: {tile.GridPosition}, Type: {tile.TileType.DisplayName}");
+            }
         }
         else
         {
@@ -159,7 +149,6 @@ public class GridManager : MonoBehaviour
 
     private void TestCoordinateSystem()
     {
-        // Test WorldToGrid and GridToWorld
         Vector3 worldPos = new Vector3(2.5f, 3.5f, 0);
         Vector2Int gridPos = WorldToGrid(worldPos);
         Debug.Log($"World {worldPos} -> Grid {gridPos}");
@@ -167,14 +156,39 @@ public class GridManager : MonoBehaviour
         Vector3 convertedBack = GridToWorld(gridPos);
         Debug.Log($"Grid {gridPos} -> World {convertedBack}");
 
-        // Test GetNeighbors
         List<Vector2Int> neighbors = GetNeighbors(new Vector2Int(5, 5), false);
         Debug.Log("Neighbors of (5,5):");
         foreach (var neighbor in neighbors)
+        {
             Debug.Log($"Neighbor: {neighbor}");
+        }
 
-        // Test GetTilesInRange
         List<Tile> tilesInRange = GetTilesInRange(new Vector2Int(5, 5), 2);
         Debug.Log($"Tiles in range 2 from (5,5): {tilesInRange.Count}");
     }
+    private void TestHighlighting()
+{
+    if (Input.GetMouseButtonDown(0)) // Left click
+    {
+        Vector3 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        Vector2Int gridPos = WorldToGrid(mousePos);
+        Tile tile = GetTile(gridPos.x, gridPos.y);
+        if (tile != null)
+        {
+            tile.SetHighlight(TileHighlight.Selected);
+            Debug.Log($"Highlighted tile {gridPos} as Selected");
+        }
+    }
+    if (Input.GetMouseButtonDown(1)) // Right click
+    {
+        Vector3 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        Vector2Int gridPos = WorldToGrid(mousePos);
+        Tile tile = GetTile(gridPos.x, gridPos.y);
+        if (tile != null)
+        {
+            tile.SetHighlight(TileHighlight.None);
+            Debug.Log($"Cleared highlight on tile {gridPos}");
+        }
+    }
+}
 }

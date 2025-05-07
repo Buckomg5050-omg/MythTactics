@@ -88,4 +88,21 @@ public class Pathfinder : MonoBehaviour
             return _elements.Exists(e => EqualityComparer<T>.Default.Equals(e.item, item));
         }
     }
+    // ... (rest of the Pathfinder code remains the same until TestPathfinding)
+private void TestPathfinding()
+{
+    List<Tile> path = FindPath(new Vector2Int(1, 1), new Vector2Int(8, 8));
+    if (path != null)
+    {
+        Debug.Log("Path found:");
+        foreach (Tile tile in path)
+        {
+            Debug.Log($"Tile: {tile.GridPosition}, Type: {tile.TileType.DisplayName}");
+        }
+    }
+    else
+    {
+        Debug.Log("No path found.");
+    }
+}
 }
