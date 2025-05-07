@@ -1,77 +1,91 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Pathfinder
+public class Pathfinder : MonoBehaviour
 {
-    private readonly GridManager _grid;
+    private GridManager _gridManager;
 
-    public Pathfinder(GridManager grid)
+    private void Awake()
     {
-        _grid = grid;
+        _gridManager = GetComponent<GridManager>();
     }
 
-    public List<Tile> FindPath(Vector2Int start, Vector2Int goal)
+    public List<Tile> FindPath(Vector2Int start, Vector2Int end)
     {
-        Dictionary<Vector2Int, Vector2Int> cameFrom = new();
-        Dictionary<Vector2Int, int> costSoFar = new();
+        if (!_gridManager.GetTile(start.x, start.y) || !_gridManager.GetTile(end.x, end.y))
+            return null;
 
-        PriorityQueue<Vector2Int> frontier = new();
-        frontier.Enqueue(start, 0);
+        var openSet = new PriorityQueue<Vector2Int>();
+        var cameFrom = new Dictionary<Vector2Int, Vector2Int>();
+        var gScore = new Dictionary<Vector2Int, int> { [start] = 0 };
+        var fScore = new Dictionary<Vector2Int, int> { [start] = _gridManager.ManhattanDistance(start, end) };
 
-        cameFrom[start] = start;
-        costSoFar[start] = 0;
+        openSet.Enqueue(start, fScore[start]);
 
-        while (frontier.Count > 0)
+        while (openSet.Count > 0)
         {
-            var current = frontier.Dequeue();
+            Vector2Int current = openSet.Dequeue();
 
-            if (current == goal)
-                break;
+            if (current == end)
+                return ReconstructPath(cameFrom, current);
 
-            foreach (var neighbor in GetNeighbors(current))
+            foreach (Vector2Int neighbor in _gridManager.GetNeighbors(current, false))
             {
-                int newCost = costSoFar[current] + 1; // constant cost for now
+                Tile neighborTile = _gridManager.GetTile(neighbor.x, neighbor.y);
+                if (neighborTile == null || !neighborTile.CanBeOccupied(null))
+                    continue;
 
-                if (!costSoFar.ContainsKey(neighbor) || newCost < costSoFar[neighbor])
+                int tentativeGScore = gScore[current] + neighborTile.MovementCost;
+
+                if (!gScore.ContainsKey(neighbor) || tentativeGScore < gScore[neighbor])
                 {
-                    costSoFar[neighbor] = newCost;
-                    int priority = newCost + ManhattanDistance(neighbor, goal);
-                    frontier.Enqueue(neighbor, priority);
                     cameFrom[neighbor] = current;
+                    gScore[neighbor] = tentativeGScore;
+                    fScore[neighbor] = tentativeGScore + _gridManager.ManhattanDistance(neighbor, end);
+
+                    if (!openSet.Contains(neighbor))
+                        openSet.Enqueue(neighbor, fScore[neighbor]);
                 }
             }
         }
 
-        if (!cameFrom.ContainsKey(goal))
-            return null; // no path
+        return null;
+    }
 
-        List<Tile> path = new();
-        Vector2Int step = goal;
-
-        while (step != start)
+    private List<Tile> ReconstructPath(Dictionary<Vector2Int, Vector2Int> cameFrom, Vector2Int current)
+    {
+        List<Tile> path = new List<Tile> { _gridManager.GetTile(current.x, current.y) };
+        while (cameFrom.ContainsKey(current))
         {
-            path.Add(_grid.GetTile(step.x, step.y));
-            step = cameFrom[step];
+            current = cameFrom[current];
+            path.Add(_gridManager.GetTile(current.x, current.y));
         }
-
         path.Reverse();
         return path;
     }
 
-    private IEnumerable<Vector2Int> GetNeighbors(Vector2Int pos)
+    private class PriorityQueue<T>
     {
-        Vector2Int[] directions = {
-            Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right
-        };
+        private List<(T item, int priority)> _elements = new List<(T, int)>();
 
-        foreach (var dir in directions)
+        public int Count => _elements.Count;
+
+        public void Enqueue(T item, int priority)
         {
-            Vector2Int next = pos + dir;
-            if (_grid.GetTileSafe(next) != null)
-                yield return next;
+            _elements.Add((item, priority));
+            _elements.Sort((a, b) => a.priority.CompareTo(b.priority));
+        }
+
+        public T Dequeue()
+        {
+            T item = _elements[0].item;
+            _elements.RemoveAt(0);
+            return item;
+        }
+
+        public bool Contains(T item)
+        {
+            return _elements.Exists(e => EqualityComparer<T>.Default.Equals(e.item, item));
         }
     }
-
-    private int ManhattanDistance(Vector2Int a, Vector2Int b) =>
-        Mathf.Abs(a.x - b.x) + Mathf.Abs(a.y - b.y);
 }
