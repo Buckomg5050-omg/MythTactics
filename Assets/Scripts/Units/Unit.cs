@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -5,10 +6,12 @@ using UnityEngine;
 public class Unit : MonoBehaviour
 {
     [SerializeField] private SpriteRenderer _spriteRenderer;
-    [SerializeField] private float _moveSpeed = 5f; // Tiles per second
+    [SerializeField] private float _moveSpeed = 5f;
     [SerializeField] private int _maxHealth = 100;
-    [SerializeField] private int _attackRange = 1; // Manhattan distance
+    [SerializeField] private int _attackRange = 1;
     [SerializeField] private int _attackDamage = 20;
+    [SerializeField] private int _dexterity = 10;
+    [SerializeField] private int _wisdom = 10;
 
     private Tile _currentTile;
     private bool _isMoving;
@@ -17,11 +20,13 @@ public class Unit : MonoBehaviour
 
     public Tile CurrentTile => _currentTile;
     public int CurrentHealth => _currentHealth;
+    public int MaxHealth => _maxHealth;
     public int AttackRange => _attackRange;
+    public event Action<Unit> OnHealthChanged;
 
     private void Awake()
     {
-        _unitManager = FindObjectOfType<UnitManager>();
+        _unitManager = FindFirstObjectByType<UnitManager>();
         _currentHealth = _maxHealth;
     }
 
@@ -56,7 +61,7 @@ public class Unit : MonoBehaviour
     {
         if (target == null || target == this) return;
 
-        GridManager gridManager = FindObjectOfType<GridManager>();
+        GridManager gridManager = FindFirstObjectByType<GridManager>();
         int distance = gridManager.ManhattanDistance(_currentTile.GridPosition, target.CurrentTile.GridPosition);
         if (distance > _attackRange)
         {
@@ -74,11 +79,17 @@ public class Unit : MonoBehaviour
     {
         _currentHealth = Mathf.Max(0, _currentHealth - damage);
         Debug.Log($"{name} took {damage} damage, health now {_currentHealth}");
+        OnHealthChanged?.Invoke(this);
         if (_currentHealth <= 0)
         {
             _currentTile.ClearOccupyingUnit();
             Destroy(gameObject);
         }
+    }
+
+    public int GetInitiative()
+    {
+        return _dexterity + (_wisdom / 2);
     }
 
     private IEnumerator MoveCoroutine(List<Tile> path, System.Action onMoveComplete)
@@ -88,13 +99,9 @@ public class Unit : MonoBehaviour
         if (_currentTile != null)
             _currentTile.ClearOccupyingUnit();
 
-        for (int i = 0; i < path.Count; i++)
+        foreach (Tile targetTile in path)
         {
-            Tile targetTile = path[i];
-            bool isFinalTile = i == path.Count - 1;
-
-            // Allow final tile to be occupied (for attacking), but not intermediate tiles
-            if (!isFinalTile && !targetTile.CanBeOccupied(this))
+            if (!targetTile.CanBeOccupied(this))
             {
                 Debug.LogWarning($"Cannot move to tile {targetTile.GridPosition}: occupied or impassable");
                 break;

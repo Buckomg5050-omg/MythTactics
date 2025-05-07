@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -7,6 +8,8 @@ public class UnitManager : MonoBehaviour
     private Unit _selectedUnit;
 
     public Unit SelectedUnit => _selectedUnit;
+    public event Action<Unit> OnUnitRegistered;
+    public event Action<Unit> OnUnitUnregistered;
 
     public void RegisterUnit(Unit unit)
     {
@@ -14,6 +17,7 @@ public class UnitManager : MonoBehaviour
         {
             _units.Add(unit);
             Debug.Log($"Registered unit at {unit.CurrentTile.GridPosition}");
+            OnUnitRegistered?.Invoke(unit);
         }
     }
 
@@ -24,12 +28,30 @@ public class UnitManager : MonoBehaviour
             _units.Remove(unit);
             if (_selectedUnit == unit)
                 _selectedUnit = null;
+            Debug.Log($"Unregistered unit {unit.name}");
+            OnUnitUnregistered?.Invoke(unit);
         }
     }
 
     public Unit GetUnitAt(Vector2Int gridPos)
     {
         return _units.Find(u => u.CurrentTile != null && u.CurrentTile.GridPosition == gridPos);
+    }
+
+    public List<Unit> GetUnitsInRange(Unit attacker, int range)
+    {
+        List<Unit> unitsInRange = new List<Unit>();
+        GridManager gridManager = FindFirstObjectByType<GridManager>();
+        foreach (Unit unit in _units)
+        {
+            if (unit != attacker && unit.CurrentTile != null)
+            {
+                int distance = gridManager.ManhattanDistance(attacker.CurrentTile.GridPosition, unit.CurrentTile.GridPosition);
+                if (distance <= range)
+                    unitsInRange.Add(unit);
+            }
+        }
+        return unitsInRange;
     }
 
     public void SelectUnit(Unit unit)
