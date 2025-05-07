@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -13,6 +14,11 @@ public class GridManager : MonoBehaviour
     [SerializeField] private TileTypeSO _waterTileType;
 
     private Tile[,] _tiles;
+
+    public TileTypeSO PlainTileType => _plainTileType;
+
+    public event Action<Tile> OnTileChanged;
+    public event Action OnGridRebuilt;
 
     private void Awake()
     {
@@ -32,21 +38,38 @@ public class GridManager : MonoBehaviour
                 Tile tile = tileObj.GetComponent<Tile>();
 
                 TileTypeSO tileType;
+                int heightLevel;
                 if (x == 0 || x == _width - 1 || y == 0 || y == _height - 1)
+                {
                     tileType = _waterTileType;
+                    heightLevel = 0;
+                }
                 else if ((x + y) % 3 == 0)
+                {
                     tileType = _forestTileType;
+                    heightLevel = 1;
+                }
                 else if ((x + y) % 5 == 0)
+                {
                     tileType = _mountainTileType;
+                    heightLevel = 2;
+                }
                 else
+                {
                     tileType = _plainTileType;
+                    heightLevel = 0;
+                }
 
-                tile.Initialize(new Vector2Int(x, y), tileType);
+                tile.Initialize(new Vector2Int(x, y), tileType, heightLevel);
                 _tiles[x, y] = tile;
+
+                OnTileChanged?.Invoke(tile);
             }
         }
+
+        OnGridRebuilt?.Invoke();
     }
-    
+
     public Tile GetTile(int x, int y)
     {
         if (IsInBounds(new Vector2Int(x, y)))
@@ -102,7 +125,7 @@ public class GridManager : MonoBehaviour
             for (int y = center.y - range; y <= center.y + range; y++)
             {
                 Vector2Int pos = new Vector2Int(x, y);
-                if (IsInBounds(pos) && ManhattanDistance(center, pos) <= range)
+                if (IsInBounds(pos) && ManhattanDistance(pos, center) <= range)
                 {
                     Tile tile = GetTile(x, y);
                     if (tile != null && tile.CanBeOccupied(null))
@@ -118,77 +141,26 @@ public class GridManager : MonoBehaviour
         return Mathf.Abs(a.x - b.x) + Mathf.Abs(a.y - b.y);
     }
 
-    // Temporary debug for testing
-    private void Update()
+    public void SetTileType(Vector2Int pos, TileTypeSO tileType)
     {
-        if (Input.GetKeyDown(KeyCode.Space))
-        {
-            TestPathfinding();
-            TestCoordinateSystem();
-        }
-        TestHighlighting();
-    }
-
-    private void TestPathfinding()
-    {
-        Pathfinder pathfinder = GetComponent<Pathfinder>();
-        List<Tile> path = pathfinder.FindPath(new Vector2Int(1, 1), new Vector2Int(8, 8));
-        if (path != null)
-        {
-            Debug.Log("Path found:");
-            foreach (Tile tile in path)
-            {
-                Debug.Log($"Tile: {tile.GridPosition}, Type: {tile.TileType.DisplayName}");
-            }
-        }
-        else
-        {
-            Debug.Log("No path found.");
-        }
-    }
-
-    private void TestCoordinateSystem()
-    {
-        Vector3 worldPos = new Vector3(2.5f, 3.5f, 0);
-        Vector2Int gridPos = WorldToGrid(worldPos);
-        Debug.Log($"World {worldPos} -> Grid {gridPos}");
-
-        Vector3 convertedBack = GridToWorld(gridPos);
-        Debug.Log($"Grid {gridPos} -> World {convertedBack}");
-
-        List<Vector2Int> neighbors = GetNeighbors(new Vector2Int(5, 5), false);
-        Debug.Log("Neighbors of (5,5):");
-        foreach (var neighbor in neighbors)
-        {
-            Debug.Log($"Neighbor: {neighbor}");
-        }
-
-        List<Tile> tilesInRange = GetTilesInRange(new Vector2Int(5, 5), 2);
-        Debug.Log($"Tiles in range 2 from (5,5): {tilesInRange.Count}");
-    }
-    private void TestHighlighting()
-{
-    if (Input.GetMouseButtonDown(0)) // Left click
-    {
-        Vector3 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-        Vector2Int gridPos = WorldToGrid(mousePos);
-        Tile tile = GetTile(gridPos.x, gridPos.y);
+        Tile tile = GetTile(pos.x, pos.y);
         if (tile != null)
         {
-            tile.SetHighlight(TileHighlight.Selected);
-            Debug.Log($"Highlighted tile {gridPos} as Selected");
+            tile.SetTileType(tileType);
+            // Reset height for Plain tiles
+            if (tileType == _plainTileType)
+                tile.SetHeightLevel(0);
+            OnTileChanged?.Invoke(tile);
         }
     }
-    if (Input.GetMouseButtonDown(1)) // Right click
+
+    public void SetTileHeight(Vector2Int pos, int heightLevel)
     {
-        Vector3 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-        Vector2Int gridPos = WorldToGrid(mousePos);
-        Tile tile = GetTile(gridPos.x, gridPos.y);
+        Tile tile = GetTile(pos.x, pos.y);
         if (tile != null)
         {
-            tile.SetHighlight(TileHighlight.None);
-            Debug.Log($"Cleared highlight on tile {gridPos}");
+            tile.SetHeightLevel(heightLevel);
+            OnTileChanged?.Invoke(tile);
         }
     }
-}
 }

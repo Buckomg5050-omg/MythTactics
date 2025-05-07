@@ -4,6 +4,14 @@ using UnityEngine;
 public class Pathfinder : MonoBehaviour
 {
     private GridManager _gridManager;
+    private Dictionary<(Vector2Int, Vector2Int), List<Tile>> _pathCache = new Dictionary<(Vector2Int, Vector2Int), List<Tile>>();
+
+    private struct PathNode
+    {
+        public int F, G, H;
+        public Vector2Int Parent;
+        public bool Closed;
+    }
 
     private void Awake()
     {
@@ -12,39 +20,69 @@ public class Pathfinder : MonoBehaviour
 
     public List<Tile> FindPath(Vector2Int start, Vector2Int end)
     {
+        // Check cache first
+        var key = (start, end);
+        if (_pathCache.ContainsKey(key))
+        {
+            Debug.Log($"Using cached path from {start} to {end}");
+            return new List<Tile>(_pathCache[key]); // Return copy to avoid modifying cache
+        }
+
         if (!_gridManager.GetTile(start.x, start.y) || !_gridManager.GetTile(end.x, end.y))
             return null;
 
         var openSet = new PriorityQueue<Vector2Int>();
-        var cameFrom = new Dictionary<Vector2Int, Vector2Int>();
-        var gScore = new Dictionary<Vector2Int, int> { [start] = 0 };
-        var fScore = new Dictionary<Vector2Int, int> { [start] = _gridManager.ManhattanDistance(start, end) };
+        var nodes = new Dictionary<Vector2Int, PathNode>();
+        nodes[start] = new PathNode { G = 0, H = _gridManager.ManhattanDistance(start, end), F = _gridManager.ManhattanDistance(start, end) };
 
-        openSet.Enqueue(start, fScore[start]);
+        openSet.Enqueue(start, nodes[start].F);
 
         while (openSet.Count > 0)
         {
             Vector2Int current = openSet.Dequeue();
+            nodes[current] = new PathNode
+            {
+                F = nodes[current].F,
+                G = nodes[current].G,
+                H = nodes[current].H,
+                Parent = nodes[current].Parent,
+                Closed = true
+            };
 
             if (current == end)
-                return ReconstructPath(cameFrom, current);
+            {
+                List<Tile> path = ReconstructPath(nodes, current);
+                _pathCache[key] = new List<Tile>(path); // Cache the path
+                return path;
+            }
 
             foreach (Vector2Int neighbor in _gridManager.GetNeighbors(current, false))
             {
+                Tile currentTile = _gridManager.GetTile(current.x, current.y);
                 Tile neighborTile = _gridManager.GetTile(neighbor.x, neighbor.y);
-                if (neighborTile == null || !neighborTile.CanBeOccupied(null))
+                if (neighborTile == null || !neighborTile.CanBeOccupied(null) || (nodes.ContainsKey(neighbor) && nodes[neighbor].Closed))
                     continue;
 
-                int tentativeGScore = gScore[current] + neighborTile.MovementCost;
+                // Calculate movement cost with height penalty
+                int heightDifference = neighborTile.HeightLevel - currentTile.HeightLevel;
+                int heightPenalty = heightDifference > 0 ? heightDifference * 2 : 0; // 2 extra cost per height level climbed
+                int movementCost = neighborTile.MovementCost + heightPenalty;
 
-                if (!gScore.ContainsKey(neighbor) || tentativeGScore < gScore[neighbor])
+                int tentativeGScore = nodes[current].G + movementCost;
+
+                if (!nodes.ContainsKey(neighbor) || tentativeGScore < nodes[neighbor].G)
                 {
-                    cameFrom[neighbor] = current;
-                    gScore[neighbor] = tentativeGScore;
-                    fScore[neighbor] = tentativeGScore + _gridManager.ManhattanDistance(neighbor, end);
+                    int hScore = _gridManager.ManhattanDistance(neighbor, end);
+                    nodes[neighbor] = new PathNode
+                    {
+                        G = tentativeGScore,
+                        H = hScore,
+                        F = tentativeGScore + hScore,
+                        Parent = current
+                    };
 
                     if (!openSet.Contains(neighbor))
-                        openSet.Enqueue(neighbor, fScore[neighbor]);
+                        openSet.Enqueue(neighbor, nodes[neighbor].F);
                 }
             }
         }
@@ -52,16 +90,24 @@ public class Pathfinder : MonoBehaviour
         return null;
     }
 
-    private List<Tile> ReconstructPath(Dictionary<Vector2Int, Vector2Int> cameFrom, Vector2Int current)
+    private List<Tile> ReconstructPath(Dictionary<Vector2Int, PathNode> nodes, Vector2Int current)
     {
         List<Tile> path = new List<Tile> { _gridManager.GetTile(current.x, current.y) };
-        while (cameFrom.ContainsKey(current))
+        int totalCost = nodes[current].G; // Store total cost for logging
+        while (nodes.ContainsKey(current) && nodes[current].Parent != current)
         {
-            current = cameFrom[current];
+            current = nodes[current].Parent;
             path.Add(_gridManager.GetTile(current.x, current.y));
         }
         path.Reverse();
+        Debug.Log($"Path cost: {totalCost}");
         return path;
+    }
+
+    public void InvalidateCache()
+    {
+        _pathCache.Clear();
+        Debug.Log("Path cache cleared.");
     }
 
     private class PriorityQueue<T>
@@ -88,21 +134,4 @@ public class Pathfinder : MonoBehaviour
             return _elements.Exists(e => EqualityComparer<T>.Default.Equals(e.item, item));
         }
     }
-    // ... (rest of the Pathfinder code remains the same until TestPathfinding)
-private void TestPathfinding()
-{
-    List<Tile> path = FindPath(new Vector2Int(1, 1), new Vector2Int(8, 8));
-    if (path != null)
-    {
-        Debug.Log("Path found:");
-        foreach (Tile tile in path)
-        {
-            Debug.Log($"Tile: {tile.GridPosition}, Type: {tile.TileType.DisplayName}");
-        }
-    }
-    else
-    {
-        Debug.Log("No path found.");
-    }
-}
 }
