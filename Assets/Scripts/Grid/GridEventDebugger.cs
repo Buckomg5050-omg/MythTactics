@@ -89,15 +89,35 @@ public class GridEventDebugger : MonoBehaviour
             Tile targetTile = _gridManager.GetTile(gridPos.x, gridPos.y);
             if (targetTile != null && _unitManager.SelectedUnit != null)
             {
-                List<Tile> path = _pathfinder.FindPath(_unitManager.SelectedUnit.CurrentTile.GridPosition, gridPos);
+                List<Tile> path = _pathfinder.FindPath(_unitManager.SelectedUnit.CurrentTile.GridPosition, gridPos, _unitManager.SelectedUnit);
                 if (path != null)
                 {
                     _unitManager.SelectedUnit.MoveAlongPath(path, () => Debug.Log("Unit movement complete."));
+                }
+                else
+                {
+                    Debug.LogWarning($"No valid path from {_unitManager.SelectedUnit.CurrentTile.GridPosition} to {gridPos}.");
                 }
             }
             else if (targetTile != null)
             {
                 targetTile.SetHighlight(TileHighlight.None);
+            }
+        }
+
+        if (Input.GetKeyDown(KeyCode.A)) // Attack
+        {
+            if (_unitManager.SelectedUnit != null)
+            {
+                List<Unit> targets = _unitManager.GetUnitsInRange(_unitManager.SelectedUnit, _unitManager.SelectedUnit.AttackRange);
+                if (targets.Count > 0)
+                {
+                    _unitManager.SelectedUnit.Attack(targets[0]);
+                }
+                else
+                {
+                    Debug.Log("No units in attack range.");
+                }
             }
         }
 
@@ -131,9 +151,26 @@ public class GridEventDebugger : MonoBehaviour
 
     private void TestPathfinding()
     {
-        Unit unit = _unitManager.GetUnitAt(new Vector2Int(1, 1));
-        Vector2Int start = unit != null ? unit.CurrentTile.GridPosition : new Vector2Int(1, 1);
-        List<Tile> path = _pathfinder.FindPath(start, new Vector2Int(8, 8));
+        // Find any registered unit
+        Unit unit = null;
+        foreach (var u in FindObjectsOfType<Unit>())
+        {
+            if (_unitManager.GetUnitAt(u.CurrentTile.GridPosition) != null)
+            {
+                unit = u;
+                break;
+            }
+        }
+
+        if (unit == null)
+        {
+            Debug.LogWarning("No units found for pathfinding test.");
+            return;
+        }
+
+        Vector2Int start = unit.CurrentTile.GridPosition;
+        Vector2Int end = new Vector2Int(8, 8);
+        List<Tile> path = _pathfinder.FindPath(start, end, unit);
         if (path != null)
         {
             Debug.Log("Path found:");
@@ -141,10 +178,20 @@ public class GridEventDebugger : MonoBehaviour
             {
                 Debug.Log($"Tile: {tile.GridPosition}, Type: {tile.TileType.DisplayName}, Height: {tile.HeightLevel}");
             }
+            // Simulate movement to test attacking
+            unit.MoveAlongPath(path, () =>
+            {
+                Debug.Log("Test movement complete.");
+                List<Unit> targets = _unitManager.GetUnitsInRange(unit, unit.AttackRange);
+                if (targets.Count > 0)
+                {
+                    unit.Attack(targets[0]);
+                }
+            });
         }
         else
         {
-            Debug.Log("No path found.");
+            Debug.LogWarning($"No path found from {start} to {end}.");
         }
     }
 

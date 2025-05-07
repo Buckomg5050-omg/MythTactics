@@ -6,16 +6,23 @@ public class Unit : MonoBehaviour
 {
     [SerializeField] private SpriteRenderer _spriteRenderer;
     [SerializeField] private float _moveSpeed = 5f; // Tiles per second
+    [SerializeField] private int _maxHealth = 100;
+    [SerializeField] private int _attackRange = 1; // Manhattan distance
+    [SerializeField] private int _attackDamage = 20;
 
     private Tile _currentTile;
     private bool _isMoving;
     private UnitManager _unitManager;
+    private int _currentHealth;
 
     public Tile CurrentTile => _currentTile;
+    public int CurrentHealth => _currentHealth;
+    public int AttackRange => _attackRange;
 
     private void Awake()
     {
         _unitManager = FindObjectOfType<UnitManager>();
+        _currentHealth = _maxHealth;
     }
 
     public void Initialize(Tile startTile)
@@ -45,17 +52,49 @@ public class Unit : MonoBehaviour
         StartCoroutine(MoveCoroutine(path, onMoveComplete));
     }
 
+    public void Attack(Unit target)
+    {
+        if (target == null || target == this) return;
+
+        GridManager gridManager = FindObjectOfType<GridManager>();
+        int distance = gridManager.ManhattanDistance(_currentTile.GridPosition, target.CurrentTile.GridPosition);
+        if (distance > _attackRange)
+        {
+            Debug.LogWarning($"Target at {target.CurrentTile.GridPosition} is out of attack range ({_attackRange})");
+            return;
+        }
+
+        float combatBonus = _currentTile.GetCombatBonus(target.CurrentTile);
+        int damage = Mathf.RoundToInt(_attackDamage * (1f + combatBonus));
+        target.TakeDamage(damage);
+        Debug.Log($"{name} attacked {target.name} for {damage} damage (Bonus: {combatBonus:P0})");
+    }
+
+    public void TakeDamage(int damage)
+    {
+        _currentHealth = Mathf.Max(0, _currentHealth - damage);
+        Debug.Log($"{name} took {damage} damage, health now {_currentHealth}");
+        if (_currentHealth <= 0)
+        {
+            _currentTile.ClearOccupyingUnit();
+            Destroy(gameObject);
+        }
+    }
+
     private IEnumerator MoveCoroutine(List<Tile> path, System.Action onMoveComplete)
     {
         _isMoving = true;
 
-        // Clear current tile occupancy
         if (_currentTile != null)
             _currentTile.ClearOccupyingUnit();
 
-        foreach (Tile targetTile in path)
+        for (int i = 0; i < path.Count; i++)
         {
-            if (!targetTile.CanBeOccupied(this))
+            Tile targetTile = path[i];
+            bool isFinalTile = i == path.Count - 1;
+
+            // Allow final tile to be occupied (for attacking), but not intermediate tiles
+            if (!isFinalTile && !targetTile.CanBeOccupied(this))
             {
                 Debug.LogWarning($"Cannot move to tile {targetTile.GridPosition}: occupied or impassable");
                 break;
