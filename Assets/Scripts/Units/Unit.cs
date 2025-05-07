@@ -7,7 +7,7 @@ public class Unit : MonoBehaviour
     public void Init(Vector2Int pos)
     {
         GridPos = pos;
-        transform.position = new Vector3(pos.x, pos.y);
+        transform.position = new Vector3(pos.x, pos.y, transform.position.z);
         name = $"Unit_{pos.x}_{pos.y}";
     }
 }

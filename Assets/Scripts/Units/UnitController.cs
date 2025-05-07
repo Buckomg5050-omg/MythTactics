@@ -52,7 +52,7 @@ public class UnitController : MonoBehaviour
 
         foreach (var tile in path)
         {
-            Vector3 targetPos = new(tile.GridPos.x, tile.GridPos.y);
+            Vector3 targetPos = new(tile.GridPos.x, tile.GridPos.y, transform.position.z);
             while (Vector3.Distance(transform.position, targetPos) > 0.01f)
             {
                 transform.position = Vector3.MoveTowards(transform.position, targetPos, 5f * Time.deltaTime);
