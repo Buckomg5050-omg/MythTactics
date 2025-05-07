@@ -4,10 +4,14 @@ using UnityEngine;
 public class GridEventDebugger : MonoBehaviour
 {
     private GridManager _gridManager;
+    private UnitManager _unitManager;
+    private Pathfinder _pathfinder;
 
     private void Awake()
     {
         _gridManager = GetComponent<GridManager>();
+        _unitManager = GetComponent<UnitManager>();
+        _pathfinder = GetComponent<Pathfinder>();
         _gridManager.OnTileChanged += OnTileChanged;
         _gridManager.OnGridRebuilt += OnGridRebuilt;
 
@@ -24,16 +28,19 @@ public class GridEventDebugger : MonoBehaviour
 
     private void OnDestroy()
     {
-        _gridManager.OnTileChanged -= OnTileChanged;
-        _gridManager.OnGridRebuilt -= OnGridRebuilt;
-
-        for (int x = 0; x < 10; x++)
+        if (_gridManager != null)
         {
-            for (int y = 0; y < 10; y++)
+            _gridManager.OnTileChanged -= OnTileChanged;
+            _gridManager.OnGridRebuilt -= OnGridRebuilt;
+
+            for (int x = 0; x < 10; x++)
             {
-                Tile tile = _gridManager.GetTile(x, y);
-                if (tile != null)
-                    tile.OnTileStateChanged -= OnTileStateChanged;
+                for (int y = 0; y < 10; y++)
+                {
+                    Tile tile = _gridManager.GetTile(x, y);
+                    if (tile != null)
+                        tile.OnTileStateChanged -= OnTileStateChanged;
+                }
             }
         }
     }
@@ -62,17 +69,35 @@ public class GridEventDebugger : MonoBehaviour
             Tile tile = _gridManager.GetTile(gridPos.x, gridPos.y);
             if (tile != null)
             {
-                tile.SetHighlight(TileHighlight.Selected);
+                Unit unit = _unitManager.GetUnitAt(gridPos);
+                if (unit != null)
+                {
+                    _unitManager.SelectUnit(unit);
+                }
+                else
+                {
+                    _unitManager.DeselectUnit();
+                    tile.SetHighlight(TileHighlight.Selected);
+                }
             }
         }
+
         if (Input.GetMouseButtonDown(1)) // Right click
         {
             Vector3 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
             Vector2Int gridPos = _gridManager.WorldToGrid(mousePos);
-            Tile tile = _gridManager.GetTile(gridPos.x, gridPos.y);
-            if (tile != null)
+            Tile targetTile = _gridManager.GetTile(gridPos.x, gridPos.y);
+            if (targetTile != null && _unitManager.SelectedUnit != null)
             {
-                tile.SetHighlight(TileHighlight.None);
+                List<Tile> path = _pathfinder.FindPath(_unitManager.SelectedUnit.CurrentTile.GridPosition, gridPos);
+                if (path != null)
+                {
+                    _unitManager.SelectedUnit.MoveAlongPath(path, () => Debug.Log("Unit movement complete."));
+                }
+            }
+            else if (targetTile != null)
+            {
+                targetTile.SetHighlight(TileHighlight.None);
             }
         }
 
@@ -106,8 +131,9 @@ public class GridEventDebugger : MonoBehaviour
 
     private void TestPathfinding()
     {
-        Pathfinder pathfinder = _gridManager.GetComponent<Pathfinder>();
-        List<Tile> path = pathfinder.FindPath(new Vector2Int(1, 1), new Vector2Int(8, 8));
+        Unit unit = _unitManager.GetUnitAt(new Vector2Int(1, 1));
+        Vector2Int start = unit != null ? unit.CurrentTile.GridPosition : new Vector2Int(1, 1);
+        List<Tile> path = _pathfinder.FindPath(start, new Vector2Int(8, 8));
         if (path != null)
         {
             Debug.Log("Path found:");

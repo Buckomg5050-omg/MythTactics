@@ -8,6 +8,7 @@ public class GridManager : MonoBehaviour
     [SerializeField] private int _height = 10;
     [SerializeField] private float _tileSize = 1f;
     [SerializeField] private GameObject _tilePrefab;
+    [SerializeField] private GameObject _unitPrefab;
     [SerializeField] private TileTypeSO _plainTileType;
     [SerializeField] private TileTypeSO _forestTileType;
     [SerializeField] private TileTypeSO _mountainTileType;
@@ -23,6 +24,7 @@ public class GridManager : MonoBehaviour
     private void Awake()
     {
         InitializeGrid();
+        SpawnTestUnit();
     }
 
     private void InitializeGrid()
@@ -68,6 +70,21 @@ public class GridManager : MonoBehaviour
         }
 
         OnGridRebuilt?.Invoke();
+    }
+
+    private void SpawnTestUnit()
+    {
+        Tile startTile = GetTile(1, 1);
+        if (startTile != null && _unitPrefab != null)
+        {
+            GameObject unitObj = Instantiate(_unitPrefab, transform);
+            Unit unit = unitObj.GetComponent<Unit>();
+            unit.Initialize(startTile);
+        }
+        else
+        {
+            Debug.LogError("Failed to spawn test unit: Invalid tile or unit prefab.");
+        }
     }
 
     public Tile GetTile(int x, int y)
@@ -147,10 +164,10 @@ public class GridManager : MonoBehaviour
         if (tile != null)
         {
             tile.SetTileType(tileType);
-            // Reset height for Plain tiles
             if (tileType == _plainTileType)
                 tile.SetHeightLevel(0);
             OnTileChanged?.Invoke(tile);
+            GetComponent<Pathfinder>().InvalidateCache();
         }
     }
 
@@ -161,6 +178,7 @@ public class GridManager : MonoBehaviour
         {
             tile.SetHeightLevel(heightLevel);
             OnTileChanged?.Invoke(tile);
+            GetComponent<Pathfinder>().InvalidateCache();
         }
     }
 }
