@@ -1,24 +1,26 @@
 // PlayerInputHandler.cs
 using UnityEngine;
 using UnityEngine.InputSystem;
-using System.Collections.Generic; // For List
+using System.Collections;
+using System.Collections.Generic;
 
 public class PlayerInputHandler : MonoBehaviour
 {
     [Header("References")]
     [Tooltip("Assign the GridManager from the scene.")]
     public GridManager gridManager;
+    [Tooltip("Assign the GridTester from the scene to get player unit ref.")]
+    public GridTester gridTester;
     private Pathfinder _pathfinder;
 
     [Header("Input Settings")]
     [Tooltip("Movement points to use when calculating reachable range on click.")]
     public int defaultMovementRange = 4;
 
-    // State Tracking
-    private enum InputState { None, TileSelected, PathDisplayed }
+    private enum InputState { None, UnitSelected, UnitMoving }
     private InputState _currentState = InputState.None;
 
-    private Vector2Int? _startTilePos = null;
+    private Unit _selectedUnit = null;
     private Vector2Int? _endTilePos = null;
 
     private List<Tile> _highlightedReachableTiles = new List<Tile>();
@@ -33,267 +35,208 @@ public class PlayerInputHandler : MonoBehaviour
         _mainCamera = Camera.main;
         _playerControls = new PlayerControls();
 
-        if (gridManager == null)
-        {
-            DebugHelper.LogError("PlayerInputHandler: GridManager reference is not set! Input handler will not function.", this);
-            this.enabled = false;
-            return;
-        }
+        if (gridManager == null) { DebugHelper.LogError("InputHandler: GridManager missing!", this); this.enabled = false; return; }
+        if (gridTester == null) { DebugHelper.LogError("InputHandler: GridTester missing!", this); this.enabled = false; return; }
+    }
+
+    void Start()
+    {
         _pathfinder = new Pathfinder(gridManager);
+        StartCoroutine(AssignPlayerUnitReference());
+    }
+
+     IEnumerator AssignPlayerUnitReference()
+    {
+        yield return null;
+        while (gridTester.PlayerUnitInstance == null) {
+            DebugHelper.LogWarning("InputHandler waiting for Player Unit from GridTester...", this);
+            yield return new WaitForSeconds(0.2f);
+        }
+        if (gridTester.PlayerUnitInstance != null) {
+             DebugHelper.Log("InputHandler ready, found Player Unit.", this);
+        } else {
+            DebugHelper.LogError("InputHandler could not get Player Unit reference!", this);
+             this.enabled = false;
+        }
     }
 
     private void OnEnable()
     {
-        if (_playerControls == null) return;
+        if (_playerControls == null) _playerControls = new PlayerControls();
         _playerControls.Gameplay.Enable();
         _playerControls.Gameplay.Click.performed += HandleClick;
     }
 
     private void OnDisable()
-{
-    if (_playerControls == null) return;
-
-    // Directly unsubscribe and disable. If _playerControls exists, Gameplay should too.
-    // The input system handles null checks internally for these operations gracefully.
-    _playerControls.Gameplay.Click.performed -= HandleClick;
-    _playerControls.Gameplay.Disable();
-}
+    {
+        if (_playerControls == null) return;
+        _playerControls.Gameplay.Click.performed -= HandleClick;
+        _playerControls.Gameplay.Disable();
+    }
 
     private void HandleClick(InputAction.CallbackContext context)
     {
-        if (gridManager == null || _pathfinder == null || _mainCamera == null) return;
+        if (_currentState == InputState.UnitMoving || gridManager == null || _pathfinder == null || _mainCamera == null || gridTester.PlayerUnitInstance == null) return;
 
         Vector2 screenPosition = _playerControls.Gameplay.Point.ReadValue<Vector2>();
         Ray ray = _mainCamera.ScreenPointToRay(screenPosition);
         Plane xyPlane = new Plane(Vector3.forward, Vector3.zero);
-        float distance;
 
-        if (!xyPlane.Raycast(ray, out distance))
-        {
-             ClearHighlightsAndSelection();
-             DebugHelper.Log("Click did not intersect grid plane.", this);
-             return;
-        }
+        if (!xyPlane.Raycast(ray, out float distance)) { ClearInteractionState(); /* DebugHelper.Log("Click miss.", this); */ return; } // Reduced log noise
 
         Vector3 worldPoint = ray.GetPoint(distance);
         Vector2Int clickedGridPos = gridManager.WorldToGrid(worldPoint);
+        Tile clickedTile = gridManager.GetTile(clickedGridPos);
 
-        // --- State-Based Click Handling ---
         switch (_currentState)
         {
             case InputState.None:
-                // --- First Click: Select Start Tile & Show Range ---
-                if (gridManager.IsInPlayableBounds(clickedGridPos))
+                if (clickedTile != null && clickedTile.IsOccupied && clickedTile.occupyingUnit == gridTester.PlayerUnitInstance)
                 {
-                    Tile selectedTile = gridManager.GetTile(clickedGridPos);
-                    if (selectedTile != null && !selectedTile.IsOccupied) // Can only select unoccupied tiles to start movement
-                    {
-                        ClearHighlightsAndSelection();
-
-                        _startTilePos = clickedGridPos;
-                        _highlightedStartTile = selectedTile;
-                        selectedTile.SetHighlight(TileHighlightState.SelectedUnit);
-
-                        ShowReachableRange(clickedGridPos, defaultMovementRange);
-
-                        _currentState = InputState.TileSelected;
-                        DebugHelper.Log($"Selected Start Tile: {clickedGridPos}", this);
-                    }
-                    else if (selectedTile != null && selectedTile.IsOccupied)
-                    {
-                        DebugHelper.Log($"Clicked on occupied tile {clickedGridPos}. Cannot select as start.", this);
-                        ClearHighlightsAndSelection();
-                    }
-                    else { // Should not happen if IsInPlayableBounds is true
-                         DebugHelper.LogWarning($"Clicked valid bounds {clickedGridPos} but got null tile?", this);
-                         ClearHighlightsAndSelection();
-                    }
+                    ClearInteractionState();
+                    _selectedUnit = gridTester.PlayerUnitInstance;
+                    _highlightedStartTile = clickedTile;
+                    clickedTile.SetHighlight(TileHighlightState.SelectedUnit);
+                    ShowReachableRange(clickedGridPos, defaultMovementRange, _selectedUnit);
+                    _currentState = InputState.UnitSelected;
+                    DebugHelper.Log($"Selected Player Unit at: {clickedGridPos}", this);
                 }
-                else
-                {
-                    ClearHighlightsAndSelection();
-                    DebugHelper.Log("Clicked outside playable area.", this);
-                }
+                else { ClearInteractionState(); _selectedUnit = null; }
                 break;
 
-            case InputState.TileSelected:
-                // --- Second Click: Select End Tile & Show Path (if reachable) ---
-                if (_startTilePos.HasValue && gridManager.IsInPlayableBounds(clickedGridPos))
-                {
-                    bool isReachable = false;
-                    foreach(Tile reachableTile in _highlightedReachableTiles) {
-                        if (reachableTile.gridPosition == clickedGridPos) { isReachable = true; break; }
+            case InputState.UnitSelected:
+                 if (_selectedUnit != null && clickedTile != null)
+                 {
+                    bool isReachable = _highlightedReachableTiles.Contains(clickedTile) || clickedTile == _highlightedStartTile;
+
+                    if (clickedTile == _highlightedStartTile) {
+                        DebugHelper.Log("Clicked start tile again. Deselecting.", this);
+                        ClearInteractionState(); break;
                     }
-                    if (clickedGridPos == _startTilePos.Value) isReachable = true; // Start tile is always "reachable"
 
                     if (isReachable)
                     {
-                        Tile targetTile = gridManager.GetTile(clickedGridPos);
-                         // Ensure target tile is not occupied by another unit
-                        if(targetTile != null && targetTile.IsOccupied) {
-                             DebugHelper.Log($"Cannot end movement on occupied tile {clickedGridPos}", this);
-                             // Optional: Instead of full reset, maybe just show feedback and stay in TileSelected state?
-                             // For now, reset.
-                             ClearHighlightsAndSelection();
-                             break; // Exit switch
+                        // ---== Occupancy Check ==---
+                        // DebugHelper.Log($"Checking target tile {clickedGridPos} for occupancy.", clickedTile); // Removed less useful log
+                        if (clickedTile.IsOccupied)
+                        {
+                             // Keep this informative log when blocking occurs
+                             DebugHelper.Log($"Occupancy Check PASSED for {clickedGridPos}. Occupied by: {clickedTile.occupyingUnit?.unitName ?? "NULL Unit"}.", clickedTile);
+                             DebugHelper.Log($"Cannot move to occupied tile {clickedGridPos}. Resetting.", this);
+                             ClearInteractionState();
+                             break;
                         }
-
+                        // else { // Removed warning for expected case (empty tile)
+                        //     DebugHelper.LogWarning($"Occupancy Check FAILED for {clickedGridPos}. Tile reports IsOccupied: {clickedTile.IsOccupied}. Proceeding.", clickedTile);
+                        // }
+                        // ---=====================---
 
                         _endTilePos = clickedGridPos;
                         ClearReachableHighlight();
 
-                        if (_startTilePos.Value != _endTilePos.Value)
-                        {
-                            DebugHelper.Log($"Target Tile selected: {clickedGridPos}. Finding path...", this);
-                            ShowPath(_startTilePos.Value, _endTilePos.Value);
-                            _currentState = InputState.PathDisplayed;
+                        DebugHelper.Log($"Target Tile selected: {clickedGridPos}. Calculating path...", this);
+                        List<Tile> path = _pathfinder.FindPath(_selectedUnit.CurrentTile.gridPosition, _endTilePos.Value, _selectedUnit);
+
+                        if (path != null && path.Count > 0) {
+                            ShowPath(_selectedUnit.CurrentTile.gridPosition, _endTilePos.Value);
+                            _currentState = InputState.UnitMoving;
+                            DebugHelper.Log($"Path found. Requesting move.", this);
+                            StartCoroutine(MoveUnitAlongPath(_selectedUnit, path));
                         }
-                        else
-                        {
-                            DebugHelper.Log("Clicked start tile again. Resetting.", this);
-                            ClearHighlightsAndSelection();
+                        else {
+                             DebugHelper.LogWarning($"No path calculated from {_selectedUnit.CurrentTile.gridPosition} to {_endTilePos}. Resetting.", this);
+                             ClearInteractionState();
                         }
                     }
-                    else
-                    {
-                        DebugHelper.Log("Clicked non-reachable tile. Resetting selection.", this);
-                        ClearHighlightsAndSelection();
-                    }
-                }
-                else
-                {
-                     DebugHelper.Log("Clicked outside playable area. Resetting selection.", this);
-                     ClearHighlightsAndSelection();
-                }
+                    else { DebugHelper.Log("Clicked non-reachable tile. Resetting.", this); ClearInteractionState(); }
+                 }
+                 else { DebugHelper.Log("Clicked outside/invalid state. Resetting.", this); ClearInteractionState(); }
                 break;
 
-            case InputState.PathDisplayed:
-                // --- Click after Path is Displayed: Reset Everything ---
-                 DebugHelper.Log("Clicked after path shown. Resetting state.", this);
-                 ClearHighlightsAndSelection();
+             case InputState.UnitMoving:
+                 DebugHelper.Log("Clicked while unit moving. Input ignored.", this);
                 break;
         }
     }
 
-    /// <summary>
-    /// Calculates and highlights the reachable tiles from a start position.
-    /// </summary>
-    private void ShowReachableRange(Vector2Int startPos, int range)
+    private void ShowReachableRange(Vector2Int startPos, int range, Unit requestingUnit)
     {
          if (_pathfinder == null) return;
-
-        List<Tile> reachable = _pathfinder.GetReachableTiles(startPos, range);
+        List<Tile> reachable = _pathfinder.GetReachableTiles(startPos, range, requestingUnit);
         _highlightedReachableTiles.Clear();
+        // DebugHelper.Log($"Found {reachable.Count} reachable for {requestingUnit?.unitName}.", this); // Optional: uncomment if needed
 
-        DebugHelper.Log($"Found {reachable.Count} tiles reachable from {startPos} with range {range}.", this);
-
-        foreach (Tile tile in reachable)
-        {
-            // Highlight reachable tiles, including start tile this time
-            // (but we avoid clearing start tile highlight later)
-             if (tile != null)
-             {
-                if (tile.gridPosition != _startTilePos) // Only add non-start tiles to clear list
-                     _highlightedReachableTiles.Add(tile);
-
-                if(tile != _highlightedStartTile) // Don't overwrite start tile's 'Selected' highlight
-                     tile.SetHighlight(TileHighlightState.MovementRange);
+        foreach (Tile tile in reachable) {
+             if (tile != null) {
+                if (tile != _highlightedStartTile) {
+                    _highlightedReachableTiles.Add(tile);
+                    tile.SetHighlight(TileHighlightState.MovementRange);
+                }
              }
         }
     }
 
-    /// <summary>
-    /// Calculates and highlights the path between two tiles.
-    /// </summary>
     private void ShowPath(Vector2Int startPos, Vector2Int endPos)
     {
         if (_pathfinder == null) return;
-
-        List<Tile> path = _pathfinder.FindPath(startPos, endPos);
+        List<Tile> path = _pathfinder.FindPath(startPos, endPos, _selectedUnit);
         _highlightedPathTiles.Clear();
 
-        if (path != null && path.Count > 0)
-        {
-             DebugHelper.Log($"Path found with {path.Count} steps.", this);
-            foreach (Tile tile in path)
-            {
-                if (tile.gridPosition != startPos) // Don't overwrite start tile highlight
-                {
-                    tile.SetHighlight(TileHighlightState.AttackRange); // Use AttackRange color for path
-                    _highlightedPathTiles.Add(tile);
-                }
-            }
-            // Optionally highlight the very last tile (end tile) differently?
-            // if(path.Count > 0) path[path.Count - 1]?.SetHighlight(SomeOtherColor);
+        if (path != null && path.Count > 0) {
+            // DebugHelper.Log($"ShowPath: {path.Count} steps.", this); // Optional: uncomment if needed
+            foreach (Tile tile in path) {
+                if (tile != _highlightedStartTile) {
+                    tile.SetHighlight(TileHighlightState.AttackRange);
+                    _highlightedPathTiles.Add(tile); } }
         }
-        else
-        {
+        else {
              DebugHelper.LogWarning($"ShowPath: No path found from {startPos} to {endPos}.", this);
-             // If no path, reset state back to TileSelected? Or None? Let's reset to None.
-             ClearHighlightsAndSelection();
+             // ClearInteractionState(); // Move failed, handled by MoveUnitAlongPath now
         }
     }
 
-    /// <summary>
-    /// Clears all visual highlights (Selection, Range, Path) and resets input state.
-    /// </summary>
-    private void ClearHighlightsAndSelection()
+    private void ClearInteractionState()
     {
-        // Use temporary lists to avoid issues if Clear methods modify the lists being iterated over
         List<Tile> tilesToClear = new List<Tile>();
-
-        // Add selected tile
-        if (_highlightedStartTile != null)
-        {
-            tilesToClear.Add(_highlightedStartTile);
-            _highlightedStartTile = null;
-        }
-
-        // Add reachable tiles
+        if (_highlightedStartTile != null) tilesToClear.Add(_highlightedStartTile);
         tilesToClear.AddRange(_highlightedReachableTiles);
-        _highlightedReachableTiles.Clear();
-
-        // Add path tiles
         tilesToClear.AddRange(_highlightedPathTiles);
+
+        _highlightedStartTile = null;
+        _highlightedReachableTiles.Clear();
         _highlightedPathTiles.Clear();
 
-        // Reset highlights, avoiding duplicates
         HashSet<Tile> processedTiles = new HashSet<Tile>();
-        foreach (Tile tile in tilesToClear)
-        {
-            if (tile != null && processedTiles.Add(tile)) // Add returns true if item was new
-            {
-                tile.SetHighlight(TileHighlightState.None);
-            }
-        }
+        foreach (Tile tile in tilesToClear) {
+            if (tile != null && processedTiles.Add(tile)) {
+                tile.SetHighlight(TileHighlightState.None); } }
 
-        // Reset state variables
-        _startTilePos = null;
+        _selectedUnit = null;
         _endTilePos = null;
         _currentState = InputState.None;
-        // DebugHelper.Log("Cleared Highlights & Selection", this);
     }
 
-    /// <summary>
-    /// Clears only the Movement Range highlights. Used when path is selected.
-    /// Ensures path tiles or start tile aren't accidentally cleared yet.
-    /// </summary>
     private void ClearReachableHighlight()
     {
-         List<Tile> tilesToClear = new List<Tile>(_highlightedReachableTiles); // Copy list
-        _highlightedReachableTiles.Clear(); // Clear original tracker
+         List<Tile> tilesToClear = new List<Tile>(_highlightedReachableTiles);
+        _highlightedReachableTiles.Clear();
+        foreach (Tile tile in tilesToClear) {
+            if (tile != null && tile != _highlightedStartTile) {
+                tile.SetHighlight(TileHighlightState.None); } }
+    }
 
-        foreach (Tile tile in tilesToClear)
-        {
-            // Ensure it's not the start tile and not going to be part of the path highlight
-            if (tile != null && tile != _highlightedStartTile)
-            {
-                // Check if this tile will be highlighted by the path later.
-                // This is tricky without knowing the path beforehand.
-                // A simpler approach: Just clear all non-start tiles. Path highlight will overwrite.
-                tile.SetHighlight(TileHighlightState.None);
-            }
-        }
-         // DebugHelper.Log("Cleared Reachable Highlights", this);
+     private IEnumerator MoveUnitAlongPath(Unit unitToMove, List<Tile> path)
+    {
+        if (unitToMove == null || path == null || path.Count == 0) {
+            DebugHelper.LogWarning("MoveUnitAlongPath: Invalid unit or path.", this);
+            ClearInteractionState(); yield break; }
+
+        DebugHelper.Log($"Starting movement for {unitToMove.unitName}...", this);
+        // _currentState = InputState.UnitMoving; // State is set before calling
+
+        yield return StartCoroutine(unitToMove.MoveOnPath(path));
+
+        DebugHelper.Log($"{unitToMove.unitName} finished movement.", this);
+        ClearInteractionState(); // Reset state AFTER movement coroutine finishes
     }
 }
