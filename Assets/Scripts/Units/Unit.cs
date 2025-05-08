@@ -5,7 +5,21 @@ using System.Collections.Generic; // Needed for List
 
 public class Unit : MonoBehaviour
 {
-    [Header("Basic Info")]
+    [Header("Core Unit Data")]
+    [Tooltip("Reference to the ScriptableObject defining the unit's race.")]
+    public RaceDataSO raceData;
+    [Tooltip("Reference to the ScriptableObject defining the unit's class.")]
+    public ClassDataSO classData;
+
+    [Header("Stats")]
+    [Tooltip("Current primary attributes of the unit.")]
+    public UnitPrimaryAttributes currentAttributes = new UnitPrimaryAttributes(); // Initialize with defaults
+    [Tooltip("Current level of the unit.")]
+    public int level = 1; // Start at level 1
+
+    // We will add calculated stats (like MaxVP, EffectiveSpeed etc.) later as properties or methods
+
+    [Header("Basic Info")] // Moved existing field here
     public string unitName = "Unit";
 
     [Header("Movement")]
@@ -15,7 +29,49 @@ public class Unit : MonoBehaviour
     public Tile CurrentTile => _currentTile;
     private bool _isMoving = false;
     public bool IsMoving => _isMoving;
-    private Coroutine _moveCoroutine = null; // Store reference to stop if needed
+    private Coroutine _moveCoroutine = null;
+
+    /// <summary>
+    /// Calculates the unit's movement range based on GDD 1.2.
+    /// CalculatedMoveRange = BaseMovementFromRaceClass + Floor(Echo / 5)
+    /// </summary>
+    public int CalculatedMoveRange
+    {
+        get
+        {
+            // Use default values if data is missing, but log a warning
+            int raceMoveBonus = 0;
+            int classMoveBonus = 3; // Default to a reasonable base like 3 if class is missing
+            int echoStat = 5; // Default echo
+
+            if (raceData == null) {
+                DebugHelper.LogWarning($"{unitName} missing RaceData for MoveRange calc.", this);
+            } else {
+                raceMoveBonus = raceData.baseMovementContribution;
+            }
+
+            if (classData == null) {
+                 DebugHelper.LogWarning($"{unitName} missing ClassData for MoveRange calc.", this);
+            } else {
+                classMoveBonus = classData.baseMovementContribution;
+            }
+
+             if (currentAttributes == null) {
+                 DebugHelper.LogWarning($"{unitName} missing Attributes for MoveRange calc.", this);
+            } else {
+                 echoStat = currentAttributes.Echo;
+            }
+
+            // GDD 1.2: BaseMovementFromRaceClass = Race Contribution + Class Contribution
+            int baseMovement = raceMoveBonus + classMoveBonus;
+
+            // GDD 1.2: Floor(Echo / 5)
+            int echoBonus = Mathf.FloorToInt(echoStat / 5f); // Use 5f for float division
+
+            return Mathf.Max(1, baseMovement + echoBonus); // Ensure minimum move range of 1
+        }
+    }
+
 
     /// <summary>
     /// Sets the unit's current tile AND updates occupancy.
@@ -24,21 +80,21 @@ public class Unit : MonoBehaviour
     public void PlaceOnTile(Tile tile)
     {
         if (_isMoving && _moveCoroutine != null) {
-            StopCoroutine(_moveCoroutine); // Stop current move if placing directly
+            StopCoroutine(_moveCoroutine);
             _isMoving = false;
             DebugHelper.LogWarning($"{unitName} placement interrupted ongoing movement.", this);
         }
 
+        // Clear previous tile if it exists and this unit occupies it
         if (_currentTile != null && _currentTile.occupyingUnit == this) {
             _currentTile.ClearOccupyingUnit();
         }
 
-        _currentTile = tile;
+        _currentTile = tile; // Set new current tile
 
         if (tile != null) {
-            transform.position = tile.transform.position;
-            tile.SetOccupyingUnit(this);
-            // DebugHelper.Log($"{unitName} placed on tile {tile.gridPosition}", this);
+            transform.position = tile.transform.position; // Snap position
+            tile.SetOccupyingUnit(this); // Occupy new tile
         }
         else {
              DebugHelper.LogWarning($"{unitName} placed on NULL tile.", this);
@@ -46,6 +102,7 @@ public class Unit : MonoBehaviour
     }
 
     // Simple override for initial placement via GridTester
+    // Kept for potential compatibility, but PlaceOnTile is preferred.
     public void SetCurrentTile(Tile tile) {
          PlaceOnTile(tile);
     }
@@ -59,7 +116,7 @@ public class Unit : MonoBehaviour
     {
         if (_isMoving) {
              DebugHelper.LogWarning($"{unitName} requested move while already moving.", this);
-             yield break; // Don't start a new move
+             yield break;
         }
         if (path == null || path.Count == 0) {
              DebugHelper.LogWarning($"{unitName} requested move with empty/null path.", this);
@@ -67,10 +124,10 @@ public class Unit : MonoBehaviour
         }
 
         _isMoving = true;
-        _moveCoroutine = StartCoroutine(PerformMovement(path)); // Start the actual movement logic
+        _moveCoroutine = StartCoroutine(PerformMovement(path));
         yield return _moveCoroutine; // Wait for the movement coroutine to finish
-        _moveCoroutine = null; // Clear reference after completion
-        _isMoving = false; // Movement finished
+        _moveCoroutine = null;
+        _isMoving = false;
         DebugHelper.Log($"{unitName} finished movement coroutine. Final Tile: {CurrentTile?.gridPosition}", this);
     }
 
@@ -80,7 +137,6 @@ public class Unit : MonoBehaviour
          Vector3 startPos, endPos;
          Tile nextTile;
 
-        // Ensure the unit starts at its current tile's position visually
         if (_currentTile != null) transform.position = _currentTile.transform.position;
 
         for (int i = 0; i < path.Count; i++)
@@ -88,7 +144,7 @@ public class Unit : MonoBehaviour
             nextTile = path[i];
             if (nextTile == null) {
                 DebugHelper.LogError("Movement path contained a null tile!", this);
-                break; // Exit loop if path is broken
+                break;
             }
 
             startPos = transform.position;
@@ -98,7 +154,7 @@ public class Unit : MonoBehaviour
             if (_currentTile != null && _currentTile.occupyingUnit == this) {
                  _currentTile.ClearOccupyingUnit();
             }
-             _currentTile = nextTile; // Update internal reference
+             _currentTile = nextTile;
              _currentTile.SetOccupyingUnit(this);
 
             // --- Visual Interpolation ---
@@ -114,13 +170,11 @@ public class Unit : MonoBehaviour
                  {
                      float distCovered = (Time.time - startTime) * moveSpeed;
                      journeyFraction = distCovered / journeyLength;
-                     // Ensure journeyFraction doesn't exceed 1 due to frame delays
                      transform.position = Vector3.Lerp(startPos, endPos, Mathf.Clamp01(journeyFraction));
-                     yield return null; // Wait for next frame
+                     yield return null;
                  }
             }
-            transform.position = endPos; // Snap to final position for the step
+            transform.position = endPos;
         }
-        // Final state should be: _currentTile is the last tile in the path, and it's occupied by this unit.
     }
-}
+} // End of Unit class

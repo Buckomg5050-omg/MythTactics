@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9d90a13933967ab49aab428740203502, type: 3}
+  m_Name: WarriorClass.asse
+  m_EditorClassIdentifier: 
+  className: Default Class
+  description: Class description.
+  coreGainPerLevel: 0.5
+  echoGainPerLevel: 0.5
+  pulseGainPerLevel: 0.5
+  sparkGainPerLevel: 0.5
+  glimmerGainPerLevel: 0.5
+  auraGainPerLevel: 0.2
+  baseVP: 20
+  baseMP: 10
+  baseSP: 10
+  baseFP: 10
+  baseIP: 5
+  classSpeedBonus: 100
+  baseMovementContribution: 3

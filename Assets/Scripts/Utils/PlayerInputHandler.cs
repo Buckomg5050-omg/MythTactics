@@ -13,9 +13,10 @@ public class PlayerInputHandler : MonoBehaviour
     public GridTester gridTester;
     private Pathfinder _pathfinder;
 
-    [Header("Input Settings")]
-    [Tooltip("Movement points to use when calculating reachable range on click.")]
-    public int defaultMovementRange = 4;
+    // Removed defaultMovementRange field
+    // [Header("Input Settings")]
+    // [Tooltip("Movement points to use when calculating reachable range on click.")]
+    // public int defaultMovementRange = 4;
 
     private enum InputState { None, UnitSelected, UnitMoving }
     private InputState _currentState = InputState.None;
@@ -82,7 +83,7 @@ public class PlayerInputHandler : MonoBehaviour
         Ray ray = _mainCamera.ScreenPointToRay(screenPosition);
         Plane xyPlane = new Plane(Vector3.forward, Vector3.zero);
 
-        if (!xyPlane.Raycast(ray, out float distance)) { ClearInteractionState(); /* DebugHelper.Log("Click miss.", this); */ return; } // Reduced log noise
+        if (!xyPlane.Raycast(ray, out float distance)) { ClearInteractionState(); return; }
 
         Vector3 worldPoint = ray.GetPoint(distance);
         Vector2Int clickedGridPos = gridManager.WorldToGrid(worldPoint);
@@ -91,15 +92,21 @@ public class PlayerInputHandler : MonoBehaviour
         switch (_currentState)
         {
             case InputState.None:
+                // --- First Click: Select Player Unit ---
                 if (clickedTile != null && clickedTile.IsOccupied && clickedTile.occupyingUnit == gridTester.PlayerUnitInstance)
                 {
                     ClearInteractionState();
                     _selectedUnit = gridTester.PlayerUnitInstance;
                     _highlightedStartTile = clickedTile;
                     clickedTile.SetHighlight(TileHighlightState.SelectedUnit);
-                    ShowReachableRange(clickedGridPos, defaultMovementRange, _selectedUnit);
+
+                    // --- Use Unit's Calculated Range ---
+                    int unitMoveRange = _selectedUnit.CalculatedMoveRange;
+                    ShowReachableRange(clickedGridPos, unitMoveRange, _selectedUnit);
+                    // --- End Use Unit's Calculated Range ---
+
                     _currentState = InputState.UnitSelected;
-                    DebugHelper.Log($"Selected Player Unit at: {clickedGridPos}", this);
+                    DebugHelper.Log($"Selected Player Unit at: {clickedGridPos} (Move Range: {unitMoveRange})", this); // Log includes calculated range
                 }
                 else { ClearInteractionState(); _selectedUnit = null; }
                 break;
@@ -116,20 +123,10 @@ public class PlayerInputHandler : MonoBehaviour
 
                     if (isReachable)
                     {
-                        // ---== Occupancy Check ==---
-                        // DebugHelper.Log($"Checking target tile {clickedGridPos} for occupancy.", clickedTile); // Removed less useful log
-                        if (clickedTile.IsOccupied)
-                        {
-                             // Keep this informative log when blocking occurs
-                             DebugHelper.Log($"Occupancy Check PASSED for {clickedGridPos}. Occupied by: {clickedTile.occupyingUnit?.unitName ?? "NULL Unit"}.", clickedTile);
-                             DebugHelper.Log($"Cannot move to occupied tile {clickedGridPos}. Resetting.", this);
-                             ClearInteractionState();
-                             break;
+                        if(clickedTile.IsOccupied) {
+                             DebugHelper.Log($"Cannot move to occupied tile {clickedGridPos} (Occupied by: {clickedTile.occupyingUnit?.unitName}). Resetting.", this);
+                             ClearInteractionState(); break;
                         }
-                        // else { // Removed warning for expected case (empty tile)
-                        //     DebugHelper.LogWarning($"Occupancy Check FAILED for {clickedGridPos}. Tile reports IsOccupied: {clickedTile.IsOccupied}. Proceeding.", clickedTile);
-                        // }
-                        // ---=====================---
 
                         _endTilePos = clickedGridPos;
                         ClearReachableHighlight();
@@ -164,7 +161,8 @@ public class PlayerInputHandler : MonoBehaviour
          if (_pathfinder == null) return;
         List<Tile> reachable = _pathfinder.GetReachableTiles(startPos, range, requestingUnit);
         _highlightedReachableTiles.Clear();
-        // DebugHelper.Log($"Found {reachable.Count} reachable for {requestingUnit?.unitName}.", this); // Optional: uncomment if needed
+        // Log now includes the range used
+        DebugHelper.Log($"Found {reachable.Count} tiles reachable from {startPos} with range {range} for {requestingUnit?.unitName}.", this);
 
         foreach (Tile tile in reachable) {
              if (tile != null) {
@@ -183,7 +181,6 @@ public class PlayerInputHandler : MonoBehaviour
         _highlightedPathTiles.Clear();
 
         if (path != null && path.Count > 0) {
-            // DebugHelper.Log($"ShowPath: {path.Count} steps.", this); // Optional: uncomment if needed
             foreach (Tile tile in path) {
                 if (tile != _highlightedStartTile) {
                     tile.SetHighlight(TileHighlightState.AttackRange);
@@ -191,7 +188,6 @@ public class PlayerInputHandler : MonoBehaviour
         }
         else {
              DebugHelper.LogWarning($"ShowPath: No path found from {startPos} to {endPos}.", this);
-             // ClearInteractionState(); // Move failed, handled by MoveUnitAlongPath now
         }
     }
 
@@ -232,11 +228,10 @@ public class PlayerInputHandler : MonoBehaviour
             ClearInteractionState(); yield break; }
 
         DebugHelper.Log($"Starting movement for {unitToMove.unitName}...", this);
-        // _currentState = InputState.UnitMoving; // State is set before calling
 
         yield return StartCoroutine(unitToMove.MoveOnPath(path));
 
         DebugHelper.Log($"{unitToMove.unitName} finished movement.", this);
-        ClearInteractionState(); // Reset state AFTER movement coroutine finishes
+        ClearInteractionState();
     }
 }
