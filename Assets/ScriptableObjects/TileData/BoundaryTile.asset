@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0cd6f9ed57e8e574fb3d0a50e6911f7d, type: 3}
   m_Name: BoundaryTile
   m_EditorClassIdentifier: 
-  type: 0
-  displayName: Unnamed Terrain
-  tileSprite: {fileID: 0}
-  movementCost: 1
+  type: 8
+  displayName: Boundary
+  tileSprite: {fileID: 10907, guid: 0000000000000000f000000000000000, type: 0}
+  movementCost: 255
   evasionBonus: 0

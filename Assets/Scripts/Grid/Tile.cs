@@ -7,7 +7,9 @@ public class Tile : MonoBehaviour
     public Vector2Int gridPosition;
     public TerrainType currentTerrainType;
     public int heightLevel = 0;
-
+    [Header("Occupancy")]
+    [Tooltip("Reference to the unit currently occupying this tile, if any.")]
+    public Unit occupyingUnit = null; // Default to null
     // GDD 5.1.2: OccupyingUnit (Unit) - We'll add this later when the Unit class exists
     // public Unit occupyingUnit;
     public bool IsOccupied
@@ -15,7 +17,7 @@ public class Tile : MonoBehaviour
         get
         {
             // return occupyingUnit != null; // When Unit class exists
-            return false;
+           return occupyingUnit != null;
         }
     }
 
@@ -99,4 +101,25 @@ public class Tile : MonoBehaviour
         DebugHelper.LogWarning($"Tile {gridPosition} (Obj: {this.name}) is missing TileTypeData when GetMovementCost called. Returning high movement cost.", this);
         return 255;
     }
-} // End of Tile class
+        /// <summary>
+    /// Sets the unit that is now occupying this tile.
+    /// </summary>
+    /// <param name="unit">The unit occupying the tile.</param>
+    public void SetOccupyingUnit(Unit unit)
+    {
+        this.occupyingUnit = unit;
+        // Optional: Fire OnTileDataChanged event here in the future
+        // DebugHelper.Log($"Tile {gridPosition} ({this.name}) is now occupied by {(unit != null ? unit.unitName : "NULL")}", this);
+    }
+
+    /// <summary>
+    /// Clears the occupying unit from this tile.
+    /// </summary>
+    public void ClearOccupyingUnit()
+    {
+        // Unit previousUnit = this.occupyingUnit; // Store if needed before clearing
+        this.occupyingUnit = null;
+        // Optional: Fire OnTileDataChanged event here in the future
+        // DebugHelper.Log($"Tile {gridPosition} ({this.name}) is no longer occupied by {(previousUnit != null ? previousUnit.unitName : "already empty")}", this);
+    }
+} // This is the final closing brace of the Tile class
