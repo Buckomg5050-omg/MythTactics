@@ -1,184 +1,112 @@
-using System;
-using System.Collections.Generic;
+// GridManager.cs
 using UnityEngine;
+// We don't need System.Collections.Generic for this version yet.
 
 public class GridManager : MonoBehaviour
 {
-    [SerializeField] private int _width = 10;
-    [SerializeField] private int _height = 10;
-    [SerializeField] private float _tileSize = 1f;
-    [SerializeField] private GameObject _tilePrefab;
-    [SerializeField] private GameObject _unitPrefab;
-    [SerializeField] private TileTypeSO _plainTileType;
-    [SerializeField] private TileTypeSO _forestTileType;
-    [SerializeField] private TileTypeSO _mountainTileType;
-    [SerializeField] private TileTypeSO _waterTileType;
+    [Header("Grid Dimensions")]
+    [Tooltip("The playable width of the grid.")]
+    public int playableWidth = 10;
+
+    [Tooltip("The playable height of the grid.")]
+    public int playableHeight = 10;
+
+    [Header("Tile Setup")]
+    [Tooltip("The prefab to use for instantiating tiles.")]
+    public GameObject tilePrefab;
+
+    [Tooltip("Default TileTypeSO to use for tiles if no specific map data is loaded.")]
+    public TileTypeSO defaultTileType;
+
+    [Tooltip("Parent transform for instantiated tile GameObjects. Helps keep hierarchy clean.")]
+    public Transform tileContainer;
 
     private Tile[,] _tiles;
+    public Tile[,] Tiles => _tiles; // Public getter for the tiles array
 
-    public TileTypeSO PlainTileType => _plainTileType;
-
-    public event Action<Tile> OnTileChanged;
-    public event Action OnGridRebuilt;
-
-    private void Awake()
+    void Start()
     {
-        InitializeGrid();
-        SpawnTestUnit();
+        GenerateSimpleGrid();
     }
 
-    private void InitializeGrid()
+    void GenerateSimpleGrid()
     {
-        _tiles = new Tile[_width, _height];
-
-        for (int x = 0; x < _width; x++)
+        if (tilePrefab == null)
         {
-            for (int y = 0; y < _height; y++)
-            {
-                Vector3 worldPos = GridToWorld(new Vector2Int(x, y));
-                GameObject tileObj = Instantiate(_tilePrefab, worldPos, Quaternion.identity, transform);
-                Tile tile = tileObj.GetComponent<Tile>();
-
-                TileTypeSO tileType;
-                int heightLevel;
-                if (x == 0 || x == _width - 1 || y == 0 || y == _height - 1)
-                {
-                    tileType = _waterTileType;
-                    heightLevel = 0;
-                }
-                else if ((x + y) % 3 == 0)
-                {
-                    tileType = _forestTileType;
-                    heightLevel = 1;
-                }
-                else if ((x + y) % 5 == 0)
-                {
-                    tileType = _mountainTileType;
-                    heightLevel = 2;
-                }
-                else
-                {
-                    tileType = _plainTileType;
-                    heightLevel = 0;
-                }
-
-                tile.Initialize(new Vector2Int(x, y), tileType, heightLevel);
-                _tiles[x, y] = tile;
-
-                OnTileChanged?.Invoke(tile);
-            }
+            DebugHelper.LogError("TilePrefab is not assigned in GridManager! Cannot generate grid.", this);
+            return;
+        }
+        if (defaultTileType == null)
+        {
+            DebugHelper.LogError("DefaultTileType is not assigned in GridManager! Assign a TileTypeSO. Cannot generate grid.", this);
+            return;
         }
 
-        OnGridRebuilt?.Invoke();
-    }
+        _tiles = new Tile[playableWidth, playableHeight];
 
-    private void SpawnTestUnit()
-    {
-        Tile startTile = GetTile(1, 1);
-        if (startTile != null && _unitPrefab != null)
+        if (tileContainer == null)
         {
-            GameObject unitObj = Instantiate(_unitPrefab, transform);
-            Unit unit = unitObj.GetComponent<Unit>();
-            unit.Initialize(startTile);
+            GameObject containerGO = new GameObject("_TileContainer");
+            tileContainer = containerGO.transform;
+            tileContainer.SetParent(this.transform);
+            DebugHelper.Log("No TileContainer assigned. Created one automatically under GridManager.", this);
         }
         else
         {
-            Debug.LogError("Failed to spawn test unit: Invalid tile or unit prefab.");
+            foreach (Transform child in tileContainer)
+            {
+                Destroy(child.gameObject);
+            }
+            DebugHelper.Log("Cleared existing tiles from TileContainer.", this);
         }
+
+        float xOffset = -(playableWidth / 2.0f) + 0.5f;
+        float yOffset = -(playableHeight / 2.0f) + 0.5f;
+
+        for (int x = 0; x < playableWidth; x++)
+        {
+            for (int y = 0; y < playableHeight; y++)
+            {
+                Vector3 worldPosition = new Vector3(x + xOffset, y + yOffset, 0);
+                GameObject tileGO = Instantiate(tilePrefab, worldPosition, Quaternion.identity, tileContainer);
+                Tile tileComponent = tileGO.GetComponent<Tile>();
+
+                if (tileComponent != null)
+                {
+                    tileComponent.Initialize(new Vector2Int(x, y), defaultTileType, 0);
+                    _tiles[x, y] = tileComponent;
+                }
+                else
+                {
+                    DebugHelper.LogError($"TilePrefab is missing the Tile component! Prefab: {tilePrefab.name}. Destroying instantiated object.", tileGO);
+                    Destroy(tileGO); // Destroy the problematic GameObject
+                }
+            }
+        }
+        DebugHelper.Log($"Generated a {playableWidth}x{playableHeight} grid with '{defaultTileType.displayName}' tiles.", this);
     }
 
     public Tile GetTile(int x, int y)
     {
-        if (IsInBounds(new Vector2Int(x, y)))
+        if (IsInBounds(x, y))
+        {
             return _tiles[x, y];
-        Debug.LogWarning($"Tile at ({x}, {y}) is out of bounds.");
+        }
         return null;
     }
 
-    public Vector3 GridToWorld(Vector2Int gridPos)
+    public Tile GetTile(Vector2Int gridPos)
     {
-        return new Vector3(gridPos.x * _tileSize + _tileSize / 2, gridPos.y * _tileSize + _tileSize / 2, 0);
+        return GetTile(gridPos.x, gridPos.y);
     }
 
-    public Vector2Int WorldToGrid(Vector3 worldPos)
+    public bool IsInBounds(int x, int y)
     {
-        return new Vector2Int(
-            Mathf.FloorToInt(worldPos.x / _tileSize),
-            Mathf.FloorToInt(worldPos.y / _tileSize)
-        );
+        return x >= 0 && x < playableWidth && y >= 0 && y < playableHeight;
     }
 
-    public bool IsInBounds(Vector2Int pos)
+    public bool IsInBounds(Vector2Int gridPos)
     {
-        return pos.x >= 0 && pos.x < _width && pos.y >= 0 && pos.y < _height;
-    }
-
-    public List<Vector2Int> GetNeighbors(Vector2Int pos, bool includeDiagonals)
-    {
-        List<Vector2Int> neighbors = new List<Vector2Int>
-        {
-            new Vector2Int(pos.x + 1, pos.y),
-            new Vector2Int(pos.x - 1, pos.y),
-            new Vector2Int(pos.x, pos.y + 1),
-            new Vector2Int(pos.x, pos.y - 1)
-        };
-
-        if (includeDiagonals)
-        {
-            neighbors.Add(new Vector2Int(pos.x + 1, pos.y + 1));
-            neighbors.Add(new Vector2Int(pos.x + 1, pos.y - 1));
-            neighbors.Add(new Vector2Int(pos.x - 1, pos.y + 1));
-            neighbors.Add(new Vector2Int(pos.x - 1, pos.y - 1));
-        }
-
-        return neighbors.FindAll(n => IsInBounds(n));
-    }
-
-    public List<Tile> GetTilesInRange(Vector2Int center, int range)
-    {
-        List<Tile> tilesInRange = new List<Tile>();
-        for (int x = center.x - range; x <= center.x + range; x++)
-        {
-            for (int y = center.y - range; y <= center.y + range; y++)
-            {
-                Vector2Int pos = new Vector2Int(x, y);
-                if (IsInBounds(pos) && ManhattanDistance(pos, center) <= range)
-                {
-                    Tile tile = GetTile(x, y);
-                    if (tile != null && tile.CanBeOccupied(null))
-                        tilesInRange.Add(tile);
-                }
-            }
-        }
-        return tilesInRange;
-    }
-
-    public int ManhattanDistance(Vector2Int a, Vector2Int b)
-    {
-        return Mathf.Abs(a.x - b.x) + Mathf.Abs(a.y - b.y);
-    }
-
-    public void SetTileType(Vector2Int pos, TileTypeSO tileType)
-    {
-        Tile tile = GetTile(pos.x, pos.y);
-        if (tile != null)
-        {
-            tile.SetTileType(tileType);
-            if (tileType == _plainTileType)
-                tile.SetHeightLevel(0);
-            OnTileChanged?.Invoke(tile);
-            GetComponent<Pathfinder>().InvalidateCache();
-        }
-    }
-
-    public void SetTileHeight(Vector2Int pos, int heightLevel)
-    {
-        Tile tile = GetTile(pos.x, pos.y);
-        if (tile != null)
-        {
-            tile.SetHeightLevel(heightLevel);
-            OnTileChanged?.Invoke(tile);
-            GetComponent<Pathfinder>().InvalidateCache();
-        }
+        return IsInBounds(gridPos.x, gridPos.y);
     }
 }

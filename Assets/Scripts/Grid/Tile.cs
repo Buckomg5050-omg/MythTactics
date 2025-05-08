@@ -1,77 +1,84 @@
+// Tile.cs
 using UnityEngine;
-
-public enum TileHighlight { None, MovementRange, AttackRange, Selected }
 
 public class Tile : MonoBehaviour
 {
-    [SerializeField] private TileTypeSO _tileType;
-    [SerializeField] private SpriteRenderer _spriteRenderer;
+    [Header("State & Identification")]
+    public Vector2Int gridPosition;
+    public TerrainType currentTerrainType;
+    public int heightLevel = 0;
 
-    private TileHighlight _highlightState = TileHighlight.None;
+    public bool IsOccupied => false; // occupyingUnit == null; // Placeholder
 
-    public Vector2Int GridPosition { get; private set; }
-    public TileTypeSO TileType => _tileType;
-    public int MovementCost => _tileType.IsPassable ? Mathf.RoundToInt(_tileType.MovementCostMultiplier) : 255;
-    public Unit OccupyingUnit { get; private set; }
-    public bool IsOccupied => OccupyingUnit != null;
+    [Header("Data Source")]
+    public TileTypeSO tileTypeData;
 
-    public void Initialize(Vector2Int gridPos, TileTypeSO tileType)
+    [Header("Visuals & Highlighting")]
+    [SerializeField]
+    private SpriteRenderer _spriteRenderer;
+    private TileHighlightState _currentHighlightState = TileHighlightState.None;
+
+    void Awake()
     {
-        GridPosition = gridPos;
-        _tileType = tileType;
-        name = $"Tile_{gridPos.x}_{gridPos.y}";
-        UpdateVisual();
-    }
-
-    public bool CanBeOccupied(Unit unit)
-    {
-        return !IsOccupied && _tileType.IsPassable;
-    }
-
-    public void SetOccupyingUnit(Unit unit)
-    {
-        OccupyingUnit = unit;
-    }
-
-    public void ClearOccupyingUnit()
-    {
-        OccupyingUnit = null;
-    }
-
-    public void SetHighlight(TileHighlight highlight)
-    {
-        _highlightState = highlight;
-        UpdateVisual();
-    }
-
-    private void UpdateVisual()
-    {
-        if (_spriteRenderer == null || _tileType == null) return;
-
-        _spriteRenderer.sprite = _tileType.TileSprite;
-
-        // Apply highlight color
-        switch (_highlightState)
+        if (_spriteRenderer == null) _spriteRenderer = GetComponent<SpriteRenderer>();
+        if (_spriteRenderer == null) _spriteRenderer = GetComponentInChildren<SpriteRenderer>();
+        if (_spriteRenderer == null)
         {
-            case TileHighlight.None:
-                _spriteRenderer.color = Color.white;
-                break;
-            case TileHighlight.MovementRange:
-                _spriteRenderer.color = new Color(0f, 0.8f, 0f, 0.5f); // Semi-transparent green
-                break;
-            case TileHighlight.AttackRange:
-                _spriteRenderer.color = new Color(0.8f, 0f, 0f, 0.5f); // Semi-transparent red
-                break;
-            case TileHighlight.Selected:
-                _spriteRenderer.color = new Color(0f, 0f, 0.8f, 0.5f); // Semi-transparent blue
-                break;
+            // Use DebugHelper if available, otherwise fallback
+            if (FindObjectOfType<GridManager>() != null) // Crude check if DebugHelper might be usable
+                 DebugHelper.LogWarning($"Tile at {gridPosition} is missing a SpriteRenderer. Please add one.", this);
+            else
+                 Debug.LogWarning($"Tile at {gridPosition} is missing a SpriteRenderer. Please add one.", this);
         }
     }
 
-    #if UNITY_EDITOR
-    private void OnValidate()
+    public void Initialize(Vector2Int position, TileTypeSO data, int height = 0)
     {
-        UpdateVisual();
+        this.gridPosition = position;
+        this.tileTypeData = data;
+        this.currentTerrainType = data != null ? data.type : default(TerrainType);
+        this.heightLevel = height;
+        this.name = $"Tile_{position.x}_{position.y} ({currentTerrainType})";
+        UpdateVisualsFromData();
     }
-    #endif
+
+    public void UpdateVisualsFromData()
+    {
+        if (_spriteRenderer != null && tileTypeData != null && tileTypeData.tileSprite != null)
+        {
+            _spriteRenderer.sprite = tileTypeData.tileSprite;
+        }
+        else if (_spriteRenderer != null)
+        {
+            _spriteRenderer.sprite = null;
+        }
+    }
+
+    public void SetHighlight(TileHighlightState state)
+    {
+        _currentHighlightState = state;
+        if (_spriteRenderer != null)
+        {
+            switch (state)
+            {
+                case TileHighlightState.None: _spriteRenderer.color = Color.white; break;
+                case TileHighlightState.MovementRange: _spriteRenderer.color = Color.blue; break;
+                case TileHighlightState.AttackRange: _spriteRenderer.color = Color.red; break;
+                case TileHighlightState.SelectedUnit: _spriteRenderer.color = Color.green; break;
+                case TileHighlightState.Hovered: _spriteRenderer.color = Color.yellow; break;
+                default: _spriteRenderer.color = Color.white; break;
+            }
+        }
+    }
+
+    public int GetMovementCost()
+    {
+        if (tileTypeData != null) return tileTypeData.movementCost;
+        // Use DebugHelper if available
+        if (FindObjectOfType<GridManager>() != null)
+            DebugHelper.LogWarning($"Tile {gridPosition} is missing TileTypeData. Returning high movement cost.", this);
+        else
+            Debug.LogWarning($"Tile {gridPosition} is missing TileTypeData. Returning high movement cost.", this);
+        return 255;
+    }
 }
