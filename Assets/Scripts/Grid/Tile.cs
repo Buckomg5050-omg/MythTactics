@@ -8,7 +8,16 @@ public class Tile : MonoBehaviour
     public TerrainType currentTerrainType;
     public int heightLevel = 0;
 
-    public bool IsOccupied => false; // occupyingUnit == null; // Placeholder
+    // GDD 5.1.2: OccupyingUnit (Unit) - We'll add this later when the Unit class exists
+    // public Unit occupyingUnit;
+    public bool IsOccupied
+    {
+        get
+        {
+            // return occupyingUnit != null; // When Unit class exists
+            return false;
+        }
+    }
 
     [Header("Data Source")]
     public TileTypeSO tileTypeData;
@@ -22,13 +31,10 @@ public class Tile : MonoBehaviour
     {
         if (_spriteRenderer == null) _spriteRenderer = GetComponent<SpriteRenderer>();
         if (_spriteRenderer == null) _spriteRenderer = GetComponentInChildren<SpriteRenderer>();
+        
         if (_spriteRenderer == null)
         {
-            // Use DebugHelper if available, otherwise fallback
-            if (FindObjectOfType<GridManager>() != null) // Crude check if DebugHelper might be usable
-                 DebugHelper.LogWarning($"Tile at {gridPosition} is missing a SpriteRenderer. Please add one.", this);
-            else
-                 Debug.LogWarning($"Tile at {gridPosition} is missing a SpriteRenderer. Please add one.", this);
+            DebugHelper.LogError($"Tile at {gridPosition} (Obj: {this.name}) is MISSING a SpriteRenderer. Visuals will fail.", this);
         }
     }
 
@@ -39,18 +45,31 @@ public class Tile : MonoBehaviour
         this.currentTerrainType = data != null ? data.type : default(TerrainType);
         this.heightLevel = height;
         this.name = $"Tile_{position.x}_{position.y} ({currentTerrainType})";
+        
         UpdateVisualsFromData();
+
+        if (this.tileTypeData == null)
+        {
+            DebugHelper.LogWarning($"Tile at {gridPosition} (Obj: {this.name}) was initialized with NULL TileTypeSO data.", this);
+        }
     }
 
     public void UpdateVisualsFromData()
     {
-        if (_spriteRenderer != null && tileTypeData != null && tileTypeData.tileSprite != null)
+        if (_spriteRenderer != null)
         {
-            _spriteRenderer.sprite = tileTypeData.tileSprite;
-        }
-        else if (_spriteRenderer != null)
-        {
-            _spriteRenderer.sprite = null;
+            if (tileTypeData != null && tileTypeData.tileSprite != null)
+            {
+                _spriteRenderer.sprite = tileTypeData.tileSprite;
+            }
+            else
+            {
+                _spriteRenderer.sprite = null;
+                if (tileTypeData != null && tileTypeData.tileSprite == null && currentTerrainType != TerrainType.Boundary)
+                {
+                    DebugHelper.LogWarning($"Tile {gridPosition} ({currentTerrainType}) has TileTypeData but is missing a TileSprite.", this);
+                }
+            }
         }
     }
 
@@ -62,10 +81,10 @@ public class Tile : MonoBehaviour
             switch (state)
             {
                 case TileHighlightState.None: _spriteRenderer.color = Color.white; break;
-                case TileHighlightState.MovementRange: _spriteRenderer.color = Color.blue; break;
-                case TileHighlightState.AttackRange: _spriteRenderer.color = Color.red; break;
-                case TileHighlightState.SelectedUnit: _spriteRenderer.color = Color.green; break;
-                case TileHighlightState.Hovered: _spriteRenderer.color = Color.yellow; break;
+                case TileHighlightState.MovementRange: _spriteRenderer.color = new Color(0.5f, 0.5f, 1f, 0.7f); break;
+                case TileHighlightState.AttackRange: _spriteRenderer.color = new Color(1f, 0.5f, 0.5f, 0.7f); break;
+                case TileHighlightState.SelectedUnit: _spriteRenderer.color = new Color(0.5f, 1f, 0.5f, 0.8f); break;
+                case TileHighlightState.Hovered: _spriteRenderer.color = new Color(1f, 1f, 0.5f, 0.7f); break;
                 default: _spriteRenderer.color = Color.white; break;
             }
         }
@@ -73,12 +92,11 @@ public class Tile : MonoBehaviour
 
     public int GetMovementCost()
     {
-        if (tileTypeData != null) return tileTypeData.movementCost;
-        // Use DebugHelper if available
-        if (FindObjectOfType<GridManager>() != null)
-            DebugHelper.LogWarning($"Tile {gridPosition} is missing TileTypeData. Returning high movement cost.", this);
-        else
-            Debug.LogWarning($"Tile {gridPosition} is missing TileTypeData. Returning high movement cost.", this);
+        if (tileTypeData != null)
+        {
+            return tileTypeData.movementCost;
+        }
+        DebugHelper.LogWarning($"Tile {gridPosition} (Obj: {this.name}) is missing TileTypeData when GetMovementCost called. Returning high movement cost.", this);
         return 255;
     }
-}
+} // End of Tile class
