@@ -1,6 +1,6 @@
 // GridTester.cs
 using UnityEngine;
-using System.Collections; // Required for Coroutine and WaitForSeconds
+using System.Collections; // For Coroutine
 using System.Collections.Generic; // For List<T>
 
 public class GridTester : MonoBehaviour
@@ -11,10 +11,10 @@ public class GridTester : MonoBehaviour
 
     private Pathfinder _pathfinder; // Pathfinder instance
 
-    [Header("Pathfinding Test Parameters")]
+    [Header("Pathfinding Test Parameters")] // Kept for potential headless tests
     public Vector2Int pathTestStart = new Vector2Int(1, 1);
     public Vector2Int pathTestEnd = new Vector2Int(20, 20);
-    public int reachableTestRange = 3; // Movement points for reachable test
+    // Reachable test range moved to PlayerInputHandler for interactive test
 
     [Header("Test Occupancy Setup (Optional)")]
     [Tooltip("Drag a simple prefab here to represent a blocking unit for tests.")]
@@ -39,38 +39,27 @@ public class GridTester : MonoBehaviour
     {
         yield return null; // Wait one frame for GridManager to initialize
 
-        DebugHelper.Log("===== GridTester: Starting All Grid Tests =====", this);
+        DebugHelper.Log("===== GridTester: Starting All LOGGING Grid Tests =====", this);
 
-        ClearAllHighlights(); // Clear previous highlights before setup
+        // Setup is still useful to test pathfinding with obstacles
         SetupDummyUnitsForTest();
         yield return null; // Wait a frame
 
-        // Run non-visual tests first
+        // Run tests - these now just log results, no visual pausing/highlighting
         TestGridToWorld();
         TestWorldToGrid();
         TestGetNeighbors();
         TestGetTilesInRange(); // The basic range test
+        TestPathfinding();
+        TestGetReachableTiles(); // Test reachable tiles calculation (logs only)
 
-        // --- Pathfinding tests with Visualization ---
-        DebugHelper.Log("--- Running Path Test (Visual) ---", this);
-        ClearAllHighlights(); // Clear before path test
-        TestPathfinding(); // This will now highlight the path
-        DebugHelper.Log("Pausing 2s to show PATH highlight...", this);
-        yield return new WaitForSeconds(2.0f); // Pause to see the path highlight
+        DebugHelper.Log("===== GridTester: Finished All LOGGING Grid Tests =====", this);
 
-        DebugHelper.Log("--- Running Reachable Test (Visual) ---", this);
-        ClearAllHighlights(); // Clear before reachable test
-        TestGetReachableTiles(); // This will now highlight reachable tiles
-        DebugHelper.Log("Pausing 3s to show REACHABLE highlight...", this);
-        yield return new WaitForSeconds(3.0f); // Pause to see the reachable highlight
-
-        ClearAllHighlights(); // Final clear after tests
-
-        DebugHelper.Log("===== GridTester: Finished All Grid Tests =====", this);
-
+        // Cleanup happens after all tests
         CleanupDummyUnits();
     }
 
+    // --- Setup / Cleanup ---
     void SetupDummyUnitsForTest()
     {
         if (dummyUnitPrefab == null) return;
@@ -105,7 +94,7 @@ public class GridTester : MonoBehaviour
             _dummyUnits.Clear(); }
     }
 
-
+    // --- Test Methods (Log Only) ---
     void TestGridToWorld() {
         DebugHelper.Log("--- GridTester: Testing GridToWorld ---", this);
         Vector2Int pos1 = new Vector2Int(0, 0); Vector3 world1 = gridManager.GridToWorld(pos1); DebugHelper.Log($"G2W: {pos1} -> {world1}", this); Tile tile1 = gridManager.GetTile(pos1); if (tile1) DebugHelper.Log($"G2W Actual: {tile1.transform.position}", this);
@@ -129,8 +118,8 @@ public class GridTester : MonoBehaviour
     }
     void TestGetTilesInRange() {
         DebugHelper.Log("--- GridTester: Testing GetTilesInRange ---", this);
-        Vector2Int p1 = new Vector2Int(gridManager.playableWidth/2, gridManager.playableHeight/2); int r1=2; if(gridManager.IsInPlayableBounds(p1)) { List<Tile> res1=gridManager.GetTilesInRange(p1,r1); DebugHelper.Log($"TilesInRange {p1} R={r1}: Found {res1.Count}", this); res1.ForEach(t=>DebugHelper.Log($"- {t.gridPosition}",this));} else DebugHelper.LogWarning($"GTIR T1 OOB {p1}");
-        Vector2Int p2 = new Vector2Int(0,0); int r2=1; if(gridManager.IsInPlayableBounds(p2)) { List<Tile> res2=gridManager.GetTilesInRange(p2,r2); DebugHelper.Log($"TilesInRange {p2} R={r2}: Found {res2.Count}", this); res2.ForEach(t=>DebugHelper.Log($"- {t.gridPosition}",this));} else DebugHelper.LogWarning($"GTIR T2 OOB {p2}");
+        Vector2Int p1 = new Vector2Int(gridManager.playableWidth/2, gridManager.playableHeight/2); int r1=2; if(gridManager.IsInPlayableBounds(p1)) { List<Tile> res1=gridManager.GetTilesInRange(p1,r1); DebugHelper.Log($"TilesInRange {p1} R={r1}: Found {res1.Count}", this); /* res1.ForEach(t=>DebugHelper.Log($"- {t.gridPosition}",this)); */ } else DebugHelper.LogWarning($"GTIR T1 OOB {p1}"); // Commented out detailed log
+        Vector2Int p2 = new Vector2Int(0,0); int r2=1; if(gridManager.IsInPlayableBounds(p2)) { List<Tile> res2=gridManager.GetTilesInRange(p2,r2); DebugHelper.Log($"TilesInRange {p2} R={r2}: Found {res2.Count}", this); /* res2.ForEach(t=>DebugHelper.Log($"- {t.gridPosition}",this)); */ } else DebugHelper.LogWarning($"GTIR T2 OOB {p2}"); // Commented out detailed log
         DebugHelper.Log("--- GridTester: Finished GTIR Test ---", this);
     }
     void TestPathfinding() {
@@ -138,62 +127,38 @@ public class GridTester : MonoBehaviour
         DebugHelper.Log("--- GridTester: Testing Pathfinding ---", this);
         DebugHelper.Log($"Pathfinding {pathTestStart} -> {pathTestEnd}", this);
         List<Tile> path1 = _pathfinder.FindPath(pathTestStart, pathTestEnd);
-        if (path1 != null && path1.Count > 0) {
-            DebugHelper.Log($"Path found ({path1.Count} steps):", this); string s1 = $"S({pathTestStart})->";
-            foreach (Tile t in path1) { s1 += $"{t.gridPosition}->"; if (t!=null) t.SetHighlight(TileHighlightState.AttackRange); } // Highlight Path
-            s1 += $"E({pathTestEnd})"; DebugHelper.Log(s1, this);
-        } else { DebugHelper.LogWarning($"No path found {pathTestStart} -> {pathTestEnd}.", this); }
+        if (path1 != null && path1.Count > 0) { DebugHelper.Log($"Path found ({path1.Count} steps): OK", this); /* Log path details commented out */ } else { DebugHelper.LogWarning($"No path found {pathTestStart} -> {pathTestEnd}.", this); }
 
         Tile endTile = gridManager.GetTile(pathTestEnd);
-        if (endTile != null && endTile.IsOccupied) {
-            DebugHelper.Log($"Pathfinding {pathTestStart} -> {pathTestEnd} (Expect fail: Occupied End)", this); List<Tile> path2 = _pathfinder.FindPath(pathTestStart, pathTestEnd);
-            if (path2 != null && path2.Count > 0) { DebugHelper.LogWarning($"Path found to occupied {pathTestEnd}!", this);} else { DebugHelper.Log($"Correctly no path to occupied {pathTestEnd}.", this); }
-        }
+        if (endTile != null && endTile.IsOccupied) { DebugHelper.Log($"Pathfinding {pathTestStart} -> {pathTestEnd} (Expect fail: Occupied End)", this); List<Tile> path2 = _pathfinder.FindPath(pathTestStart, pathTestEnd); if (path2 != null && path2.Count > 0) { DebugHelper.LogWarning($"Path found to occupied {pathTestEnd}!", this);} else { DebugHelper.Log($"Correctly no path to occupied {pathTestEnd}.", this); } }
 
         Vector2Int blockStart = new Vector2Int(1,1); Vector2Int blockEnd = new Vector2Int(6,6); Vector2Int blockPos = new Vector2Int(5,5); bool blockerPresent = false; foreach(var u in _dummyUnits) if(u.CurrentTile?.gridPosition == blockPos) blockerPresent = true;
-        if (blockerPresent && gridManager.IsInPlayableBounds(blockStart) && gridManager.IsInPlayableBounds(blockEnd)) {
-             DebugHelper.Log($"Pathfinding {blockStart} -> {blockEnd} (Expect route around {blockPos})", this);
-             List<Tile> path3 = _pathfinder.FindPath(blockStart, blockEnd);
-              if (path3 != null && path3.Count > 0) { DebugHelper.Log($"Path found ({path3.Count} steps) (Blocked):", this); string s3 = $"S({blockStart})->"; foreach (Tile t in path3) { s3 += $"{t.gridPosition}->"; if (t!=null) t.SetHighlight(TileHighlightState.AttackRange); } s3 += $"E({blockEnd})"; DebugHelper.Log(s3, this); } else { DebugHelper.LogWarning($"No path found {blockStart} -> {blockEnd} (Blocked).", this); }
-        } else if (!blockerPresent) DebugHelper.Log($"Skipping blocked path test ({blockPos} not occupied).", this);
+        if (blockerPresent && gridManager.IsInPlayableBounds(blockStart) && gridManager.IsInPlayableBounds(blockEnd)) { DebugHelper.Log($"Pathfinding {blockStart} -> {blockEnd} (Expect route around {blockPos})", this); List<Tile> path3 = _pathfinder.FindPath(blockStart, blockEnd); if (path3 != null && path3.Count > 0) { DebugHelper.Log($"Path found ({path3.Count} steps) (Blocked): OK", this); /* Log path details commented out */ } else { DebugHelper.LogWarning($"No path found {blockStart} -> {blockEnd} (Blocked).", this); } } else if (!blockerPresent) DebugHelper.Log($"Skipping blocked path test ({blockPos} not occupied).", this);
         DebugHelper.Log("--- GridTester: Finished PF Test ---", this);
     }
-
-    void TestGetReachableTiles()
+    void TestGetReachableTiles() // Renamed internal variable to avoid conflict
     {
         if (_pathfinder == null) { DebugHelper.LogError("Reachable Test Error: Pathfinder null.", this); return; }
-        DebugHelper.Log("--- GridTester: Testing GetReachableTiles ---", this);
+        DebugHelper.Log("--- GridTester: Testing GetReachableTiles Calc ---", this);
 
-        Vector2Int center = new Vector2Int(gridManager.playableWidth/2, gridManager.playableHeight/2); int range1 = reachableTestRange;
-        if (gridManager.IsInPlayableBounds(center)) {
-            DebugHelper.Log($"Reachable from {center} with {range1} move:", this);
-            List<Tile> reach1 = _pathfinder.GetReachableTiles(center, range1);
-            DebugHelper.Log($"Found {reach1.Count} reachable tiles:", this);
-            int count = 0; foreach(Tile t in reach1) { if (t!=null) t.SetHighlight(TileHighlightState.MovementRange); if(count < 10 || count > reach1.Count-5) DebugHelper.Log($"- {t?.gridPosition}", this); else if (count==10) DebugHelper.Log("...", this); count++;} // Highlight Reachable
-            bool blockerFound = false; if (_dummyUnits.Count > 0 && _dummyUnits[0].CurrentTile != null) { Vector2Int bp = _dummyUnits[0].CurrentTile.gridPosition; foreach(var t in reach1) if(t.gridPosition == bp) blockerFound=true; if(blockerFound) DebugHelper.LogWarning($"Reachable Test1: Blocker {bp} found in list!", this); else DebugHelper.Log($"Reachable Test1: Blocker {bp} correctly NOT found.", this);}
-        } else DebugHelper.LogWarning($"Reachable T1 OOB {center}");
+        Vector2Int center_grt = new Vector2Int(gridManager.playableWidth/2, gridManager.playableHeight/2); int range1_grt = 3; // Use a local range variable
+        if (gridManager.IsInPlayableBounds(center_grt)) {
+            DebugHelper.Log($"Reachable from {center_grt} with {range1_grt} move:", this);
+            List<Tile> reach1 = _pathfinder.GetReachableTiles(center_grt, range1_grt);
+            DebugHelper.Log($"Found {reach1.Count} reachable tiles (Calc Test).", this);
+            // Log check for blocker only
+            bool blockerFound = false; if (_dummyUnits.Count > 0 && _dummyUnits[0].CurrentTile != null) { Vector2Int bp = _dummyUnits[0].CurrentTile.gridPosition; foreach(var t in reach1) if(t.gridPosition == bp) blockerFound=true; if(blockerFound) DebugHelper.LogWarning($"Reachable Calc Test1: Blocker {bp} found!", this); else DebugHelper.Log($"Reachable Calc Test1: Blocker {bp} correctly NOT found.", this);}
+        } else DebugHelper.LogWarning($"Reachable Calc T1 OOB {center_grt}");
 
-        Vector2Int corner = new Vector2Int(0,0); int range2 = 2;
-        if (gridManager.IsInPlayableBounds(corner)) {
-            DebugHelper.Log($"Reachable from {corner} with {range2} move:", this);
-            List<Tile> reach2 = _pathfinder.GetReachableTiles(corner, range2);
-            DebugHelper.Log($"Found {reach2.Count} reachable tiles:", this);
-            foreach(Tile t in reach2) { if (t!=null) t.SetHighlight(TileHighlightState.MovementRange); DebugHelper.Log($"- {t?.gridPosition}", this);} // Highlight Reachable
-        } else DebugHelper.LogWarning($"Reachable T2 OOB {corner}");
-        DebugHelper.Log("--- GridTester: Finished Reachable Test ---", this);
+        Vector2Int corner_grt = new Vector2Int(0,0); int range2_grt = 2;
+        if (gridManager.IsInPlayableBounds(corner_grt)) {
+            DebugHelper.Log($"Reachable from {corner_grt} with {range2_grt} move:", this);
+            List<Tile> reach2 = _pathfinder.GetReachableTiles(corner_grt, range2_grt);
+            DebugHelper.Log($"Found {reach2.Count} reachable tiles (Calc Test).", this);
+        } else DebugHelper.LogWarning($"Reachable Calc T2 OOB {corner_grt}");
+        DebugHelper.Log("--- GridTester: Finished Reachable Calc Test ---", this);
     }
-
-     void ClearAllHighlights()
-    {
-        if (gridManager == null || gridManager.AllTiles == null) return;
-        // Don't log clearing every time, can be noisy
-        // DebugHelper.Log("--- GridTester: Clearing all tile highlights ---", this);
-        for (int x = 0; x < gridManager.playableWidth; x++) {
-            for (int y = 0; y < gridManager.playableHeight; y++) {
-                Tile tile = gridManager.GetTile(x, y);
-                if (tile != null) tile.SetHighlight(TileHighlightState.None);
-            }
-        }
-    }
+    // ClearAllHighlights is removed as it's not needed for logging tests
+    // void ClearAllHighlights() { ... }
 
 } // End of GridTester class
