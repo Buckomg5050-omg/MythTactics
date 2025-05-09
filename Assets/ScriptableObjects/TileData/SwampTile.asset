@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0cd6f9ed57e8e574fb3d0a50e6911f7d, type: 3}
   m_Name: SwampTile
   m_EditorClassIdentifier: 
-  type: 0
-  displayName: Unnamed Terrain
-  tileSprite: {fileID: 0}
-  movementCost: 1
+  type: 4
+  displayName: Swamp
+  tileSprite: {fileID: 21300000, guid: da1da9aad1d59b64480cd1f277027ba1, type: 3}
+  movementCost: 3
   evasionBonus: 0

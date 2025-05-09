@@ -13,7 +13,7 @@ GameObject:
   - component: {fileID: 6908189616136713099}
   m_Layer: 0
   m_Name: Unit
-  m_TagString: Untagged
+  m_TagString: Player
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -112,3 +112,5 @@ MonoBehaviour:
   level: 1
   unitName: Unit
   moveSpeed: 5
+  maxActionPoints: 2
+  currentActionPoints: 0

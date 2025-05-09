@@ -329,7 +329,7 @@ Transform:
   m_GameObject: {fileID: 519420028}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: -10}
+  m_LocalPosition: {x: -7, y: -7, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -450,10 +450,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   gridManager: {fileID: 1868929814}
   playerUnitPrefab: {fileID: 9173187324434785590, guid: 4e20b6af2b1e64945b0f082a86f3898c, type: 3}
-  playerStartPos: {x: 12, y: 12}
+  playerStartPos: {x: 1, y: 1}
   dummyUnitPrefab: {fileID: 9173187324434785590, guid: 4e20b6af2b1e64945b0f082a86f3898c, type: 3}
-  blockingUnit1Pos: {x: 15, y: 15}
-  blockingUnit2Pos: {x: 10, y: 10}
+  blockingUnit1Pos: {x: 4, y: 1}
+  blockingUnit2Pos: {x: 6, y: 2}
   logPathTestStart: {x: 10, y: 10}
   logPathTestEnd: {x: 20, y: 20}
   logReachableTestRange: 3
@@ -584,6 +584,9 @@ MonoBehaviour:
   defaultPlayableTileType: {fileID: 11400000, guid: f22c004078a06b74490e9dc85dc1d47d, type: 2}
   boundaryTileType: {fileID: 11400000, guid: b61c4102f1b019140bdc9da57962d4c3, type: 2}
   tileContainer: {fileID: 0}
+  plainsTileType: {fileID: 11400000, guid: f22c004078a06b74490e9dc85dc1d47d, type: 2}
+  forestTileType: {fileID: 11400000, guid: 733b839df21d6ce4eae8e3b5ce036c63, type: 2}
+  hillsTileType: {fileID: 11400000, guid: 7ee28e75d888b4f4784ff397e58d7fc6, type: 2}
 --- !u!4 &1868929815
 Transform:
   m_ObjectHideFlags: 0
