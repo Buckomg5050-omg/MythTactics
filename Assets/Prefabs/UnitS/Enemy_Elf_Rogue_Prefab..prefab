@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 8063990176001632274}
   - component: {fileID: 730798995356705079}
   - component: {fileID: 6908189616136713099}
+  - component: {fileID: 3768964610325662076}
   m_Layer: 0
   m_Name: Enemy_Elf_Rogue_Prefab.
   m_TagString: Untagged
@@ -103,15 +104,39 @@ MonoBehaviour:
   raceData: {fileID: 11400000, guid: d0d6d8deb707b4040bf6c3bd3827610e, type: 2}
   classData: {fileID: 11400000, guid: ccce3f070e7190c4fb5b6e103d79208d, type: 2}
   currentAttributes:
-    Core: 5
-    Echo: 10
+    Core: 8
+    Echo: 5
     Pulse: 5
-    Spark: 5
-    Glimmer: 8
+    Spark: 8
+    Glimmer: 5
     Aura: 5
   level: 1
   unitName: Elf Scout
+  maxVitalityPoints: 50
+  currentVitalityPoints: 0
+  _maxManaPoints: 0
+  currentManaPoints: 0
+  _maxStaminaPoints: 0
+  currentStaminaPoints: 0
+  equippedWeapon: {fileID: 11400000, guid: 32db0ab0bf4643243ab12e8e06f6b725, type: 2}
+  equippedBodyArmor: {fileID: 11400000, guid: c5613d342d0cc694fbbe15663788d54e, type: 2}
   moveSpeed: 5
+  attackAnimDuration: 0.5
+  hurtAnimDuration: 0.3
+  deathAnimDuration: 1
   maxActionPoints: 2
   currentActionPoints: 0
   actionCounter: 0
+  aiHandler: {fileID: 3768964610325662076}
+--- !u!114 &3768964610325662076
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9173187324434785590}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a27293dbe7d07694e88dab22626c23f9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 

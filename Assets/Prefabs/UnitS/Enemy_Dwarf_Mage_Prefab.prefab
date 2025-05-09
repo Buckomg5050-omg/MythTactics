@@ -104,16 +104,20 @@ MonoBehaviour:
   raceData: {fileID: 11400000, guid: f3691685d93530e40b768cafa3616fca, type: 2}
   classData: {fileID: 11400000, guid: 13a5d879309a1d34cb19f0cead1f8f3c, type: 2}
   currentAttributes:
-    Core: 3
-    Echo: 2
-    Pulse: 8
-    Spark: 10
-    Glimmer: 6
-    Aura: 3
+    Core: 5
+    Echo: 4
+    Pulse: 4
+    Spark: 12
+    Glimmer: 4
+    Aura: 5
   level: 1
   unitName: Dwarf Runesmith
   maxVitalityPoints: 30
   currentVitalityPoints: 0
+  _maxManaPoints: 0
+  currentManaPoints: 0
+  _maxStaminaPoints: 0
+  currentStaminaPoints: 0
   equippedWeapon: {fileID: 0}
   equippedBodyArmor: {fileID: 11400000, guid: 6f4f867891bc1f14d919cfb03793e84a, type: 2}
   moveSpeed: 5

@@ -18,14 +18,22 @@ public class Unit : MonoBehaviour
     public string unitName = "Unit";
 
     [Header("Health (VP - Vitality Points)")]
-    public int maxVitalityPoints = 50;
+    public int maxVitalityPoints = 50; // This could also become a calculated property later
     public int currentVitalityPoints;
 
+    // NEW: Mana Points (MP)
+    [Header("Mana (MP - Mana Points)")]
+    [SerializeField] private int _maxManaPoints; // Backing field for editor viewing if needed, calculated primarily
+    public int currentManaPoints;
+
+    // NEW: Stamina Points (SP)
+    [Header("Stamina (SP - Stamina Points)")]
+    [SerializeField] private int _maxStaminaPoints; // Backing field
+    public int currentStaminaPoints;
+
     [Header("Equipment")]
-    [Tooltip("The currently equipped weapon. If null, unarmed damage will be used.")]
     public WeaponSO equippedWeapon;
-    [Tooltip("The currently equipped body armor. If null, armor value is 0.")]
-    public ArmorSO equippedBodyArmor; // NEW FIELD for body armor
+    public ArmorSO equippedBodyArmor;
 
     [Header("Movement & Animation Timings")]
     public float moveSpeed = 5f;
@@ -51,14 +59,67 @@ public class Unit : MonoBehaviour
     private bool _isAlive = true;
     public bool IsAlive => _isAlive;
 
+    // --- Calculated Properties for Resources ---
+    public int CalculatedMaxMP
+    {
+        get
+        {
+            if (!_isAlive) return 0;
+            int baseMpFromRace = (raceData != null) ? raceData.baseMPContribution : 0;
+            int baseMpFromClass = (classData != null) ? classData.baseMPContribution : 0;
+            int sparkBonus = (currentAttributes != null) ? currentAttributes.Spark * 2 : 0;
+            int mpFromEquipment = 0; // Placeholder for when equipment can grant MaxMP
+
+            // GDD: BaseMP_From_Race_And_Class + (Spark * 2) + MaxMP_From_Equipment
+            return baseMpFromRace + baseMpFromClass + sparkBonus + mpFromEquipment;
+        }
+    }
+
+    public int CalculatedMaxSP
+    {
+        get
+        {
+            if (!_isAlive) return 0;
+            int baseSpFromRace = (raceData != null) ? raceData.baseSPContribution : 0;
+            int baseSpFromClass = (classData != null) ? classData.baseSPContribution : 0;
+            int coreBonus = (currentAttributes != null) ? currentAttributes.Core : 0; // GDD: + Core
+            int spFromEquipment = 0; // Placeholder for when equipment can grant MaxSP
+
+            // GDD: BaseSP_From_Race_And_Class + Core + MaxSP_From_Equipment
+            return baseSpFromRace + baseSpFromClass + coreBonus + spFromEquipment;
+        }
+    }
+    // --- End Calculated Properties ---
+
     void Awake()
     {
-        currentVitalityPoints = maxVitalityPoints;
         if (currentAttributes == null)
         {
             currentAttributes = new UnitPrimaryAttributes();
         }
+        InitializeResources();
     }
+
+    // NEW: Method to initialize all resources
+    void InitializeResources()
+    {
+        // VP
+        currentVitalityPoints = maxVitalityPoints; // Assuming maxVitalityPoints is set or calculated elsewhere
+
+        // MP
+        _maxManaPoints = CalculatedMaxMP;
+        currentManaPoints = _maxManaPoints;
+
+        // SP
+        _maxStaminaPoints = CalculatedMaxSP;
+        currentStaminaPoints = _maxStaminaPoints;
+
+        // AP
+        // ResetActionPoints(); // Called by TurnManager at start of combat/turn
+
+        DebugHelper.Log($"{unitName} Initialized Resources: VP: {currentVitalityPoints}/{maxVitalityPoints}, MP: {currentManaPoints}/{_maxManaPoints}, SP: {currentStaminaPoints}/{_maxStaminaPoints}", this);
+    }
+
 
     public IEnumerator PerformAttack(Unit targetUnit, PlayerInputHandler attackerPIHContext)
     {
@@ -335,31 +396,23 @@ public class Unit : MonoBehaviour
     {
         if (!_isAlive)
         {
-            DebugHelper.LogWarning($"{unitName} (AI) cannot process turn, unit is not alive.", this);
             if (TurnManager.Instance != null && TurnManager.Instance.ActiveUnit == this) TurnManager.Instance.EndUnitTurn(this);
             yield break;
         }
         if (CompareTag("Player"))
         {
-            DebugHelper.LogError($"{unitName} is tagged as Player but ProcessAITurn was called.", this);
             if (TurnManager.Instance != null && TurnManager.Instance.ActiveUnit == this) TurnManager.Instance.EndUnitTurn(this);
             yield break;
         }
         if (aiHandler == null)
         {
-            DebugHelper.LogWarning($"{unitName} (AI) has no AIHandler assigned. Ending turn by 'Waiting'.", this);
-            if (CanAffordAction(PlayerInputHandler.WaitActionCost))
-            {
-                SpendActionPoints(PlayerInputHandler.WaitActionCost);
-            }
+            if (CanAffordAction(PlayerInputHandler.WaitActionCost)) SpendActionPoints(PlayerInputHandler.WaitActionCost);
             if (TurnManager.Instance != null && TurnManager.Instance.ActiveUnit == this) TurnManager.Instance.EndUnitTurn(this);
             yield break;
         }
-        DebugHelper.Log($"{unitName} (AI) starting its turn. Delegating to AIHandler.", this);
         yield return StartCoroutine(aiHandler.ExecuteTurn(this));
         if (TurnManager.Instance != null && TurnManager.Instance.ActiveUnit == this)
         {
-            DebugHelper.LogWarning($"{unitName} (AI) ProcessAITurn completed, AIHandler might not have ended turn. Forcing EndUnitTurn.", this);
             TurnManager.Instance.EndUnitTurn(this);
         }
     }

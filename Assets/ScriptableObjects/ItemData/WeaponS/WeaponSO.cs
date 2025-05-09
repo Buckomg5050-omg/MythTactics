@@ -1,10 +1,10 @@
 // WeaponSO.cs
 // Located in: Assets/Scripts/ScriptableObjects/Items/
 using UnityEngine;
-using System.Collections.Generic; // Added for List if StatModifier or AbilitySO were used
+using System.Collections.Generic;
 
 [CreateAssetMenu(fileName = "NewWeapon", menuName = "MythTactics/Items/Weapon")]
-public class WeaponSO : ScriptableObject // Or potentially an ItemSO base class later
+public class WeaponSO : ScriptableObject
 {
     [Header("Weapon Stats")]
     [Tooltip("The base damage of this weapon before attribute modifiers.")]
@@ -14,13 +14,17 @@ public class WeaponSO : ScriptableObject // Or potentially an ItemSO base class 
     public int range = 1;
 
     [Tooltip("The base accuracy of this weapon (0-100). Used in hit chance calculation.")]
-    public int baseAccuracy = 75; // NEW FIELD
+    public int baseAccuracy = 75;
+
+    [Header("Damage Properties")] // NEW HEADER for clarity
+    [Tooltip("If true, this weapon's damage bypasses defender's PDR/resistances (True Damage).")]
+    public bool dealsTrueDamage = false; // NEW FIELD
 
     // Future properties for a weapon:
     // public string weaponName = "Generic Weapon";
     // public Sprite icon;
-    // public enum WeaponType { Sword, Axe, Bow, Staff, Unarmed } // For skill compatibility, animations etc.
+    // public enum WeaponType { Sword, Axe, Bow, Staff, Unarmed }
     // public WeaponType weaponType = WeaponType.Sword;
-    // public List<StatModifier> statModifiers; // e.g., +2 Core, -1 Speed
-    // public AbilitySO grantedAbility; // e.g., a special attack
+    // public List<StatModifier> statModifiers;
+    // public AbilitySO grantedAbility;
 }
