@@ -2,24 +2,27 @@
 // Located in: Assets/Scripts/Combat/
 using UnityEngine;
 
-namespace MythTactics.Combat // Assuming other combat scripts might also use this namespace
+namespace MythTactics.Combat 
 {
     public static class DamageCalculator
     {
-        private const int UNARMED_BASE_DAMAGE = 1; // Base damage for an unarmed attack
+        // This constant could also live in a GameBalanceSO or similar if many systems need it.
+        // For now, DamageCalculator is a reasonable place if it's primarily for default damage values.
+        public const int UNARMED_BASE_DAMAGE = 1; 
 
         /// <summary>
-        /// Calculates the damage for a basic unarmed physical attack.
+        /// Calculates the damage for a physical attack.
         /// </summary>
+        /// <param name="baseDamage">The base damage of the attack (e.g., from weapon or unarmed).</param>
         /// <param name="attacker">The unit performing the attack.</param>
-        /// <param name="defender">The unit receiving the attack (currently unused for this basic calculation but included for future expansion).</param>
+        /// <param name="defender">The unit receiving the attack.</param>
         /// <returns>The calculated damage amount.</returns>
-        public static int CalculateBasicUnarmedAttackDamage(Unit attacker, Unit defender)
+        public static int CalculatePhysicalAttackDamage(int baseDamage, Unit attacker, Unit defender) // Renamed and takes baseDamage
         {
             if (attacker == null)
             {
                 DebugHelper.LogError("DamageCalculator: Attacker is null.", null);
-                return 0; // Or some other default/error value
+                return 0; 
             }
 
             int coreBonus = 0;
@@ -32,17 +35,9 @@ namespace MythTactics.Combat // Assuming other combat scripts might also use thi
                 DebugHelper.LogWarning($"DamageCalculator: Attacker '{attacker.unitName}' has no attributes to calculate Core damage bonus. Core bonus will be 0.", attacker);
             }
 
-            int totalDamage = UNARMED_BASE_DAMAGE + coreBonus;
+            int totalDamage = baseDamage + coreBonus;
             
-            // Ensure minimum 1 damage as per GDD 7.1.2 (applies to final damage, but good to enforce early too)
             return Mathf.Max(1, totalDamage); 
         }
-
-        // Future methods could be added here for:
-        // - Calculating damage with equipped weapons
-        // - Calculating magical damage
-        // - Applying critical hits
-        // - Applying defender mitigations (armor, resistances)
-        // - Applying damage variance
     }
 }

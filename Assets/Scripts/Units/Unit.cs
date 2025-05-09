@@ -2,7 +2,7 @@
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
-using MythTactics.Combat; // NEW: To access DamageCalculator if it's in this namespace
+using MythTactics.Combat; 
 
 public class Unit : MonoBehaviour
 {
@@ -21,13 +21,17 @@ public class Unit : MonoBehaviour
     public int maxVitalityPoints = 50;
     public int currentVitalityPoints;
 
+    [Header("Equipment")] // NEW
+    [Tooltip("The currently equipped weapon. If null, unarmed damage will be used.")]
+    public WeaponSO equippedWeapon; // NEW
+
     [Header("Movement & Animation Timings")]
     public float moveSpeed = 5f;
     public float attackAnimDuration = 0.5f; 
     public float hurtAnimDuration = 0.3f;   
     public float deathAnimDuration = 1.0f;  
 
-    // REMOVED: private const int UNARMED_BASE_DAMAGE = 1; 
+    // Combat Values constant for unarmed is now in DamageCalculator
 
     [Header("Action Points")]
     public int maxActionPoints = 2;
@@ -51,7 +55,7 @@ public class Unit : MonoBehaviour
         if (currentAttributes == null) 
         {
             currentAttributes = new UnitPrimaryAttributes();
-            DebugHelper.LogWarning($"{unitName} currentAttributes was null, initialized to default.", this);
+            // DebugHelper.LogWarning($"{unitName} currentAttributes was null, initialized to default.", this); // Can be verbose
         }
     }
 
@@ -59,21 +63,36 @@ public class Unit : MonoBehaviour
     {
         if (!_isAlive || targetUnit == null || !targetUnit.IsAlive || !CanAffordAction(PlayerInputHandler.AttackActionCost))
         {
-            DebugHelper.LogWarning($"{unitName} cannot perform attack (dead, invalid target, or not enough AP).", this);
+            // DebugHelper.LogWarning($"{unitName} cannot perform attack (dead, invalid target, or not enough AP).", this); // Can be verbose
             yield break;
         }
         
         SpendActionPoints(PlayerInputHandler.AttackActionCost);
-        DebugHelper.Log($"{unitName} attacks {targetUnit.unitName}. (AP: {currentActionPoints})", this);
+        // DebugHelper.Log($"{unitName} attacks {targetUnit.unitName}. (AP: {currentActionPoints})", this); // Verbose
 
         yield return StartCoroutine(PerformAttackAnimation()); 
 
         if (targetUnit != null && targetUnit.IsAlive) 
         {
-            // MODIFIED: Use DamageCalculator
-            int totalDamage = DamageCalculator.CalculateBasicUnarmedAttackDamage(this, targetUnit);
+            int currentAttackBaseDamage;
+            string damageSourceMessage;
 
-            DebugHelper.Log($"{unitName} dealing {totalDamage} (calculated) to {targetUnit.unitName}.", this);
+            if (equippedWeapon != null)
+            {
+                currentAttackBaseDamage = equippedWeapon.baseDamage;
+                damageSourceMessage = equippedWeapon.name;
+            }
+            else
+            {
+                currentAttackBaseDamage = DamageCalculator.UNARMED_BASE_DAMAGE; // Use const from DamageCalculator
+                damageSourceMessage = "Unarmed";
+            }
+            
+            // MODIFIED: Use DamageCalculator with determined base damage
+            int totalDamage = DamageCalculator.CalculatePhysicalAttackDamage(currentAttackBaseDamage, this, targetUnit);
+
+            int coreBonus = (currentAttributes != null) ? Mathf.FloorToInt(currentAttributes.Core / 4f) : 0;
+            DebugHelper.Log($"{unitName} dealing {totalDamage} damage to {targetUnit.unitName} using {damageSourceMessage} (Base: {currentAttackBaseDamage}, CoreBonus: {coreBonus}).", this);
             yield return targetUnit.StartCoroutine(targetUnit.TakeDamage(totalDamage));
         }
     }
@@ -95,11 +114,11 @@ public class Unit : MonoBehaviour
         SpriteRenderer sr = GetComponent<SpriteRenderer>();
         if (sr != null) sr.color = Color.red; 
         yield return new WaitForSeconds(deathAnimDuration);
-        if (sr != null && this != null && gameObject != null) sr.color = Color.black; 
+        if (sr != null && this != null && gameObject != null && gameObject.activeInHierarchy) sr.color = Color.black; 
     }
 
     public int CalculatedMoveRange => _isAlive ? Mathf.Max(1, ((raceData != null ? raceData.baseMovementContribution : 0) + (classData != null ? classData.baseMovementContribution : 3) + Mathf.FloorToInt((currentAttributes != null ? currentAttributes.Echo : 0) / 5f))) : 0;
-    public int CalculatedAttackRange => _isAlive ? (classData != null ? Mathf.Max(0, classData.baseAttackRange) : 0) : 0;
+    public int CalculatedAttackRange => _isAlive ? (classData != null ? Mathf.Max(0, classData.baseAttackRange) : 0) : 0; // Note: Weapon could override this later
     
     public int RawCalculatedBaseUnitSpeed
     {
