@@ -1,26 +1,24 @@
 // RaceDataSO.cs
 using UnityEngine;
 
-[CreateAssetMenu(fileName = "NewRaceData", menuName = "MythTactics/Unit Data/Race Data")]
+[CreateAssetMenu(fileName = "NewRaceData", menuName = "MythTactics/Unit Race Data")]
 public class RaceDataSO : ScriptableObject
 {
     [Header("Identification")]
-    public string raceName = "Default Race";
-    [TextArea(3,5)] public string description = "Race description.";
+    public string raceName = "Unnamed Race";
+    [TextArea(3, 5)]
+    public string description = "Race description.";
 
-    [Header("Attribute Modifiers")]
-    [Tooltip("Flat modifiers applied ON TOP of base attributes at level 1.")]
-    public int coreModifier = 0;
-    public int echoModifier = 0;
-    public int pulseModifier = 0;
-    public int sparkModifier = 0;
-    public int glimmerModifier = 0;
-    public int auraModifier = 0;
+    [Header("Base Stat Contributions")]
+    // public UnitPrimaryAttributes baseAttributeModifiers; // Example if you had complex modifiers
+    [Tooltip("Base movement points contribution from this race. GDD 1.2.")]
+    public int baseMovementContribution = 0; // Example: Human might be +0, Elf +1, Dwarf -1 etc from a common base.
 
-    [Header("Derived Stat Bonuses")]
-    [Tooltip("Flat bonus added to Effective Speed calculation (GDD 1.1).")]
-    public int raceSpeedBonus = 0;
+    [Tooltip("Flat speed bonus granted by this race. GDD 1.1.")]
+    public int raceSpeedBonus = 0; // e.g. Humans 50, Elves 60, Dwarves 40
 
-    [Tooltip("Contribution to the Base Movement range (GDD 1.2). To be combined with Class value.")]
-    public int baseMovementContribution = 0;
+    // Add other race-specific properties here:
+    // e.g., Resistances, Innate Abilities, Visual Prefab Variants, etc.
+    // public Sprite racePortrait;
+    // public List<AbilitySO> innateAbilities;
 }

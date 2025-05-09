@@ -1,39 +1,42 @@
 // ClassDataSO.cs
 using UnityEngine;
+using System.Collections.Generic; // If you add lists for skills, etc.
 
-[CreateAssetMenu(fileName = "NewClassData", menuName = "MythTactics/Unit Data/Class Data")]
+[CreateAssetMenu(fileName = "NewClassData", menuName = "MythTactics/Unit Class Data")]
 public class ClassDataSO : ScriptableObject
 {
     [Header("Identification")]
-    public string className = "Default Class";
-    [TextArea(3,5)]
+    public string className = "Unnamed Class";
+    [TextArea(3, 5)]
     public string description = "Class description.";
 
-    [Header("Automatic Attribute Gains Per Level")]
-    [Tooltip("How much each primary attribute increases automatically each level (e.g., 0.5 means +1 every 2 levels).")]
-    [Range(0f, 2f)] public float coreGainPerLevel = 0.5f;
-    [Range(0f, 2f)] public float echoGainPerLevel = 0.5f;
-    [Range(0f, 2f)] public float pulseGainPerLevel = 0.5f;
-    [Range(0f, 2f)] public float sparkGainPerLevel = 0.5f;
-    [Range(0f, 2f)] public float glimmerGainPerLevel = 0.5f;
-    [Range(0f, 2f)] public float auraGainPerLevel = 0.2f;
+    [Header("Base Stat Contributions")]
+    [Tooltip("Base movement points contribution from this class (added to race base). GDD 1.2.")]
+    public int baseMovementContribution = 3; // Defaulting to a standard value
 
-    [Header("Base Resource/Stat Contributions")]
-    [Tooltip("Starting VP before Pulse scaling (GDD 2.3)")]
-    public int baseVP = 20;
-    [Tooltip("Starting MP before Spark scaling (GDD 2.3)")]
-    public int baseMP = 10;
-    [Tooltip("Starting SP before Core scaling (GDD 2.3)")]
-    public int baseSP = 10;
-    [Tooltip("Starting FP before Glimmer scaling (GDD 2.3)")]
-    public int baseFP = 10;
-    [Tooltip("Starting IP before Aura scaling (GDD 2.3)")]
-    public int baseIP = 5;
+    [Tooltip("Flat speed bonus granted by this class. GDD 1.1.")]
+    public int classSpeedBonus = 0; // e.g. Warrior +0, Rogue +10, Mage -5
 
-    [Header("Derived Stat Bonuses")]
-    [Tooltip("Flat bonus added to Effective Speed calculation (GDD 1.1).")]
-    public int classSpeedBonus = 100;
+    [Header("Attribute Growth Per Level (GDD 2.2)")]
+    [Tooltip("Example: Define how primary attributes increase automatically per level.")]
+    public SerializablePrimaryStatGain primaryStatGains; // Requires SerializablePrimaryStatGain class/struct
+    // public int secondaryStatGainsPerXLevels = 2; // e.g. +1 to a secondary stat every 2 levels
 
-    [Tooltip("Contribution to the Base Movement range (GDD 1.2). To be combined with Race value.")]
-    public int baseMovementContribution = 3;
+    // Add other class-specific properties here:
+    // e.g., Skill Trees, Equipment Proficiencies, Allowed Weapon Types, etc.
+    // public List<AbilitySO> startingClassAbilities;
+    // public List<EquipmentType> proficientEquipment;
+}
+
+// Example definition for SerializablePrimaryStatGain (if not already defined elsewhere)
+// You might want to put this in a separate file or a shared "DataTypes" file.
+[System.Serializable]
+public class SerializablePrimaryStatGain
+{
+    public int coreGain = 1;
+    public int echoGain = 1;
+    public int pulseGain = 1;
+    public int sparkGain = 1;
+    public int glimmerGain = 1;
+    public int auraGain = 1;
 }

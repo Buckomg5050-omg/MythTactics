@@ -13,7 +13,7 @@ public class Unit : MonoBehaviour
 
     [Header("Stats")]
     [Tooltip("Current primary attributes of the unit.")]
-    public UnitPrimaryAttributes currentAttributes = new UnitPrimaryAttributes(); // Ensure this is initialized if not done elsewhere
+    public UnitPrimaryAttributes currentAttributes = new UnitPrimaryAttributes();
     [Tooltip("Current level of the unit.")]
     public int level = 1;
 
@@ -21,12 +21,15 @@ public class Unit : MonoBehaviour
     public string unitName = "Unit";
 
     [Header("Movement")]
-    public float moveSpeed = 5f;
+    public float moveSpeed = 5f; // Visual movement speed on map
 
-    // Action Points as per GDD 3.1
     [Header("Action Points")]
-    public int maxActionPoints = 2; // Default based on GDD 3.1
+    public int maxActionPoints = 2; 
     public int currentActionPoints;
+
+    [Header("Turn Order")]
+    [Tooltip("Current action counter for turn order. Reaches 1000 for a turn. GDD 1.1.")]
+    public int actionCounter = 0;
 
     private Tile _currentTile;
     public Tile CurrentTile => _currentTile;
@@ -34,40 +37,69 @@ public class Unit : MonoBehaviour
     public bool IsMoving => _isMoving;
     private Coroutine _moveCoroutine = null;
 
-    public int CalculatedMoveRange
+    public int CalculatedMoveRange // GDD 1.2
     {
         get
         {
-            int raceMoveBonus = 0;
-            // Default classMoveBonus to 0 if classData is null or doesn't provide it, to avoid errors if not fully set up.
-            // GDD implies BaseMovementFromRaceClass is a sum, so initialize classMoveBonus appropriately.
-            // For testing, let's assume it defaults to a reasonable value if data is missing.
-            int classMoveBonus = (classData != null) ? classData.baseMovementContribution : 3; // Default to 3 as per GDD example if no classData
-            int echoStat = (currentAttributes != null) ? currentAttributes.Echo : 5; // Default to 5 if no attributes
+            int raceMoveBonus = (raceData != null) ? raceData.baseMovementContribution : 0;
+            int classMoveBonus = (classData != null) ? classData.baseMovementContribution : 3; // Default for safety
+            int echoStat = (currentAttributes != null) ? currentAttributes.Echo : 0; // Default to 0 if no attributes
 
-            if (raceData != null)
-            {
-                raceMoveBonus = raceData.baseMovementContribution;
-            }
-            else
-            {
-                // DebugHelper.LogWarning($"{unitName} missing RaceData for MoveRange calc. Using default 0.", this);
-                // No warning for default, assume 0 if no race data is a valid state for some units.
-            }
-            
-            if (classData == null)
-            {
-                 // DebugHelper.LogWarning($"{unitName} missing ClassData for MoveRange calc. Using default {classMoveBonus}.", this);
-            }
-            
-            if (currentAttributes == null)
-            {
-                 // DebugHelper.LogWarning($"{unitName} missing Attributes for MoveRange calc. Using default Echo {echoStat}.", this);
-            }
+            if (raceData == null) DebugHelper.LogWarning($"{unitName} missing RaceData for MoveRange calc.", this);
+            if (classData == null) DebugHelper.LogWarning($"{unitName} missing ClassData for MoveRange calc (using default {classMoveBonus}).", this);
+            if (currentAttributes == null) DebugHelper.LogWarning($"{unitName} missing Attributes for MoveRange calc (using Echo 0).", this);
 
             int baseMovement = raceMoveBonus + classMoveBonus;
             int echoBonus = Mathf.FloorToInt(echoStat / 5f);
             return Mathf.Max(1, baseMovement + echoBonus);
+        }
+    }
+
+    // Speed Calculation Properties (GDD 1.1)
+    public int RawCalculatedBaseUnitSpeed
+    {
+        get
+        {
+            int raceBonus = (raceData != null) ? raceData.raceSpeedBonus : 0;
+            int classBonus = (classData != null) ? classData.classSpeedBonus : 0;
+            int echoFactor = 0;
+            int glimmerFactor = 0;
+
+            if (currentAttributes != null)
+            {
+                echoFactor = currentAttributes.Echo * 2;
+                glimmerFactor = currentAttributes.Glimmer * 1; 
+            }
+            else 
+            {
+                DebugHelper.LogWarning($"{unitName} missing currentAttributes for RawCalculatedBaseUnitSpeed calc. Echo/Glimmer factors will be 0.", this);
+            }
+            
+            if (raceData == null) { DebugHelper.LogWarning($"{unitName} missing RaceData for RawCalculatedBaseUnitSpeed calc (raceBonus 0).", this); }
+            if (classData == null) { DebugHelper.LogWarning($"{unitName} missing ClassData for RawCalculatedBaseUnitSpeed calc (classBonus 0).", this); }
+            
+            return raceBonus + classBonus + echoFactor + glimmerFactor;
+        }
+    }
+
+    public int FinalCalculatedBaseUnitSpeed
+    {
+        get
+        {
+            return Mathf.Max(1, RawCalculatedBaseUnitSpeed); // Ensures minimum speed of 1
+        }
+    }
+
+    public int EffectiveSpeed
+    {
+        get
+        {
+            // For now, equipment and status effect modifiers are 0.
+            // These will be added later when those systems are in place.
+            int totalEquipmentSpeedModifier = 0; 
+            int totalStatusEffectSpeedModifier = 0;
+
+            return FinalCalculatedBaseUnitSpeed + totalEquipmentSpeedModifier + totalStatusEffectSpeedModifier;
         }
     }
 
@@ -83,25 +115,21 @@ public class Unit : MonoBehaviour
         }
         _currentTile = tile;
         if (tile != null) {
-            // Use GridManager to get world position
-            // Assuming GridManager has a static Instance. If not, this needs to be adjusted.
-            if (GridManager.Instance != null) // Replace GridManager.Instance with your actual access pattern
+            if (GridManager.Instance != null)
             {
                 transform.position = GridManager.Instance.GridToWorld(tile.gridPosition);
             }
             else
             {
                 DebugHelper.LogError($"Unit.PlaceOnTile ({unitName}): GridManager.Instance not found! Cannot accurately set world position. Using tile's transform as fallback.", this);
-                transform.position = tile.transform.position; // Fallback
+                transform.position = tile.transform.position; 
             }
             
             tile.SetOccupyingUnit(this);
-            ResetActionPoints(); // Initialize AP when placed
+            ResetActionPoints(); 
         } else { DebugHelper.LogWarning($"{unitName} placed on NULL tile.", this); }
     }
 
-    // Potentially redundant if PlaceOnTile is always used for initial setup.
-    // Kept for now if it serves another purpose.
     public void SetCurrentTile(Tile tile) { PlaceOnTile(tile); }
 
     public IEnumerator MoveOnPath(List<Tile> path)
@@ -111,7 +139,7 @@ public class Unit : MonoBehaviour
 
         _isMoving = true;
         _moveCoroutine = StartCoroutine(PerformMovement(path));
-        yield return _moveCoroutine; // Wait for the PerformMovement coroutine to complete
+        yield return _moveCoroutine; 
         _moveCoroutine = null;
         _isMoving = false;
         DebugHelper.Log($"{unitName} finished movement coroutine. Final Tile: {CurrentTile?.gridPosition}", this);
@@ -120,22 +148,19 @@ public class Unit : MonoBehaviour
     private IEnumerator PerformMovement(List<Tile> path)
     {
          Vector3 startPos, endPos;
-         Tile nextTileInPath; // Renamed to avoid confusion with class field _currentTile
+         Tile nextTileInPath; 
         
-        // Ensure unit starts from its current tile's world position if it's valid
         if (CurrentTile != null)
         {
-            // Assuming GridManager has a static Instance for GridToWorld
             if (GridManager.Instance != null)
                 transform.position = GridManager.Instance.GridToWorld(CurrentTile.gridPosition);
             else
-                transform.position = CurrentTile.transform.position; // Fallback
+                transform.position = CurrentTile.transform.position;
         }
         else
         {
             DebugHelper.LogWarning($"{unitName} starting PerformMovement with no CurrentTile. Using current transform position.", this);
         }
-
 
         for (int i = 0; i < path.Count; i++)
         {
@@ -143,34 +168,28 @@ public class Unit : MonoBehaviour
             if (nextTileInPath == null) { DebugHelper.LogError($"Movement path for {unitName} contained a null tile at index {i}!", this); break; }
 
             startPos = transform.position;
-            // Assuming GridManager has a static Instance for GridToWorld
             if (GridManager.Instance != null)
                 endPos = GridManager.Instance.GridToWorld(nextTileInPath.gridPosition);
             else
-                endPos = nextTileInPath.transform.position; // Fallback
+                endPos = nextTileInPath.transform.position;
 
-
-            // Clear occupancy from the tile the unit is *leaving*
             if (_currentTile != null && _currentTile.occupyingUnit == this)
             {
                 _currentTile.ClearOccupyingUnit();
             }
             
-            // Update the unit's current tile reference *before* moving visually to it
             _currentTile = nextTileInPath;
-            // Set occupancy on the *new* tile
             _currentTile.SetOccupyingUnit(this);
 
             float journeyLength = Vector3.Distance(startPos, endPos);
             float startTime = Time.time;
 
-            if (journeyLength > 0.01f && moveSpeed > 0) // Only Lerp if there's a distance to cover
+            if (journeyLength > 0.01f && moveSpeed > 0) 
             {
                  float duration = journeyLength / moveSpeed;
                  float journeyFraction = 0f;
                  while (journeyFraction < 1.0f)
                  {
-                     // Ensure _isMoving is still true; an external interruption might have stopped the parent coroutine
                      if (!_isMoving) {
                         DebugHelper.LogWarning($"{unitName} PerformMovement sub-coroutine interrupted.", this);
                         yield break;
@@ -181,12 +200,10 @@ public class Unit : MonoBehaviour
                      yield return null;
                  }
             }
-            // Ensure final position is exact
             transform.position = endPos;
         }
     }
 
-    // --- Action Point Methods ---
     public void ResetActionPoints()
     {
         currentActionPoints = maxActionPoints;
@@ -196,7 +213,6 @@ public class Unit : MonoBehaviour
     public bool CanAffordAction(int cost)
     {
         bool canAfford = currentActionPoints >= cost;
-        // DebugHelper.Log($"{unitName} CanAffordAction check: cost={cost}, currentAP={currentActionPoints}, canAfford={canAfford}", this); // Optional: for debugging
         return canAfford;
     }
 
@@ -205,7 +221,7 @@ public class Unit : MonoBehaviour
         if (cost <= 0)
         {
             DebugHelper.LogWarning($"{unitName} tried to spend invalid AP cost: {cost}", this);
-            return; // Do not proceed if cost is invalid
+            return;
         }
 
         if (CanAffordAction(cost))
@@ -215,7 +231,6 @@ public class Unit : MonoBehaviour
         }
         else
         {
-            // This case should ideally be prevented by calling CanAffordAction before SpendActionPoints.
             DebugHelper.LogWarning($"{unitName} FAILED to spend AP cost {cost}. Has {currentActionPoints}/{maxActionPoints}. Action should have been prevented.", this);
         }
     }
