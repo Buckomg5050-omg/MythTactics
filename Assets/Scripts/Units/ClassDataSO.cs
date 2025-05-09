@@ -1,16 +1,12 @@
 // ClassDataSO.cs
 using UnityEngine;
 
-/// <summary>
-/// ScriptableObject defining characteristics and progression for a unit class.
-/// Based on GDD 2.2, 1.1, 1.2, 2.3, 6.1.2, 6.2.2.
-/// </summary>
 [CreateAssetMenu(fileName = "NewClassData", menuName = "MythTactics/Unit Data/Class Data")]
 public class ClassDataSO : ScriptableObject
 {
     [Header("Identification")]
     public string className = "Default Class";
-    [TextArea(3,5)] // Make description box slightly larger in inspector
+    [TextArea(3,5)]
     public string description = "Class description.";
 
     [Header("Automatic Attribute Gains Per Level")]
@@ -36,17 +32,8 @@ public class ClassDataSO : ScriptableObject
 
     [Header("Derived Stat Bonuses")]
     [Tooltip("Flat bonus added to Effective Speed calculation (GDD 1.1).")]
-    public int classSpeedBonus = 100; // Example base speed contribution
+    public int classSpeedBonus = 100;
 
     [Tooltip("Contribution to the Base Movement range (GDD 1.2). To be combined with Race value.")]
-    public int baseMovementContribution = 3; // e.g., Warrior=3, Rogue=4, Mage=2
-
-    // --- Future Considerations ---
-    // GDD 6.1.2 Mentions:
-    // - Skill trees / ability progression rules.
-    // - Equipment proficiencies.
-    // We can add fields for these later, e.g.:
-    // public SkillTreeSO skillTree;
-    // public List<EquipmentType> weaponProficiencies;
-    // public List<EquipmentType> armorProficiencies;
+    public int baseMovementContribution = 3;
 }

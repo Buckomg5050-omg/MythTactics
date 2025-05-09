@@ -1,7 +1,7 @@
 // Pathfinder.cs
 using UnityEngine;
-using System.Collections.Generic; // For List
-using System.Linq; // For OrderBy in simple Open List handling
+using System.Collections.Generic;
+using System.Linq; // For OrderBy
 
 public class Pathfinder
 {
@@ -22,18 +22,18 @@ public class Pathfinder
     {
         List<Tile> finalPath = new List<Tile>();
         if (_gridManager == null) { Debug.LogError("PF Error: No GridManager."); return finalPath; }
-        if (!_gridManager.IsInPlayableBounds(startPosPlayable) || !_gridManager.IsInPlayableBounds(endPosPlayable)) { DebugHelper.LogWarning($"PF Error: Start/End out of bounds.", _gridManager); return finalPath; }
+        if (!_gridManager.IsInPlayableBounds(startPosPlayable) || !_gridManager.IsInPlayableBounds(endPosPlayable)) { DebugHelper.LogWarning($"PF Error: Start/End {startPosPlayable}->{endPosPlayable} out of bounds.", _gridManager); return finalPath; }
 
         InitializePathNodeGrid();
 
         PathNode startNode = GetPathNode(startPosPlayable.x, startPosPlayable.y);
         PathNode endNodeOriginalQuery = GetPathNode(endPosPlayable.x, endPosPlayable.y);
 
-        if (!startNode.isWalkable) { DebugHelper.LogWarning($"PF Error: Start not walkable.", _gridManager); return finalPath; }
-        if (!endNodeOriginalQuery.isWalkable) { DebugHelper.LogWarning($"PF Error: End not walkable.", _gridManager); return finalPath; }
+        if (!startNode.isWalkable) { DebugHelper.LogWarning($"PF Error: Start {startPosPlayable} not walkable.", _gridManager); return finalPath; }
+        if (!endNodeOriginalQuery.isWalkable) { DebugHelper.LogWarning($"PF Error: End {endPosPlayable} not walkable.", _gridManager); return finalPath; }
 
         Tile endTile = _gridManager.GetTile(endPosPlayable);
-        if (endTile != null && endTile.IsOccupied && endTile.occupyingUnit != requestingUnit) { DebugHelper.Log($"PF Error: End tile occupied.", _gridManager); return finalPath; }
+        if (endTile != null && endTile.IsOccupied && endTile.occupyingUnit != requestingUnit) { DebugHelper.Log($"PF Error: End tile {endPosPlayable} occupied by {endTile.occupyingUnit?.name}.", _gridManager); return finalPath; }
 
         _openList.Clear();
         _closedSet.Clear();
@@ -51,17 +51,15 @@ public class Pathfinder
             emergencyExit++;
             if (emergencyExit > maxIterations) { DebugHelper.LogError("PF Error: Max iterations exceeded in FindPath.", _gridManager); return finalPath; }
 
-            // Simple Open List handling: Find lowest F-cost node
-            _openList = _openList.OrderBy(node => node.FCost).ThenBy(node => node.hCost).ToList();
+            _openList = _openList.OrderBy(node => node.FCost).ThenBy(node => node.hCost).ToList(); // Corrected LINQ usage
             PathNode currentNode = _openList[0];
-
-            if (currentNode.gridPosition == endPosPlayable)
-            {
+            
+            if (currentNode.gridPosition == endPosPlayable) {
                 PathNode endNodeFromGrid = _pathNodeGrid[endPosPlayable.x, endPosPlayable.y];
                 return ReconstructPath(endNodeFromGrid, startNode);
             }
 
-            _openList.RemoveAt(0); // Remove the node with lowest F-cost
+            _openList.RemoveAt(0);
             _closedSet.Add(currentNode.gridPosition);
 
             List<Tile> neighborTiles = _gridManager.GetNeighbors(currentNode.gridPosition);
@@ -73,7 +71,6 @@ public class Pathfinder
                 PathNode neighborNodeData = GetPathNode(neighborPos.x, neighborPos.y);
 
                 if (!neighborNodeData.isWalkable) { _closedSet.Add(neighborPos); continue; }
-
                 if (neighborPos != endPosPlayable && neighborTile.IsOccupied && neighborTile.occupyingUnit != requestingUnit) { _closedSet.Add(neighborPos); continue; }
 
                 int movementCostToNeighbor = neighborTile.GetMovementCost();
@@ -81,71 +78,40 @@ public class Pathfinder
 
                 int tentativeGCost = currentNode.gCost + movementCostToNeighbor;
 
-                 // Check if the neighbor is already in the open list
-                PathNode existingNeighborInOpen = default;
-                bool wasInOpenList = false;
-                foreach(var node in _openList) {
-                    if (node.gridPosition == neighborPos) {
-                        existingNeighborInOpen = node;
-                        wasInOpenList = true;
-                        break;
-                    }
-                }
+                bool wasInOpenList = _openList.Any(n => n.gridPosition == neighborPos);
 
-
-                // If this path is better than any previous path, OR if it's not in Open List yet
                 if (tentativeGCost < neighborNodeData.gCost || !wasInOpenList)
                 {
                     neighborNodeData.gCost = tentativeGCost;
                     neighborNodeData.hCost = CalculateManhattanDistance(neighborPos, endPosPlayable);
                     neighborNodeData.parentPosition = currentNode.gridPosition;
-                    _pathNodeGrid[neighborPos.x, neighborPos.y] = neighborNodeData; // Update the grid copy
+                    _pathNodeGrid[neighborPos.x, neighborPos.y] = neighborNodeData;
 
-                    if (!wasInOpenList)
-                    {
-                        _openList.Add(neighborNodeData);
-                    }
-                    // No need to explicitly update if already in list, the re-sort handles it.
-                    // Re-sorting happens at the start of the next loop iteration.
+                    if (!wasInOpenList) _openList.Add(neighborNodeData);
+                    // If it was in open list, its data is updated, and sort will re-position it.
                 }
             }
-            // Re-sort is handled by LINQ OrderBy at the start of the loop
         }
-
         DebugHelper.Log($"Pathfinder: No path found from {startPosPlayable} to {endPosPlayable}.", _gridManager);
         return finalPath;
-    } // End of FindPath
+    }
 
-
-    /// <summary>
-    /// Finds all playable tiles reachable from a start position within a given movement point budget.
-    /// Considers terrain movement costs and basic unit occupancy.
-    /// </summary>
-    /// <param name="startPosPlayable">The starting playable grid coordinate.</param>
-    /// <param name="movementPoints">The maximum movement points allowed.</param>
-    /// <param name="requestingUnit">The unit requesting the check (can be null, affects occupancy checks).</param>
-    /// <returns>A List of Tile objects representing all reachable tiles (inclusive of start tile if movementPoints >= 0).
-    /// Returns an empty list if start position is invalid or movementPoints is negative.</returns>
     public List<Tile> GetReachableTiles(Vector2Int startPosPlayable, int movementPoints, Unit requestingUnit = null)
     {
         List<Tile> reachableTiles = new List<Tile>();
         if (_gridManager == null) { Debug.LogError("Pathfinder Error: No GridManager."); return reachableTiles; }
-        if (movementPoints < 0) { return reachableTiles; } // Cannot reach anywhere with negative movement
+        if (movementPoints < 0) { return reachableTiles; }
         if (!_gridManager.IsInPlayableBounds(startPosPlayable)) { DebugHelper.LogWarning($"GetReachableTiles: Start pos {startPosPlayable} out of bounds.", _gridManager); return reachableTiles; }
 
-        InitializePathNodeGrid(); // Get terrain walkability
-
+        InitializePathNodeGrid();
         PathNode startNode = GetPathNode(startPosPlayable.x, startPosPlayable.y);
         if (!startNode.isWalkable) { DebugHelper.LogWarning($"GetReachableTiles: Start pos {startPosPlayable} not walkable.", _gridManager); return reachableTiles; }
 
         _openList.Clear();
         _closedSet.Clear();
-
-        startNode.gCost = 0; // Cost to reach start is 0
-        // H cost is irrelevant for finding reachable tiles, but A* structure uses it. Set to 0.
+        startNode.gCost = 0;
         startNode.hCost = 0;
-        _pathNodeGrid[startPosPlayable.x, startPosPlayable.y] = startNode; // Update grid
-
+        _pathNodeGrid[startPosPlayable.x, startPosPlayable.y] = startNode;
         _openList.Add(startNode);
 
         int emergencyExit = 0;
@@ -154,96 +120,49 @@ public class Pathfinder
         while (_openList.Count > 0)
         {
             emergencyExit++;
-            if (emergencyExit > maxIterations) { DebugHelper.LogError("Pathfinder Error: Max iterations exceeded in GetReachableTiles.", _gridManager); break; }
+            if (emergencyExit > maxIterations) { DebugHelper.LogError("Pathfinder Error: Max iterations in GetReachableTiles.", _gridManager); break; }
 
-            // Get node with lowest G-COST (movement points used)
-             _openList = _openList.OrderBy(node => node.gCost).ToList(); // Sort by G-cost
+            _openList = _openList.OrderBy(node => node.gCost).ToList(); // Sort by G-cost
             PathNode currentNode = _openList[0];
             _openList.RemoveAt(0);
 
+            if (currentNode.gCost > movementPoints) continue;
 
-            // If the cost to reach this node exceeds the budget, skip it and its neighbors (via this path)
-            if (currentNode.gCost > movementPoints)
-            {
-                continue;
-            }
-
-             // Add to reachable list and closed set
             Tile currentTile = _gridManager.GetTile(currentNode.gridPosition);
-            if (currentTile != null)
-            {
-                reachableTiles.Add(currentTile); // Add the tile itself
-            }
+            if (currentTile != null) reachableTiles.Add(currentTile);
             _closedSet.Add(currentNode.gridPosition);
 
-            // Explore neighbors
             List<Tile> neighborTiles = _gridManager.GetNeighbors(currentNode.gridPosition);
             foreach (Tile neighborTile in neighborTiles)
             {
                  Vector2Int neighborPos = neighborTile.gridPosition;
                 if (_closedSet.Contains(neighborPos)) continue;
-
                 PathNode neighborNodeData = GetPathNode(neighborPos.x, neighborPos.y);
-
                 if (!neighborNodeData.isWalkable) { _closedSet.Add(neighborPos); continue; }
-
-                // Cannot move *into* an occupied tile (unless it's the start tile potentially, if unit hasn't moved yet - handle this nuance?)
-                // For finding reachable range, generally cannot end turn on occupied tile.
                 if (neighborTile.IsOccupied && neighborTile.occupyingUnit != requestingUnit) { _closedSet.Add(neighborPos); continue; }
-
 
                 int movementCostToNeighbor = neighborTile.GetMovementCost();
                 if (movementCostToNeighbor >= 255) { _closedSet.Add(neighborPos); continue; }
 
-
                 int tentativeGCost = currentNode.gCost + movementCostToNeighbor;
-
-                 // If the cost to reach neighbor is within budget
                 if (tentativeGCost <= movementPoints)
                 {
-                    // Check if the neighbor is already in the open list
-                    PathNode existingNeighborInOpen = default;
-                    bool wasInOpenList = false;
-                    foreach(var node in _openList) {
-                        if (node.gridPosition == neighborPos) {
-                            existingNeighborInOpen = node;
-                            wasInOpenList = true;
-                            break;
-                        }
-                    }
-
-                    // If this path is better OR if neighbor not yet considered for open list
+                    bool wasInOpenList = _openList.Any(n => n.gridPosition == neighborPos);
                     if (tentativeGCost < neighborNodeData.gCost || !wasInOpenList)
                     {
                         neighborNodeData.gCost = tentativeGCost;
-                        // H-cost not used for sorting here, parent not strictly needed unless reconstructing paths later
-                        // neighborNodeData.hCost = 0;
-                        // neighborNodeData.parentPosition = currentNode.gridPosition;
-
                         _pathNodeGrid[neighborPos.x, neighborPos.y] = neighborNodeData;
-
-                        if (!wasInOpenList)
-                        {
-                            _openList.Add(neighborNodeData);
-                        }
-                        // If it was already in the open list with a higher G-cost,
-                        // the new lower G-cost will ensure it gets processed correctly
-                        // due to the sort at the start of the loop.
+                        if (!wasInOpenList) _openList.Add(neighborNodeData);
                     }
                 }
             }
-            // Re-sort happens at the start of the next loop iteration
         }
         return reachableTiles;
-    } // End of GetReachableTiles
-
-
-    // --- Helper Methods ---
+    }
 
     private void InitializePathNodeGrid()
     {
-        int width = _gridManager.playableWidth;
-        int height = _gridManager.playableHeight;
+        int width = _gridManager.playableWidth; int height = _gridManager.playableHeight;
         _pathNodeGrid = new PathNode[width, height];
         for (int x = 0; x < width; x++) {
             for (int y = 0; y < height; y++) {
@@ -265,8 +184,7 @@ public class Pathfinder
 
     private List<Tile> ReconstructPath(PathNode endNodeArg, PathNode startNodeArg)
     {
-        List<Tile> path = new List<Tile>();
-        PathNode current = endNodeArg;
+        List<Tile> path = new List<Tile>(); PathNode current = endNodeArg;
         int safe = 0, max = _gridManager.playableWidth * _gridManager.playableHeight;
         while (current.gridPosition != startNodeArg.gridPosition) {
             safe++; if (safe > max) { DebugHelper.LogError("ReconstructPath loop!", _gridManager); return new List<Tile>(); }
@@ -279,4 +197,4 @@ public class Pathfinder
             else { DebugHelper.LogError($"ReconstructPath node {current.gridPosition} has no valid parent!", _gridManager); return new List<Tile>(); } }
         path.Reverse(); return path;
     }
-} // End of Pathfinder class
+}

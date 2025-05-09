@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9d90a13933967ab49aab428740203502, type: 3}
   m_Name: WarriorClass.asse
   m_EditorClassIdentifier: 
-  className: Default Class
-  description: Class description.
+  className: Warrior
+  description: A basic melee combatant.
   coreGainPerLevel: 0.5
   echoGainPerLevel: 0.5
   pulseGainPerLevel: 0.5

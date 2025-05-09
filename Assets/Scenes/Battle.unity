@@ -449,12 +449,14 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   gridManager: {fileID: 1868929814}
-  pathTestStart: {x: 1, y: 1}
-  pathTestEnd: {x: 20, y: 20}
-  reachableTestRange: 3
+  playerUnitPrefab: {fileID: 9173187324434785590, guid: 4e20b6af2b1e64945b0f082a86f3898c, type: 3}
+  playerStartPos: {x: 12, y: 12}
   dummyUnitPrefab: {fileID: 9173187324434785590, guid: 4e20b6af2b1e64945b0f082a86f3898c, type: 3}
-  blockingUnit1Pos: {x: 5, y: 5}
+  blockingUnit1Pos: {x: 15, y: 15}
   blockingUnit2Pos: {x: 10, y: 10}
+  logPathTestStart: {x: 10, y: 10}
+  logPathTestEnd: {x: 20, y: 20}
+  logReachableTestRange: 3
 --- !u!4 &1583950806
 Transform:
   m_ObjectHideFlags: 0
@@ -531,6 +533,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   gridManager: {fileID: 1868929814}
+  gridTester: {fileID: 1583950805}
 --- !u!4 &1791791679
 Transform:
   m_ObjectHideFlags: 0

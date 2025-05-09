@@ -1,7 +1,7 @@
 // GridTester.cs
 using UnityEngine;
-using System.Collections; // For Coroutine
-using System.Collections.Generic; // For List<T>
+using System.Collections;
+using System.Collections.Generic;
 
 public class GridTester : MonoBehaviour
 {
@@ -14,7 +14,7 @@ public class GridTester : MonoBehaviour
     [Header("Player Unit Setup")]
     [Tooltip("Assign the Player Unit Prefab here.")]
     public GameObject playerUnitPrefab;
-    public Vector2Int playerStartPos = new Vector2Int(12, 12); // Centered start
+    public Vector2Int playerStartPos = new Vector2Int(12, 12);
 
     public Unit PlayerUnitInstance { get; private set; }
 
@@ -22,7 +22,7 @@ public class GridTester : MonoBehaviour
     [Tooltip("Drag a simple prefab here to represent a blocking unit for tests.")]
     public GameObject dummyUnitPrefab;
     public Vector2Int blockingUnit1Pos = new Vector2Int(5, 5);
-    public Vector2Int blockingUnit2Pos = new Vector2Int(10, 10); // Blocker for path test
+    public Vector2Int blockingUnit2Pos = new Vector2Int(10, 10);
 
     private List<Unit> _dummyUnits = new List<Unit>();
 
@@ -42,15 +42,10 @@ public class GridTester : MonoBehaviour
     System.Collections.IEnumerator RunGridTests()
     {
         yield return null;
-
         DebugHelper.Log("===== GridTester: Starting Spawn & Initial LOGGING Tests =====", this);
-
-        // Spawn blockers FIRST
         SetupDummyUnitsForTest();
-        // Then spawn player
         SpawnPlayerUnit();
-
-        yield return null; // Wait a frame
+        yield return null;
 
         TestGridToWorld();
         TestWorldToGrid();
@@ -58,18 +53,12 @@ public class GridTester : MonoBehaviour
         TestGetTilesInRange();
         TestPathfinding();
         TestGetReachableTiles();
-
         DebugHelper.Log("===== GridTester: Finished Initial LOGGING Tests =====", this);
-
-        // Cleanup only happens when game stops now
     }
 
     void SetupDummyUnitsForTest()
     {
-        if (dummyUnitPrefab == null) {
-            DebugHelper.Log("GridTester: No dummyUnitPrefab assigned, skipping dummy blocker setup.", this);
-             return;
-        }
+        if (dummyUnitPrefab == null) { DebugHelper.Log("GridTester: No dummyUnitPrefab, skipping blocker setup.", this); return; }
         DebugHelper.Log("--- GridTester: Setting up dummy units ---", this);
         Vector2Int[] positions = { blockingUnit1Pos, blockingUnit2Pos };
         int unitCounter = 1;
@@ -81,10 +70,10 @@ public class GridTester : MonoBehaviour
                     unitGO.name = $"DummyBlocker_{unitCounter++}";
                     Unit unitComp = unitGO.GetComponent<Unit>() ?? unitGO.AddComponent<Unit>();
                     unitComp.unitName = unitGO.name;
-                    unitComp.PlaceOnTile(tile); // PlaceOnTile handles occupancy
+                    unitComp.PlaceOnTile(tile);
                     _dummyUnits.Add(unitComp);
                     DebugHelper.Log($"Placed {unitComp.unitName} at {pos}", this);
-                } else if (tile != null) { DebugHelper.LogWarning($"Dummy setup: Tile {pos} already occupied by {tile.occupyingUnit?.unitName}.", this); }
+                } else if (tile != null) { DebugHelper.LogWarning($"Dummy setup: Tile {pos} occupied by {tile.occupyingUnit?.unitName}.", this); }
             } else { DebugHelper.LogWarning($"Dummy setup: Pos {pos} out of bounds.", this); }
         }
     }
@@ -93,39 +82,21 @@ public class GridTester : MonoBehaviour
     {
         if (playerUnitPrefab == null) { DebugHelper.LogError("GridTester: playerUnitPrefab not assigned!", this); return; }
         if (!gridManager.IsInPlayableBounds(playerStartPos)) { DebugHelper.LogError($"GridTester: playerStartPos {playerStartPos} out of bounds!", this); return; }
-
         Tile startTile = gridManager.GetTile(playerStartPos);
         if (startTile == null) { DebugHelper.LogError($"GridTester: Cannot get tile at playerStartPos {playerStartPos}!", this); return; }
-
-         if (startTile.IsOccupied) {
-             DebugHelper.LogWarning($"GridTester: playerStartPos {startTile.gridPosition} occupied by {startTile.occupyingUnit?.name}! Check dummy placement.", this);
-             // Decide if this should prevent player spawn
-        }
+        if (startTile.IsOccupied) { DebugHelper.LogWarning($"GridTester: playerStartPos {startTile.gridPosition} occupied by {startTile.occupyingUnit?.name}! Check dummy placement.", this); }
 
         DebugHelper.Log($"--- GridTester: Spawning Player Unit at {playerStartPos} ---", this);
         GameObject unitGO = Instantiate(playerUnitPrefab, gridManager.GridToWorld(playerStartPos), Quaternion.identity);
         unitGO.name = "PlayerUnit_Instance";
-
         PlayerUnitInstance = unitGO.GetComponent<Unit>();
         if (PlayerUnitInstance == null) { DebugHelper.LogWarning("PlayerUnitPrefab missing Unit comp, adding.", unitGO); PlayerUnitInstance = unitGO.AddComponent<Unit>(); }
-
         PlayerUnitInstance.unitName = "Player";
         PlayerUnitInstance.PlaceOnTile(startTile);
-
         DebugHelper.Log($"Spawned {PlayerUnitInstance.unitName} at {startTile.gridPosition}", this);
     }
 
-
-    // --- Test Methods (Log Only) ---
-    // (These methods remain the same as the previous 'cleaned up' version)
-    // ... TestGridToWorld ...
-    // ... TestWorldToGrid ...
-    // ... TestGetNeighbors ...
-    // ... TestGetTilesInRange ...
-    // ... TestPathfinding ...
-    // ... TestGetReachableTiles ...
-
-     void TestGridToWorld() {
+    void TestGridToWorld() {
         DebugHelper.Log("--- GridTester: Testing GridToWorld ---", this);
         Vector2Int pos1 = new Vector2Int(0, 0); Vector3 world1 = gridManager.GridToWorld(pos1); DebugHelper.Log($"G2W: {pos1} -> {world1}", this); Tile tile1 = gridManager.GetTile(pos1); if (tile1) DebugHelper.Log($"G2W Actual: {tile1.transform.position}", this);
         Vector2Int pos2 = new Vector2Int(gridManager.playableWidth-1, gridManager.playableHeight-1); Vector3 world2 = gridManager.GridToWorld(pos2); DebugHelper.Log($"G2W: {pos2} -> {world2}", this); Tile tile2 = gridManager.GetTile(pos2); if (tile2) DebugHelper.Log($"G2W Actual: {tile2.transform.position}", this);
@@ -170,5 +141,4 @@ public class GridTester : MonoBehaviour
         if (gridManager.IsInPlayableBounds(corner_grt)) { DebugHelper.Log($"Reachable from {corner_grt} with {range2_grt} move:", this); List<Tile> reach2 = _pathfinder.GetReachableTiles(corner_grt, range2_grt); DebugHelper.Log($"Found {reach2.Count} reachable tiles (Calc Test).", this); } else DebugHelper.LogWarning($"Reachable Calc T2 OOB {corner_grt}");
         DebugHelper.Log("--- GridTester: Finished Reachable Calc Test ---", this);
     }
-
-} // End of GridTester class
+}

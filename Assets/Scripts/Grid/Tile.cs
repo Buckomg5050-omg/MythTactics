@@ -12,8 +12,15 @@ public class Tile : MonoBehaviour
     [Tooltip("Reference to the unit currently occupying this tile, if any.")]
     public Unit occupyingUnit = null;
 
-    // Removed verbose log from IsOccupied
-    public bool IsOccupied => occupyingUnit != null;
+    public bool IsOccupied
+    {
+        get
+        {
+            bool isOcc = occupyingUnit != null;
+            DebugHelper.Log($"Tile {gridPosition} IsOccupied check. Occupant: {(occupyingUnit == null ? "NULL" : occupyingUnit.unitName)}. Returning: {isOcc}", this);
+            return isOcc;
+        }
+    }
 
     [Header("Data Source")]
     public TileTypeSO tileTypeData;
@@ -83,7 +90,6 @@ public class Tile : MonoBehaviour
 
     public void SetOccupyingUnit(Unit unit)
     {
-        // Keep these logs as they are useful for tracking unit placement
         if(this.occupyingUnit != null && this.occupyingUnit != unit && unit != null) {
              DebugHelper.LogWarning($"!!! Tile {gridPosition} changing occupant FROM {this.occupyingUnit.unitName} TO {unit.unitName} !!!", this);
         } else if (unit != null) {
@@ -96,11 +102,9 @@ public class Tile : MonoBehaviour
 
     public void ClearOccupyingUnit()
     {
-         // Keep this log
         if (this.occupyingUnit != null) {
             DebugHelper.Log($"Tile {gridPosition} ClearOccupyingUnit: Was {this.occupyingUnit.unitName}", this);
         }
         this.occupyingUnit = null;
     }
-
-} // End of Tile class
+}
