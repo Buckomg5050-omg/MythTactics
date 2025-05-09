@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 8063990176001632274}
   - component: {fileID: 730798995356705079}
   - component: {fileID: 6908189616136713099}
+  - component: {fileID: -6695904852252191918}
   m_Layer: 0
   m_Name: Enemy_Dwarf_Mage_Prefab
   m_TagString: Untagged
@@ -113,7 +114,24 @@ MonoBehaviour:
   unitName: Dwarf Runesmith
   maxVitalityPoints: 30
   currentVitalityPoints: 0
+  equippedWeapon: {fileID: 0}
   moveSpeed: 5
+  attackAnimDuration: 0.5
+  hurtAnimDuration: 0.3
+  deathAnimDuration: 1
   maxActionPoints: 2
   currentActionPoints: 0
   actionCounter: 0
+  aiHandler: {fileID: -6695904852252191918}
+--- !u!114 &-6695904852252191918
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9173187324434785590}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a27293dbe7d07694e88dab22626c23f9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 

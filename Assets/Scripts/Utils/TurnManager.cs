@@ -43,7 +43,6 @@ public class TurnManager : MonoBehaviour
         if (turnOrderUI == null)
         {
             DebugHelper.LogWarning("TurnManager: TurnOrderUI reference not set in Inspector. Attempting to find it.", this);
-            // MODIFIED: Changed FindObjectOfType to FindFirstObjectByType
             turnOrderUI = FindFirstObjectByType<TurnOrderUI>();
             if (turnOrderUI == null)
             {
@@ -70,7 +69,7 @@ public class TurnManager : MonoBehaviour
         {
             DebugHelper.LogWarning($"TurnManager: Unit '{unit.unitName}' is already registered.", this);
         }
-        UpdateTurnDisplay(); // Update display when units change
+        UpdateTurnDisplay();
     }
 
     public void UnregisterUnit(Unit unit)
@@ -100,7 +99,7 @@ public class TurnManager : MonoBehaviour
         {
             DebugHelper.LogWarning($"TurnManager: Unit '{unit.unitName}' was not found in combat units to unregister.", this);
         }
-        UpdateTurnDisplay(); // Update display when units change
+        UpdateTurnDisplay();
     }
 
     public void StartCombat()
@@ -109,7 +108,7 @@ public class TurnManager : MonoBehaviour
         {
             DebugHelper.LogWarning("TurnManager: StartCombat called with no units registered. Combat not starting.", this);
             _isCombatActive = false;
-            UpdateTurnDisplay(); // Clear UI if combat doesn't start
+            UpdateTurnDisplay();
             return;
         }
 
@@ -124,9 +123,11 @@ public class TurnManager : MonoBehaviour
         DebugHelper.Log($"TurnManager: Preparing for combat. Initializing {_combatUnits.Count} units.", this);
         foreach (Unit unit in _combatUnits)
         {
-            unit.ResetActionPoints();
-            unit.actionCounter = 0;
-            // DebugHelper.Log($"TurnManager: Initialized {unit.unitName} - AP: {unit.currentActionPoints}, AC: {unit.actionCounter}, Speed: {unit.EffectiveSpeed}, Echo: {unit.currentAttributes?.Echo}, Glimmer: {unit.currentAttributes?.Glimmer}", this);
+            if (unit != null && unit.IsAlive) // Ensure unit is not null and is alive
+            {
+                unit.ResetActionPoints();
+                unit.actionCounter = 0;
+            }
         }
 
         DebugHelper.Log("TurnManager: Combat started. Starting turn progression...", this);
@@ -162,23 +163,28 @@ public class TurnManager : MonoBehaviour
         {
             if (ActiveUnit == null)
             {
+                _combatUnits.RemoveAll(u => u == null || !u.IsAlive);
+
                 if (_combatUnits.Count == 0)
                 {
-                    DebugHelper.LogWarning("TurnManager: No units left in combat. Stopping turn advancement.", this);
+                    DebugHelper.LogWarning("TurnManager: No (living) units left in combat. Stopping turn advancement.", this);
                     EndCombat();
                     yield break;
                 }
 
                 bool anyUnitReadyThisTick = false;
                 int safetyCounter = 0;
-                const int maxTicksWithoutReadyUnit = 5000;
+                const int maxTicksWithoutReadyUnit = 10000;
 
                 while (!anyUnitReadyThisTick && _isCombatActive && safetyCounter < maxTicksWithoutReadyUnit)
                 {
                     safetyCounter++;
-                    foreach (Unit unit in _combatUnits)
+                    List<Unit> unitsToProcess = new List<Unit>(_combatUnits);
+                    foreach (Unit unit in unitsToProcess)
                     {
-                        if(unit.currentAttributes != null)
+                        if (unit == null || !unit.IsAlive) continue;
+
+                        if (unit.currentAttributes != null)
                             unit.actionCounter += unit.EffectiveSpeed;
                         else
                             unit.actionCounter += 1;
@@ -188,10 +194,10 @@ public class TurnManager : MonoBehaviour
                             anyUnitReadyThisTick = true;
                         }
                     }
-                    if (!anyUnitReadyThisTick) yield return null;
+                    if (!anyUnitReadyThisTick && _isCombatActive) yield return null;
                 }
 
-                if (safetyCounter >= maxTicksWithoutReadyUnit && !anyUnitReadyThisTick)
+                if (safetyCounter >= maxTicksWithoutReadyUnit && !anyUnitReadyThisTick && _isCombatActive)
                 {
                     DebugHelper.LogError("TurnManager: AdvanceTurnsCoroutine safety break! No unit became ready after many ticks. Check unit speeds or combat end conditions.", this);
                     EndCombat();
@@ -201,7 +207,7 @@ public class TurnManager : MonoBehaviour
                 if (!_isCombatActive) yield break;
 
                 List<Unit> readyUnits = _combatUnits
-                    .Where(u => u.actionCounter >= ActionCounterThreshold)
+                    .Where(u => u != null && u.IsAlive && u.actionCounter >= ActionCounterThreshold)
                     .OrderByDescending(u => u.actionCounter)
                     .ThenByDescending(u => u.EffectiveSpeed)
                     .ThenByDescending(u => u.currentAttributes?.Echo ?? 0)
@@ -218,28 +224,37 @@ public class TurnManager : MonoBehaviour
                     }
 
                     ActiveUnit = nextUnit;
+                    if (ActiveUnit == null || !ActiveUnit.IsAlive)
+                    {
+                        ActiveUnit = null;
+                        DebugHelper.LogWarning("TurnManager: Next chosen unit was null or not alive. Skipping its turn.", this);
+                        UpdateTurnDisplay();
+                        continue;
+                    }
+
                     ActiveUnit.ResetActionPoints();
 
                     if (ActiveUnit.CurrentTile != null)
                     {
                         ActiveUnit.CurrentTile.SetHighlight(TileHighlightState.ActiveTurnUnit);
                         _previousActiveUnitTile = ActiveUnit.CurrentTile;
-                    } else {
+                    }
+                    else
+                    {
                         DebugHelper.LogWarning($"TurnManager: ActiveUnit {ActiveUnit.unitName} has no CurrentTile. Cannot set ActiveTurnUnit highlight.", ActiveUnit);
                         _previousActiveUnitTile = null;
                     }
 
-                    DebugHelper.Log($"TurnManager: --- Unit {ActiveUnit.unitName}'s Turn Start --- AC: {ActiveUnit.actionCounter}, Speed: {ActiveUnit.EffectiveSpeed}, Echo: {ActiveUnit.currentAttributes?.Echo}, Glimmer: {ActiveUnit.currentAttributes?.Glimmer}, AP: {ActiveUnit.currentActionPoints}", ActiveUnit);
+                    DebugHelper.Log($"TurnManager: --- Unit {ActiveUnit.unitName}'s Turn Start --- AC: {ActiveUnit.actionCounter}, Speed: {ActiveUnit.EffectiveSpeed}, AP: {ActiveUnit.currentActionPoints}", ActiveUnit);
                     UpdateTurnDisplay();
 
                     if (!ActiveUnit.CompareTag("Player"))
                     {
-                        // DebugHelper.Log($"TurnManager (Hack): Auto-ending turn for non-player unit {ActiveUnit.unitName} in 1s.", this);
-                        yield return new WaitForSeconds(0.1f); // Shortened for faster AI turns
-                        if (ActiveUnit == nextUnit && _isCombatActive) {
-                            EndUnitTurn(ActiveUnit);
-                        }
+                        // AI unit's turn
+                        DebugHelper.Log($"TurnManager: Starting AI turn processing for {ActiveUnit.unitName}.", ActiveUnit);
+                        StartCoroutine(ActiveUnit.ProcessAITurn()); // << MODIFIED LINE
                     }
+                    // Player turn is handled by PlayerInputHandler reacting to ActiveUnit change
                 }
             }
             yield return null;
@@ -256,70 +271,71 @@ public class TurnManager : MonoBehaviour
             return;
         }
 
-        bool wasActiveUnit = (unit == ActiveUnit);
-
-        if (wasActiveUnit)
+        if (ActiveUnit != unit && unit.IsAlive)
         {
-            DebugHelper.Log($"TurnManager: --- Unit {ActiveUnit.unitName}'s Turn End --- Resetting AC from {ActiveUnit.actionCounter} to 0.", ActiveUnit);
-            if (_previousActiveUnitTile != null && _previousActiveUnitTile == ActiveUnit.CurrentTile)
+            DebugHelper.LogWarning($"TurnManager: Unit '{unit.unitName}' tried to end turn, but is not the current ActiveUnit ('{ActiveUnit?.unitName ?? "None"}'). Turn not ended by this call unless it's a death scenario handled by PIH.", this);
+            return;
+        }
+
+        if (ActiveUnit == unit || !unit.IsAlive)
+        {
+            DebugHelper.Log($"TurnManager: --- Unit {unit.unitName}'s Turn End --- Resetting AC from {unit.actionCounter} to 0.", unit);
+            if (_previousActiveUnitTile != null && (_previousActiveUnitTile == unit.CurrentTile || !unit.IsAlive))
             {
-                // Only clear highlight if it was for ActiveTurnUnit.
-                // If player selected it for next action, PIH might re-highlight it.
-                 _previousActiveUnitTile.SetHighlight(TileHighlightState.None);
+                _previousActiveUnitTile.SetHighlight(TileHighlightState.None);
                 _previousActiveUnitTile = null;
             }
-            else if (ActiveUnit.CurrentTile != null) // If previous tile was different or null, ensure current tile is also cleared
+
+            unit.actionCounter = 0;
+            if (ActiveUnit == unit)
             {
-                ActiveUnit.CurrentTile.SetHighlight(TileHighlightState.None);
+                ActiveUnit = null;
             }
-
-
-            ActiveUnit.actionCounter = 0;
-            ActiveUnit = null;
-        }
-        else if (ActiveUnit == null && _combatUnits.Contains(unit) && unit.actionCounter >= ActionCounterThreshold)
-        {
-             DebugHelper.LogWarning($"TurnManager: {unit.unitName} called EndUnitTurn, but ActiveUnit was already null. Resetting its AC from {unit.actionCounter} to 0.", unit);
-             unit.actionCounter = 0;
-        }
-        else
-        {
-            DebugHelper.LogWarning($"TurnManager: Unit '{unit.unitName}' tried to end turn, but is not the current ActiveUnit ('{ActiveUnit?.unitName ?? "None"}'). Turn not ended by this call.", this);
         }
 
-        if(wasActiveUnit || ActiveUnit == null)
-        {
-            UpdateTurnDisplay();
-        }
+        UpdateTurnDisplay();
     }
 
     private void UpdateTurnDisplay()
     {
         if (turnOrderUI != null)
         {
-            if (_isCombatActive && _combatUnits.Count > 0)
+            if (_isCombatActive)
             {
-                List<Unit> forecast = GetTurnOrderForecast();
-                turnOrderUI.UpdateTurnOrderDisplay(forecast, ActiveUnit);
+                List<Unit> aliveCombatUnits = _combatUnits.Where(u => u != null && u.IsAlive).ToList();
+                if (aliveCombatUnits.Count > 0)
+                {
+                    List<Unit> forecast = GetTurnOrderForecast(aliveCombatUnits);
+                    turnOrderUI.UpdateTurnOrderDisplay(forecast, ActiveUnit);
+                }
+                else
+                {
+                    turnOrderUI.UpdateTurnOrderDisplay(new List<Unit>(), null);
+                    if (_isCombatActive)
+                    {
+                        DebugHelper.Log("TurnManager: All units defeated. Ending combat via UpdateTurnDisplay.", this);
+                        EndCombat();
+                    }
+                }
             }
             else
             {
-                 turnOrderUI.UpdateTurnOrderDisplay(new List<Unit>(), null);
+                turnOrderUI.UpdateTurnOrderDisplay(new List<Unit>(), null);
             }
         }
     }
 
-    private List<Unit> GetTurnOrderForecast()
+    private List<Unit> GetTurnOrderForecast(List<Unit> unitsToConsider)
     {
         List<Unit> forecast = new List<Unit>();
 
-        if (ActiveUnit != null)
+        if (ActiveUnit != null && ActiveUnit.IsAlive)
         {
             forecast.Add(ActiveUnit);
         }
 
-        var sortedUpcoming = _combatUnits
-            .Where(u => u != ActiveUnit)
+        var sortedUpcoming = unitsToConsider
+            .Where(u => u != ActiveUnit && u.IsAlive)
             .OrderByDescending(u => u.actionCounter >= ActionCounterThreshold)
             .ThenByDescending(u => u.actionCounter)
             .ThenByDescending(u => u.EffectiveSpeed)
@@ -330,6 +346,6 @@ public class TurnManager : MonoBehaviour
         forecast.AddRange(sortedUpcoming);
 
         int maxSlots = (turnOrderUI != null) ? turnOrderUI.numberOfSlotsToDisplay : 5;
-        return forecast.Take(maxSlots).ToList(); // Simpler way to get up to maxSlots
+        return forecast.Take(maxSlots).ToList();
     }
 }

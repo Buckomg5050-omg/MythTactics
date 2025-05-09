@@ -1,6 +1,7 @@
 // WeaponSO.cs
 // Located in: Assets/Scripts/ScriptableObjects/Items/
 using UnityEngine;
+using System.Collections.Generic; // Added for List if StatModifier or AbilitySO were used
 
 [CreateAssetMenu(fileName = "NewWeapon", menuName = "MythTactics/Items/Weapon")]
 public class WeaponSO : ScriptableObject // Or potentially an ItemSO base class later
@@ -9,10 +10,12 @@ public class WeaponSO : ScriptableObject // Or potentially an ItemSO base class 
     [Tooltip("The base damage of this weapon before attribute modifiers.")]
     public int baseDamage = 5;
 
+    [Tooltip("The attack range of this weapon. Default is 1 for melee. Overrides class default if > 0.")]
+    public int range = 1; // MODIFIED: Uncommented and active
+
     // Future properties for a weapon:
     // public string weaponName = "Generic Weapon";
     // public Sprite icon;
-    // public int range = 1; // If weapon dictates range over class default
     // public enum WeaponType { Sword, Axe, Bow, Staff, Unarmed } // For skill compatibility, animations etc.
     // public WeaponType weaponType = WeaponType.Sword;
     // public int baseAccuracy = 75;
