@@ -2,7 +2,7 @@
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
-using MythTactics.Combat; // For DamageCalculator access
+using MythTactics.Combat;
 
 public class Unit : MonoBehaviour
 {
@@ -24,6 +24,8 @@ public class Unit : MonoBehaviour
     [Header("Equipment")]
     [Tooltip("The currently equipped weapon. If null, unarmed damage will be used.")]
     public WeaponSO equippedWeapon;
+    [Tooltip("The currently equipped body armor. If null, armor value is 0.")]
+    public ArmorSO equippedBodyArmor; // NEW FIELD for body armor
 
     [Header("Movement & Animation Timings")]
     public float moveSpeed = 5f;
@@ -39,7 +41,7 @@ public class Unit : MonoBehaviour
     public int actionCounter = 0;
 
     [Header("AI")]
-    [SerializeField] private BasicAIHandler aiHandler; // Added for AI
+    [SerializeField] private BasicAIHandler aiHandler;
 
     private Tile _currentTile;
     public Tile CurrentTile => _currentTile;
@@ -49,7 +51,6 @@ public class Unit : MonoBehaviour
     private bool _isAlive = true;
     public bool IsAlive => _isAlive;
 
-
     void Awake()
     {
         currentVitalityPoints = maxVitalityPoints;
@@ -57,14 +58,9 @@ public class Unit : MonoBehaviour
         {
             currentAttributes = new UnitPrimaryAttributes();
         }
-        // Optional: GetComponent if not assigned and not player
-        // if (aiHandler == null && !CompareTag("Player"))
-        // {
-        //     aiHandler = GetComponent<BasicAIHandler>();
-        // }
     }
 
-    public IEnumerator PerformAttack(Unit targetUnit, PlayerInputHandler attackerPIHContext) // attackerPIHContext can be null for AI
+    public IEnumerator PerformAttack(Unit targetUnit, PlayerInputHandler attackerPIHContext)
     {
         if (!_isAlive || targetUnit == null || !targetUnit.IsAlive || !CanAffordAction(PlayerInputHandler.AttackActionCost))
         {
@@ -76,34 +72,53 @@ public class Unit : MonoBehaviour
 
         yield return StartCoroutine(PerformAttackAnimation());
 
-        if (targetUnit != null && targetUnit.IsAlive)
+        if (CombatCalculator.ResolveHit(this, targetUnit))
         {
-            int currentAttackBaseDamage;
-            string damageSourceMessage;
+            DebugHelper.Log($"{unitName}'s attack HITS {targetUnit.unitName}!", this);
 
-            if (equippedWeapon != null)
+            bool isCritical = CombatCalculator.CheckCriticalHit(this, targetUnit);
+            float criticalDamageMultiplier = 1.0f;
+            string critMessage = "";
+
+            if (isCritical)
             {
-                currentAttackBaseDamage = equippedWeapon.baseDamage;
-                damageSourceMessage = equippedWeapon.name;
+                criticalDamageMultiplier = DamageCalculator.CRITICAL_HIT_MULTIPLIER;
+                critMessage = " (CRITICAL HIT!)";
+                DebugHelper.Log($"CRITICAL HIT by {unitName} on {targetUnit.unitName}!", this);
             }
-            else
+
+            if (targetUnit != null && targetUnit.IsAlive)
             {
-                currentAttackBaseDamage = DamageCalculator.UNARMED_BASE_DAMAGE;
-                damageSourceMessage = "Unarmed";
-            }
+                int currentAttackBaseDamage;
+                string damageSourceMessage;
 
-            int totalDamage = DamageCalculator.CalculatePhysicalAttackDamage(currentAttackBaseDamage, this, targetUnit);
+                if (equippedWeapon != null)
+                {
+                    currentAttackBaseDamage = equippedWeapon.baseDamage;
+                    damageSourceMessage = equippedWeapon.name;
+                }
+                else
+                {
+                    currentAttackBaseDamage = DamageCalculator.UNARMED_BASE_DAMAGE;
+                    damageSourceMessage = "Unarmed";
+                }
 
-            int coreBonus = (currentAttributes != null) ? Mathf.FloorToInt(currentAttributes.Core / 4f) : 0;
-            DebugHelper.Log($"{unitName} dealing {totalDamage} damage to {targetUnit.unitName} using {damageSourceMessage} (Base: {currentAttackBaseDamage}, CoreBonus: {coreBonus}).", this);
+                int totalDamage = DamageCalculator.CalculatePhysicalAttackDamage(currentAttackBaseDamage, this, targetUnit, criticalDamageMultiplier);
 
-            if (targetUnit != null && targetUnit.gameObject.activeInHierarchy)
-            {
-                yield return targetUnit.StartCoroutine(targetUnit.TakeDamage(totalDamage));
+                int coreBonus = (currentAttributes != null) ? Mathf.FloorToInt(currentAttributes.Core / 4f) : 0;
+                DebugHelper.Log($"{unitName} dealing {totalDamage} damage to {targetUnit.unitName} using {damageSourceMessage}{critMessage} (Base: {currentAttackBaseDamage}, CoreBonus: {coreBonus}, CritMult: {criticalDamageMultiplier}).", this);
+
+                if (targetUnit != null && targetUnit.gameObject.activeInHierarchy)
+                {
+                    yield return targetUnit.StartCoroutine(targetUnit.TakeDamage(totalDamage));
+                }
             }
         }
+        else
+        {
+            DebugHelper.Log($"{unitName}'s attack MISSES {targetUnit.unitName}!", this);
+        }
     }
-
 
     public IEnumerator PerformAttackAnimation()
     {
@@ -125,7 +140,18 @@ public class Unit : MonoBehaviour
     }
 
     public int CalculatedMoveRange => _isAlive ? Mathf.Max(1, ((raceData != null ? raceData.baseMovementContribution : 0) + (classData != null ? classData.baseMovementContribution : 3) + Mathf.FloorToInt((currentAttributes != null ? currentAttributes.Echo : 0) / 5f))) : 0;
-    public int CalculatedAttackRange => _isAlive ? (classData != null ? Mathf.Max(0, classData.baseAttackRange) : 0) : 0; // Assuming baseAttackRange=1 for melee
+    public int CalculatedAttackRange
+    {
+        get
+        {
+            if (!_isAlive) return 0;
+            int classRange = (classData != null ? Mathf.Max(0, classData.baseAttackRange) : 0);
+            int weaponRange = (equippedWeapon != null && equippedWeapon.range > 0) ? equippedWeapon.range : 0;
+            if (weaponRange > 0) return weaponRange;
+            if (classRange > 0) return classRange;
+            return 1;
+        }
+    }
 
     public int RawCalculatedBaseUnitSpeed
     {
@@ -141,7 +167,6 @@ public class Unit : MonoBehaviour
     }
     public int FinalCalculatedBaseUnitSpeed => _isAlive ? Mathf.Max(1, RawCalculatedBaseUnitSpeed) : 1;
     public int EffectiveSpeed => _isAlive ? (FinalCalculatedBaseUnitSpeed) : 1;
-
 
     public void PlaceOnTile(Tile tile)
     {
@@ -169,7 +194,6 @@ public class Unit : MonoBehaviour
                 transform.position = GridManager.Instance.GridToWorld(tile.gridPosition);
             else
                 transform.position = tile.transform.position;
-
             tile.SetOccupyingUnit(this);
         }
         else { DebugHelper.LogWarning($"{unitName} placed on NULL tile.", this); }
@@ -186,7 +210,6 @@ public class Unit : MonoBehaviour
         Coroutine localMoveCoroutine = StartCoroutine(PerformMovement(path));
         _moveCoroutine = localMoveCoroutine;
         yield return localMoveCoroutine;
-
         if (_moveCoroutine == localMoveCoroutine) _moveCoroutine = null;
         _isMoving = false;
     }
@@ -210,7 +233,6 @@ public class Unit : MonoBehaviour
 
             if (_currentTile != null && _currentTile.occupyingUnit == this)
                 _currentTile.ClearOccupyingUnit();
-
             _currentTile = nextTileInPath;
             if (_isAlive)
             {
@@ -256,26 +278,22 @@ public class Unit : MonoBehaviour
     {
         if (!_isAlive) return;
         if (cost <= 0) return;
-
         if (CanAffordAction(cost))
         {
             currentActionPoints -= cost;
         }
         else
         {
-            DebugHelper.LogWarning($"{unitName} FAILED to spend AP cost {cost}. Has {currentActionPoints}/{maxActionPoints}. This indicates a logic error where SpendActionPoints was called without a prior CanAffordAction check.", this);
+            DebugHelper.LogWarning($"{unitName} FAILED to spend AP cost {cost}. Has {currentActionPoints}/{maxActionPoints}.", this);
         }
     }
 
     public IEnumerator TakeDamage(int damageAmount)
     {
         if (!_isAlive) yield break;
-
         currentVitalityPoints -= damageAmount;
         currentVitalityPoints = Mathf.Max(0, currentVitalityPoints);
-
         DebugHelper.Log($"{unitName} takes {damageAmount} damage, has {currentVitalityPoints}/{maxVitalityPoints} VP remaining.", this);
-
         if (currentVitalityPoints > 0)
         {
             yield return StartCoroutine(PerformHurtAnimation());
@@ -288,91 +306,60 @@ public class Unit : MonoBehaviour
 
     private IEnumerator Die()
     {
-        if (!_isAlive)
-        {
-            yield break;
-        }
-
+        if (!_isAlive) yield break;
         _isAlive = false;
         DebugHelper.Log($"!!!!!! {unitName} has been defeated! !!!!!!", this);
-
         if (_isMoving && _moveCoroutine != null)
         {
             StopCoroutine(_moveCoroutine);
             _isMoving = false;
             _moveCoroutine = null;
         }
-
         yield return StartCoroutine(PerformDeathAnimation());
-
         if (_currentTile != null && _currentTile.occupyingUnit == this)
         {
             _currentTile.ClearOccupyingUnit();
         }
         _currentTile = null;
-
         if (TurnManager.Instance != null)
         {
             TurnManager.Instance.UnregisterUnit(this);
         }
-
         if (gameObject != null)
         {
             gameObject.SetActive(false);
         }
     }
 
-    // New method for AI Turn Processing
     public IEnumerator ProcessAITurn()
     {
         if (!_isAlive)
         {
             DebugHelper.LogWarning($"{unitName} (AI) cannot process turn, unit is not alive.", this);
-            if (TurnManager.Instance != null && TurnManager.Instance.ActiveUnit == this) // Check if TM exists and this is active unit
-            {
-                TurnManager.Instance.EndUnitTurn(this); 
-            }
+            if (TurnManager.Instance != null && TurnManager.Instance.ActiveUnit == this) TurnManager.Instance.EndUnitTurn(this);
             yield break;
         }
-
         if (CompareTag("Player"))
         {
-            DebugHelper.LogError($"{unitName} is tagged as Player but ProcessAITurn was called. This should not happen.", this);
-            if (TurnManager.Instance != null && TurnManager.Instance.ActiveUnit == this)
-            {
-                TurnManager.Instance.EndUnitTurn(this);
-            }
+            DebugHelper.LogError($"{unitName} is tagged as Player but ProcessAITurn was called.", this);
+            if (TurnManager.Instance != null && TurnManager.Instance.ActiveUnit == this) TurnManager.Instance.EndUnitTurn(this);
             yield break;
         }
-
         if (aiHandler == null)
         {
             DebugHelper.LogWarning($"{unitName} (AI) has no AIHandler assigned. Ending turn by 'Waiting'.", this);
-            if (CanAffordAction(PlayerInputHandler.WaitActionCost)) 
+            if (CanAffordAction(PlayerInputHandler.WaitActionCost))
             {
                 SpendActionPoints(PlayerInputHandler.WaitActionCost);
-                DebugHelper.Log($"{unitName} (AI) performed 'Wait' action (spent 1 AP). AP: {currentActionPoints}", this);
             }
-            else
-            {
-                DebugHelper.Log($"{unitName} (AI) cannot afford 'Wait'. Ending turn with {currentActionPoints} AP.", this);
-            }
-            
-            if (TurnManager.Instance != null && TurnManager.Instance.ActiveUnit == this)
-            {
-                TurnManager.Instance.EndUnitTurn(this);
-            }
+            if (TurnManager.Instance != null && TurnManager.Instance.ActiveUnit == this) TurnManager.Instance.EndUnitTurn(this);
             yield break;
         }
-
         DebugHelper.Log($"{unitName} (AI) starting its turn. Delegating to AIHandler.", this);
         yield return StartCoroutine(aiHandler.ExecuteTurn(this));
-        
-        // Safety check: If AIHandler's ExecuteTurn finishes and this unit is still the active one,
-        // it means the AIHandler didn't properly end the turn.
         if (TurnManager.Instance != null && TurnManager.Instance.ActiveUnit == this)
         {
-            DebugHelper.LogWarning($"{unitName} (AI) ProcessAITurn completed, but AIHandler might not have ended the turn. Forcing EndUnitTurn.", this);
+            DebugHelper.LogWarning($"{unitName} (AI) ProcessAITurn completed, AIHandler might not have ended turn. Forcing EndUnitTurn.", this);
             TurnManager.Instance.EndUnitTurn(this);
         }
     }

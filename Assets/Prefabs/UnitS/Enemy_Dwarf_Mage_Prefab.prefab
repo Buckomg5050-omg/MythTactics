@@ -115,6 +115,7 @@ MonoBehaviour:
   maxVitalityPoints: 30
   currentVitalityPoints: 0
   equippedWeapon: {fileID: 0}
+  equippedBodyArmor: {fileID: 11400000, guid: 6f4f867891bc1f14d919cfb03793e84a, type: 2}
   moveSpeed: 5
   attackAnimDuration: 0.5
   hurtAnimDuration: 0.3
