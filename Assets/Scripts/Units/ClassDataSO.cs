@@ -12,10 +12,14 @@ public class ClassDataSO : ScriptableObject
 
     [Header("Base Stat Contributions")]
     [Tooltip("Base movement points contribution from this class (added to race base). GDD 1.2.")]
-    public int baseMovementContribution = 3; 
+    public int baseMovementContribution = 3;
 
     [Tooltip("Flat speed bonus granted by this class. GDD 1.1.")]
-    public int classSpeedBonus = 0; 
+    public int classSpeedBonus = 0;
+
+    [Header("Combat Stats")]
+    [Tooltip("The base range (in tiles) for this class's standard attack. GDD 7.1.1 (simplified for basic attack).")]
+    public int baseAttackRange = 1; // Default to 1 (melee)
 
     [Header("Attribute Growth Per Level (GDD 2.2)")]
     [Tooltip("Defines how primary attributes increase automatically per level for this class.")]
