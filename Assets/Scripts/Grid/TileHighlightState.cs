@@ -5,5 +5,6 @@ public enum TileHighlightState
     AttackRange,
     SelectedUnit,
     Hovered,
-    Path // Added Path
+    Path,
+    ActiveTurnUnit // Added for the unit whose turn it is
 }

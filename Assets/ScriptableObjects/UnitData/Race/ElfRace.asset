@@ -10,12 +10,10 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 6767185d759556b48a5c3999fa947e31, type: 3}
-  m_Name: HumanRace
+  m_Name: ElfRace
   m_EditorClassIdentifier: 
-  raceName: Human
-  description: 'Adaptable and widespread, humans form the backbone of many nations,
-    known for their balanced capabilities.
-
-'
-  baseMovementContribution: 0
-  raceSpeedBonus: 50
+  raceName: Elf
+  description: Graceful and long-lived, elves are often attuned to nature and possess
+    keen senses and swiftness.
+  baseMovementContribution: 1
+  raceSpeedBonus: 60

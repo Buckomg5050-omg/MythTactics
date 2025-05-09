@@ -10,17 +10,17 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 9d90a13933967ab49aab428740203502, type: 3}
-  m_Name: WarriorClass.asse
+  m_Name: MageClass
   m_EditorClassIdentifier: 
-  className: Warrior
-  description: Masters of close-quarters combat, warriors are disciplined and versatile
-    fighters, skilled with a variety of weapons and armor.
-  baseMovementContribution: 3
-  classSpeedBonus: 0
+  className: Mage
+  description: Scholars of the arcane, mages wield powerful elemental and mystical
+    energies from a distance, often unburdened by heavy armor.
+  baseMovementContribution: 2
+  classSpeedBonus: -5
   primaryStatGains:
-    coreGain: 2
+    coreGain: 0
     echoGain: 1
-    pulseGain: 2
-    sparkGain: 0
-    glimmerGain: 1
-    auraGain: 0
+    pulseGain: 1
+    sparkGain: 2
+    glimmerGain: 2
+    auraGain: 1

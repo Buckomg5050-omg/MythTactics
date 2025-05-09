@@ -12,6 +12,7 @@ public class PlayerInputHandler : MonoBehaviour
 
     private const int MOVE_ACTION_COST = 1;
     private const int WAIT_ACTION_COST = 1; 
+    // No explicit AP cost for EndTurn, it's a command.
 
     private enum InputState { WaitingForTurn, UnitActionPhase, UnitMoving }
     private InputState _currentState = InputState.WaitingForTurn;
@@ -45,7 +46,7 @@ public class PlayerInputHandler : MonoBehaviour
     {
         yield return null; 
         while (gridTester.PlayerUnitInstance == null) {
-            DebugHelper.LogWarning("InputHandler waiting for Player Unit from GridTester (for initial reference)...", this);
+            // DebugHelper.LogWarning("InputHandler waiting for Player Unit from GridTester (for initial reference)...", this); // Can be verbose
             yield return new WaitForSeconds(0.2f);
         }
         if (gridTester.PlayerUnitInstance != null) {
@@ -65,7 +66,6 @@ public class PlayerInputHandler : MonoBehaviour
                 ClearSelectionAndHighlights(); 
             }
             _currentState = InputState.WaitingForTurn;
-            // _selectedUnit = null; // This is handled by ClearSelectionAndHighlights
             return;
         }
 
@@ -75,7 +75,6 @@ public class PlayerInputHandler : MonoBehaviour
         {
             if (_selectedUnit != currentManagedActiveUnit) 
             {
-                // DebugHelper.Log($"PlayerInputHandler: Turn changed or started for {currentManagedActiveUnit.unitName}.", this);
                 ClearSelectionAndHighlights(); 
                 _selectedUnit = currentManagedActiveUnit;
                 _currentState = InputState.UnitActionPhase;
@@ -86,16 +85,14 @@ public class PlayerInputHandler : MonoBehaviour
                 DebugHelper.Log($"PlayerInputHandler: Now it's {currentManagedActiveUnit.unitName}'s turn! (AP: {currentManagedActiveUnit.currentActionPoints})", this);
                 AttemptToShowMoveRangeForSelectedUnit(); 
             }
-            // If _selectedUnit is already currentManagedActiveUnit, PIH is already in this unit's action phase.
         }
         else 
         {
             if (_selectedUnit != null) 
             {
-                DebugHelper.Log($"PlayerInputHandler: No longer player unit '{_selectedUnit.unitName}'s turn (Active TM Unit: {currentManagedActiveUnit?.unitName ?? "None"}). Clearing PIH selection.", this);
+                // DebugHelper.Log($"PlayerInputHandler: No longer player unit '{_selectedUnit.unitName}'s turn (Active TM Unit: {currentManagedActiveUnit?.unitName ?? "None"}). Clearing PIH selection.", this);
                 ClearSelectionAndHighlights(); 
             }
-            // If _selectedUnit is already null, state should correctly be WaitingForTurn.
         }
     }
 
@@ -105,6 +102,7 @@ public class PlayerInputHandler : MonoBehaviour
         _playerControls.Gameplay.Enable();
         _playerControls.Gameplay.Click.performed += HandleClickInput;
         _playerControls.Gameplay.Wait.performed += HandleWaitActionInput;
+        _playerControls.Gameplay.EndTurn.performed += HandleEndTurnActionInput; // Subscribe to EndTurn
     }
 
     private void OnDisable()
@@ -112,18 +110,14 @@ public class PlayerInputHandler : MonoBehaviour
         if (_playerControls == null) return;
         _playerControls.Gameplay.Click.performed -= HandleClickInput;
         _playerControls.Gameplay.Wait.performed -= HandleWaitActionInput;
+        _playerControls.Gameplay.EndTurn.performed -= HandleEndTurnActionInput; // Unsubscribe
         _playerControls.Gameplay.Disable();
     }
 
     private void HandleClickInput(InputAction.CallbackContext context)
     {
-        if (_currentState != InputState.UnitActionPhase || _selectedUnit == null || _mainCamera == null) 
-        {
-            return;
-        }
+        if (_currentState != InputState.UnitActionPhase || _selectedUnit == null || _mainCamera == null) return;
         
-        // DebugHelper.Log($"PlayerInputHandler: HandleClickInput CALLED during {_selectedUnit.unitName}'s action phase.", this);
-
         Vector2 screenPosition = _playerControls.Gameplay.Point.ReadValue<Vector2>();
         Ray ray = _mainCamera.ScreenPointToRay(screenPosition);
         Plane xyPlane = new Plane(Vector3.forward, Vector3.zero);
@@ -176,7 +170,6 @@ public class PlayerInputHandler : MonoBehaviour
 
     private void HandleWaitActionInput(InputAction.CallbackContext context)
     {
-        // DebugHelper.Log("PlayerInputHandler: Wait Action Input Received.", this); // Can be verbose
         if (_currentState == InputState.UnitActionPhase && _selectedUnit != null)
         {
             HandleWaitAction();
@@ -189,22 +182,32 @@ public class PlayerInputHandler : MonoBehaviour
 
     private void HandleWaitAction()
     {
-        if (_selectedUnit == null)
-        {
-            DebugHelper.LogWarning("Attempted to Wait with no selected unit (HandleWaitAction).", this);
-            return;
-        }
+        if (_selectedUnit == null) return;
 
         if (_selectedUnit.CanAffordAction(WAIT_ACTION_COST))
         {
             _selectedUnit.SpendActionPoints(WAIT_ACTION_COST);
             DebugHelper.Log($"{_selectedUnit.unitName} performs WAIT action. AP remaining: {_selectedUnit.currentActionPoints}", this);
-            
             TurnManager.Instance.EndUnitTurn(_selectedUnit); 
         }
         else
         {
             DebugHelper.LogWarning($"{_selectedUnit.unitName} cannot afford WAIT action (Cost: {WAIT_ACTION_COST}). AP: {_selectedUnit.currentActionPoints}", this);
+        }
+    }
+
+    private void HandleEndTurnActionInput(InputAction.CallbackContext context)
+    {
+        DebugHelper.Log("PlayerInputHandler: End Turn Action Input Received.", this);
+        if (_currentState == InputState.UnitActionPhase && _selectedUnit != null)
+        {
+            DebugHelper.Log($"{_selectedUnit.unitName} explicitly ends turn. AP remaining: {_selectedUnit.currentActionPoints}", this);
+            TurnManager.Instance.EndUnitTurn(_selectedUnit);
+            // ClearSelectionAndHighlights(); // Update() will handle this when ActiveUnit becomes null
+        }
+        else
+        {
+            DebugHelper.Log($"End Turn action ignored. State: {_currentState}, SelectedUnit: {(_selectedUnit != null ? _selectedUnit.unitName : "null")}", this);
         }
     }
 
@@ -216,9 +219,7 @@ public class PlayerInputHandler : MonoBehaviour
             ShowReachableRange(_selectedUnit.CurrentTile.gridPosition, unitMoveRange, _selectedUnit);
         } else {
             ClearReachableHighlight(true); 
-            if(_selectedUnit != null) {
-                // DebugHelper.Log($"{_selectedUnit.unitName} cannot afford a move action (AP: {_selectedUnit.currentActionPoints}). Range not shown.", this);
-            }
+            // if(_selectedUnit != null) DebugHelper.Log($"{_selectedUnit.unitName} cannot afford a move action (AP: {_selectedUnit.currentActionPoints}). Range not shown.", this);
         }
     }
 
@@ -229,7 +230,6 @@ public class PlayerInputHandler : MonoBehaviour
 
         List<Tile> reachable = _pathfinder.GetReachableTiles(startPos, range, requestingUnit);
         _highlightedReachableTiles.AddRange(reachable); 
-        // DebugHelper.Log($"Found {reachable.Count} tiles reachable from {startPos} with range {range} for {requestingUnit.unitName}.", this);
 
         foreach (Tile tile in _highlightedReachableTiles) {
              if (tile != null && tile != requestingUnit.CurrentTile) { 
@@ -289,15 +289,14 @@ public class PlayerInputHandler : MonoBehaviour
         ClearPathHighlight();
 
         if (_selectedUnit != null && _selectedUnit.CurrentTile != null) {
-            // Check if it's still this unit's turn before removing its "SelectedUnit" highlight.
-            // If TurnManager.ActiveUnit is this _selectedUnit, it should remain highlighted as selected.
-            // This check might be redundant if Update() handles setting the highlight for the new ActiveUnit.
-            // For now, just clear it if it's not the current active unit.
-            if (TurnManager.Instance != null && TurnManager.Instance.ActiveUnit != _selectedUnit)
+            if (TurnManager.Instance == null || TurnManager.Instance.ActiveUnit != _selectedUnit)
             {
                  _selectedUnit.CurrentTile.SetHighlight(TileHighlightState.None); 
+            } else if (TurnManager.Instance.ActiveUnit == _selectedUnit) {
+                // If it's still this unit's turn (e.g. player clicked off-target but didn't end turn)
+                // keep it selected. PlayerInputHandler.Update will ensure this.
+                _selectedUnit.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit);
             }
-            // If it IS the active unit, Update() will re-apply SelectedUnit highlight.
         }
 
         _selectedUnit = null; 
@@ -307,13 +306,12 @@ public class PlayerInputHandler : MonoBehaviour
      private IEnumerator MoveUnitAlongPath(Unit unitToMove, List<Tile> path)
     {
         if (unitToMove == null || path == null || path.Count == 0) {
-            DebugHelper.LogWarning("MoveUnitAlongPath: Invalid unit or path.", this);
             ClearSelectionAndHighlights(); 
             _currentState = InputState.WaitingForTurn; 
             yield break; 
         }
 
-        if (unitToMove != TurnManager.Instance.ActiveUnit) { // Crucial check
+        if (unitToMove != TurnManager.Instance.ActiveUnit) { 
             DebugHelper.LogError($"MoveUnitAlongPath: {unitToMove.unitName} tried to move, but it's not the active unit's turn ({TurnManager.Instance.ActiveUnit?.unitName})!", this);
             ClearSelectionAndHighlights();
             _currentState = InputState.WaitingForTurn;
@@ -337,9 +335,9 @@ public class PlayerInputHandler : MonoBehaviour
         
         ClearPathHighlight();
 
-        if (_selectedUnit != null && _selectedUnit == unitToMove) // Ensure unit is still selected and is the one that moved
+        if (_selectedUnit != null && _selectedUnit == unitToMove) 
         {
-            _currentState = InputState.UnitActionPhase; // Return to action phase to check for more actions
+            _currentState = InputState.UnitActionPhase; 
 
             bool canMoveAgain = _selectedUnit.CanAffordAction(MOVE_ACTION_COST);
             bool canWait = _selectedUnit.CanAffordAction(WAIT_ACTION_COST);
@@ -350,23 +348,23 @@ public class PlayerInputHandler : MonoBehaviour
                 if(_selectedUnit.CurrentTile != null) _selectedUnit.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit); 
                 DebugHelper.Log($"{_selectedUnit.unitName} can move again. AP: {_selectedUnit.currentActionPoints}", this);
             }
-            else if (canWait) 
+            else if (canWait) // Can't move, but can still Wait (or other 1AP actions)
             {
                 DebugHelper.Log($"{_selectedUnit.unitName} cannot move again, but may have other actions (like Wait). AP: {_selectedUnit.currentActionPoints}", this);
                 ClearReachableHighlight(true); 
                 if(_selectedUnit.CurrentTile != null) _selectedUnit.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit); 
             }
-            else 
+            else // No AP left for common actions like Move or Wait
             {
-                DebugHelper.Log($"{_selectedUnit.unitName} has no AP for further actions (Move/Wait). Ending turn. AP: {_selectedUnit.currentActionPoints}", this);
+                DebugHelper.Log($"{_selectedUnit.unitName} has no AP for further actions (Move/Wait). Auto-ending turn. AP: {_selectedUnit.currentActionPoints}", this);
                 ClearReachableHighlight(true); 
                 if(_selectedUnit.CurrentTile != null) _selectedUnit.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit); 
                 TurnManager.Instance.EndUnitTurn(_selectedUnit); 
+                // Update() will handle clearing selection when ActiveUnit becomes null
             }
         }
         else
         {
-            // If selected unit changed or became null mid-move (unlikely with current design, but defensive)
             ClearSelectionAndHighlights();
         }
     }
