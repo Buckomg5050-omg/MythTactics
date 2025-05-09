@@ -7,24 +7,19 @@ using System.Collections.Generic;
 public class PlayerInputHandler : MonoBehaviour
 {
     [Header("References")]
-    [Tooltip("Assign the GridManager from the scene.")]
-    public GridManager gridManager; // Should be GridManager.Instance after GridManager is updated
-    [Tooltip("Assign the GridTester from the scene to get player unit ref.")]
-    public GridTester gridTester; // Keep for now, but _selectedUnit will be primary focus
+    public GridTester gridTester; 
     private Pathfinder _pathfinder;
 
-    private const int MOVE_ACTION_COST = 1; // GDD 3.1: Move Action costs 1 AP
+    private const int MOVE_ACTION_COST = 1;
+    private const int WAIT_ACTION_COST = 1; // Cost for the Wait action
 
-    // InputState might need to evolve if we have more complex actions, but good for now.
-    private enum InputState { WaitingForInput, UnitSelected, UnitMoving } // Renamed None to WaitingForInput for clarity
+    private enum InputState { WaitingForInput, UnitSelected, UnitMoving }
     private InputState _currentState = InputState.WaitingForInput;
 
     private Unit _selectedUnit = null;
-    // private Vector2Int? _endTilePos = null; // Not strictly needed if path is stored directly
 
     private List<Tile> _highlightedReachableTiles = new List<Tile>();
-    private List<Tile> _highlightedPathTiles = new List<Tile>(); // For path preview
-    // private Tile _highlightedStartTile = null; // The selected unit's tile will be highlighted by its own state
+    private List<Tile> _highlightedPathTiles = new List<Tile>();
 
     private PlayerControls _playerControls;
     private Camera _mainCamera;
@@ -34,25 +29,20 @@ public class PlayerInputHandler : MonoBehaviour
         _mainCamera = Camera.main;
         _playerControls = new PlayerControls();
 
-        // GridManager should be accessed via its static Instance after the update
         if (GridManager.Instance == null) { DebugHelper.LogError("InputHandler: GridManager.Instance is missing! Ensure GridManager is in scene and has Awake setup.", this); this.enabled = false; return; }
         if (gridTester == null) { DebugHelper.LogError("InputHandler: GridTester missing (for player unit)! Ensure it's assigned.", this); this.enabled = false; return; }
         
-        _pathfinder = new Pathfinder(GridManager.Instance); // Use instance
+        _pathfinder = new Pathfinder(GridManager.Instance);
     }
 
     void Start()
     {
-        // Pathfinder initialized in Awake
-        StartCoroutine(AssignPlayerUnitReference()); // Still useful to ensure player unit is ready
+        StartCoroutine(AssignPlayerUnitReference());
     }
 
      IEnumerator AssignPlayerUnitReference()
     {
-        // This coroutine might become less critical if PlayerInputHandler directly finds player units
-        // or if a UnitManager system handles player unit registration.
-        // For now, it ensures GridTester has spawned the unit.
-        yield return null; // Wait a frame for GridTester's Start/Awake
+        yield return null; 
         while (gridTester.PlayerUnitInstance == null) {
             DebugHelper.LogWarning("InputHandler waiting for Player Unit from GridTester...", this);
             yield return new WaitForSeconds(0.2f);
@@ -70,17 +60,21 @@ public class PlayerInputHandler : MonoBehaviour
         if (_playerControls == null) _playerControls = new PlayerControls();
         _playerControls.Gameplay.Enable();
         _playerControls.Gameplay.Click.performed += HandleClick;
+        _playerControls.Gameplay.Wait.performed += HandleWaitActionInput; // Subscribe to the new Wait action
     }
 
     private void OnDisable()
     {
         if (_playerControls == null) return;
         _playerControls.Gameplay.Click.performed -= HandleClick;
+        _playerControls.Gameplay.Wait.performed -= HandleWaitActionInput; // Unsubscribe
         _playerControls.Gameplay.Disable();
     }
 
     private void HandleClick(InputAction.CallbackContext context)
     {
+        // DebugHelper.Log("PlayerInputHandler: HandleClick CALLED!", this); 
+
         if (_currentState == InputState.UnitMoving || GridManager.Instance == null || _pathfinder == null || _mainCamera == null) return;
 
         Vector2 screenPosition = _playerControls.Gameplay.Point.ReadValue<Vector2>();
@@ -96,109 +90,161 @@ public class PlayerInputHandler : MonoBehaviour
         switch (_currentState)
         {
             case InputState.WaitingForInput:
-                if (clickedTile != null && clickedTile.IsOccupied && clickedTile.occupyingUnit != null && clickedTile.occupyingUnit.CompareTag("Player")) // Assuming player units have "Player" tag
+                if (clickedTile != null && clickedTile.IsOccupied && clickedTile.occupyingUnit != null && clickedTile.occupyingUnit.CompareTag("Player")) 
                 {
-                    ClearSelectionAndHighlights(); // Clear any previous state
+                    ClearSelectionAndHighlights(); 
                     _selectedUnit = clickedTile.occupyingUnit;
                     
-                    if (_selectedUnit.CanAffordAction(MOVE_ACTION_COST))
+                    // Check AP for any action (e.g., move) before fully selecting
+                    if (_selectedUnit.CanAffordAction(MOVE_ACTION_COST) || _selectedUnit.CanAffordAction(WAIT_ACTION_COST)) // Can the unit do anything?
                     {
-                        _selectedUnit.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit); // Highlight selected unit's tile
-                        int unitMoveRange = _selectedUnit.CalculatedMoveRange;
-                        ShowReachableRange(_selectedUnit.CurrentTile.gridPosition, unitMoveRange, _selectedUnit);
+                        _selectedUnit.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit); 
+                        // Show move range only if unit can afford to move
+                        if (_selectedUnit.CanAffordAction(MOVE_ACTION_COST))
+                        {
+                            int unitMoveRange = _selectedUnit.CalculatedMoveRange;
+                            ShowReachableRange(_selectedUnit.CurrentTile.gridPosition, unitMoveRange, _selectedUnit);
+                        }
                         _currentState = InputState.UnitSelected;
-                        DebugHelper.Log($"Selected {_selectedUnit.unitName} at: {clickedGridPos} (Move: {unitMoveRange}, AP: {_selectedUnit.currentActionPoints}/{_selectedUnit.maxActionPoints})", this);
+                        DebugHelper.Log($"Selected {_selectedUnit.unitName} at: {clickedGridPos} (Move: {_selectedUnit.CalculatedMoveRange}, AP: {_selectedUnit.currentActionPoints}/{_selectedUnit.maxActionPoints})", this);
                     }
                     else
                     {
-                        DebugHelper.Log($"{_selectedUnit.unitName} selected, but has insufficient AP ({_selectedUnit.currentActionPoints}) to move (cost: {MOVE_ACTION_COST}).", this);
-                        _selectedUnit = null; // Deselect if cannot act
+                        DebugHelper.Log($"{_selectedUnit.unitName} selected, but has insufficient AP ({_selectedUnit.currentActionPoints}) for any action.", this);
+                        _selectedUnit.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit); // Show it's selected
+                        // Don't transition to UnitSelected state if no actions are possible
+                        // Or, allow selection but actions will fail their CanAffordAction checks.
+                        // For now, let's allow selection but actions (like showing move range) will be gated by AP.
+                        _currentState = InputState.UnitSelected; // Allow selection to see info, wait, etc.
                     }
                 }
-                else { ClearSelectionAndHighlights(); } // Clicked empty tile or non-player unit
+                else { ClearSelectionAndHighlights(); } 
                 break;
 
             case InputState.UnitSelected:
                  if (_selectedUnit != null && clickedTile != null)
                  {
-                    if (clickedTile == _selectedUnit.CurrentTile) { // Clicked on the already selected unit
-                        DebugHelper.Log("Clicked selected unit's tile again. Deselecting.", this);
-                        ClearSelectionAndHighlights(); 
+                    if (clickedTile == _selectedUnit.CurrentTile) { 
+                        DebugHelper.Log("Clicked selected unit's tile again. No action, unit remains selected.", this);
+                        // No need to deselect here unless specific design calls for it.
+                        // ClearSelectionAndHighlights(); 
                         break;
                     }
 
-                    if (_highlightedReachableTiles.Contains(clickedTile))
+                    if (_highlightedReachableTiles.Contains(clickedTile)) // Attempting to move
                     {
-                        if (clickedTile.IsOccupied) // Target tile is occupied by another unit
+                        if (!_selectedUnit.CanAffordAction(MOVE_ACTION_COST))
                         {
-                             DebugHelper.Log($"Cannot move to occupied tile {clickedGridPos} (Occupant: {clickedTile.occupyingUnit?.unitName}). Resetting.", this);
-                             ClearSelectionAndHighlights(); // Or just clear path/reachable and wait for new target.
-                             break;
+                            DebugHelper.LogWarning($"{_selectedUnit.unitName} cannot afford MOVE AP cost ({MOVE_ACTION_COST}). Has {_selectedUnit.currentActionPoints}. Move blocked.", this);
+                            // Optionally, provide feedback to player.
+                            break; // Break from switch, unit remains selected, range might still be shown.
+                        }
+
+                        if (clickedTile.IsOccupied) 
+                        {
+                             DebugHelper.Log($"Cannot move to occupied tile {clickedGridPos} (Occupant: {clickedTile.occupyingUnit?.unitName}).", this);
+                             // ClearPathHighlight(); // Clear just the path if one was shown
+                             break; // Unit remains selected, player can choose another target.
                         }
                         
-                        // Confirmed move target
                         List<Tile> path = _pathfinder.FindPath(_selectedUnit.CurrentTile.gridPosition, clickedTile.gridPosition, _selectedUnit);
 
                         if (path != null && path.Count > 0) {
-                            // AP check is implicitly done by _selectedUnit.CanAffordAction(MOVE_ACTION_COST) in MoveUnitAlongPath
-                            // but a quick check here can avoid unnecessary path highlighting if AP was spent by another means (future feature)
-                            if (!_selectedUnit.CanAffordAction(MOVE_ACTION_COST))
-                            {
-                                DebugHelper.LogWarning($"{_selectedUnit.unitName} could not afford move at path confirmation. AP: {_selectedUnit.currentActionPoints}", this);
-                                ClearSelectionAndHighlights();
-                                break;
-                            }
-                            ClearReachableHighlight(false); // Clear reachable, but keep selected unit's tile highlighted
-                            ShowPathHighlight(path); // Highlight the chosen path
-                            _currentState = InputState.UnitMoving; // Set state to prevent further clicks while moving
+                            ClearReachableHighlight(false); 
+                            ShowPathHighlight(path); 
+                            _currentState = InputState.UnitMoving; 
                             DebugHelper.Log($"Path confirmed to {clickedTile.gridPosition}. Requesting move.", this);
                             StartCoroutine(MoveUnitAlongPath(_selectedUnit, path));
                         }
                         else {
-                             DebugHelper.LogWarning($"No path calculated to {clickedTile.gridPosition} (was in reachable, but pathing failed). Resetting.", this);
-                             ClearSelectionAndHighlights();
+                             DebugHelper.LogWarning($"No path calculated to {clickedTile.gridPosition}. It was in reachable, but pathing failed.", this);
+                             // Keep unit selected, allow trying another tile.
+                             ClearPathHighlight();
                         }
                     }
-                    else { 
-                        DebugHelper.Log($"Clicked tile {clickedGridPos} is not in reachable range. Deselecting unit.", this); 
+                    else { // Clicked outside reachable range or on an invalid tile
+                        DebugHelper.Log($"Clicked tile {clickedGridPos} is not a valid move target for {_selectedUnit.unitName}. Deselecting unit.", this); 
                         ClearSelectionAndHighlights(); 
                     }
                  }
                  else { 
+                    // Clicked off-grid or something unexpected
                     DebugHelper.Log("Clicked outside grid or invalid state while unit selected. Deselecting.", this); 
                     ClearSelectionAndHighlights(); 
                 }
                 break;
+            
+            case InputState.UnitMoving:
+                DebugHelper.Log("Clicked while unit moving. Input ignored.", this);
+                break;
         }
     }
 
+    private void HandleWaitActionInput(InputAction.CallbackContext context)
+    {
+        DebugHelper.Log("PlayerInputHandler: HandleWaitActionInput CALLED!", this);
+        if (_currentState == InputState.UnitSelected && _selectedUnit != null)
+        {
+            HandleWaitAction();
+        }
+        else
+        {
+            DebugHelper.Log("Wait action ignored: No unit selected or unit is currently moving.", this);
+        }
+    }
+
+    private void HandleWaitAction()
+    {
+        if (_selectedUnit == null)
+        {
+            DebugHelper.LogWarning("Attempted to Wait with no selected unit.", this);
+            return;
+        }
+
+        if (_selectedUnit.CanAffordAction(WAIT_ACTION_COST))
+        {
+            _selectedUnit.SpendActionPoints(WAIT_ACTION_COST);
+            DebugHelper.Log($"{_selectedUnit.unitName} performs WAIT action. AP remaining: {_selectedUnit.currentActionPoints}", this);
+            
+            // Simulate end of this unit's contribution to player's turn for now
+            // Actual turn ending will be handled by TurnManager
+            ClearSelectionAndHighlights(); // Deselects unit, clears highlights, returns to WaitingForInput state
+            // _currentState = InputState.WaitingForInput; // This is done by ClearSelectionAndHighlights
+        }
+        else
+        {
+            DebugHelper.LogWarning($"{_selectedUnit.unitName} cannot afford WAIT action. AP: {_selectedUnit.currentActionPoints}", this);
+            // Optionally, provide feedback to player
+        }
+    }
+
+
     private void ShowReachableRange(Vector2Int startPos, int range, Unit requestingUnit)
     {
-        ClearReachableHighlight(true); // Clear previous reachable tiles fully
+        ClearReachableHighlight(true); 
         if (_pathfinder == null || requestingUnit == null) return;
 
         List<Tile> reachable = _pathfinder.GetReachableTiles(startPos, range, requestingUnit);
-        _highlightedReachableTiles.AddRange(reachable); // Add to the list for tracking
+        _highlightedReachableTiles.AddRange(reachable); 
         DebugHelper.Log($"Found {reachable.Count} tiles reachable from {startPos} with range {range} for {requestingUnit.unitName}.", this);
 
         foreach (Tile tile in _highlightedReachableTiles) {
-             if (tile != null && tile != requestingUnit.CurrentTile) { // Don't highlight the start tile as "reachable" in the same way
+             if (tile != null && tile != requestingUnit.CurrentTile) { 
                 tile.SetHighlight(TileHighlightState.MovementRange);
              }
         }
     }
 
-    private void ShowPathHighlight(List<Tile> path) // Renamed from ShowPath
+    private void ShowPathHighlight(List<Tile> path) 
     {
-        ClearPathHighlight(); // Clear previous path highlights
+        ClearPathHighlight(); 
 
         if (path == null || path.Count == 0) return;
 
         foreach (Tile tileInPath in path) {
-            // Don't highlight the start tile as path, it's already 'SelectedUnit'
             if (tileInPath != null && (_selectedUnit == null || tileInPath != _selectedUnit.CurrentTile)) 
             {
-                tileInPath.SetHighlight(TileHighlightState.Path); // Using the new Path state
+                tileInPath.SetHighlight(TileHighlightState.Path); 
                 _highlightedPathTiles.Add(tileInPath); 
             }
         }
@@ -207,7 +253,7 @@ public class PlayerInputHandler : MonoBehaviour
     private void ClearReachableHighlight(bool clearList)
     {
         foreach (Tile tile in _highlightedReachableTiles) {
-            if (tile != null && (_selectedUnit == null || tile != _selectedUnit.CurrentTile)) { // Avoid unhighlighting selected unit's tile if it's in the list
+            if (tile != null && (_selectedUnit == null || tile != _selectedUnit.CurrentTile)) { 
                 tile.SetHighlight(TileHighlightState.None); 
             }
         }
@@ -220,12 +266,13 @@ public class PlayerInputHandler : MonoBehaviour
         {
             if (tile != null)
             {
-                // If the tile was also in reachable range, revert it to that highlight, otherwise to None.
-                if (_highlightedReachableTiles.Contains(tile) && tile != (_selectedUnit?.CurrentTile))
+                // If the tile was also in reachable range (unlikely for path tiles if reachable is cleared first, but defensive)
+                // and it's not the selected unit's current tile.
+                if (_highlightedReachableTiles.Contains(tile) && (_selectedUnit == null || tile != _selectedUnit.CurrentTile) )
                 {
                     tile.SetHighlight(TileHighlightState.MovementRange);
                 }
-                else if (_selectedUnit == null || tile != _selectedUnit.CurrentTile) // Don't clear selected unit tile
+                else if (_selectedUnit == null || tile != _selectedUnit.CurrentTile) 
                 {
                     tile.SetHighlight(TileHighlightState.None);
                 }
@@ -245,61 +292,65 @@ public class PlayerInputHandler : MonoBehaviour
 
         _selectedUnit = null;
         _currentState = InputState.WaitingForInput;
-        // DebugHelper.Log("Selection and all highlights cleared. State reset.", this);
+        // DebugHelper.Log("Selection and all highlights cleared. State reset to WaitingForInput.", this);
     }
 
      private IEnumerator MoveUnitAlongPath(Unit unitToMove, List<Tile> path)
     {
         if (unitToMove == null || path == null || path.Count == 0) {
             DebugHelper.LogWarning("MoveUnitAlongPath: Invalid unit or path.", this);
-            ClearSelectionAndHighlights(); // Reset state
-            _currentState = InputState.WaitingForInput; // Ensure state returns to waiting
+            ClearSelectionAndHighlights(); 
+            _currentState = InputState.WaitingForInput; 
             yield break; 
         }
 
-        // Final AP check and spend
+        // AP check and spend for MOVE_ACTION_COST
         if (!unitToMove.CanAffordAction(MOVE_ACTION_COST))
         {
-            DebugHelper.LogWarning($"{unitToMove.unitName} cannot afford AP ({MOVE_ACTION_COST}) for move at commitment point. AP: {unitToMove.currentActionPoints}", this);
-            ClearSelectionAndHighlights(); // Clear selection, path, and reset state
+            DebugHelper.LogWarning($"{unitToMove.unitName} cannot afford MOVE AP ({MOVE_ACTION_COST}) at commitment. AP: {unitToMove.currentActionPoints}", this);
+            ClearSelectionAndHighlights(); 
             _currentState = InputState.WaitingForInput;
             yield break;
         }
         unitToMove.SpendActionPoints(MOVE_ACTION_COST);
 
-        // _isUnitMoving flag for other systems if needed, _currentState handles input blocking
-        DebugHelper.Log($"Starting movement for {unitToMove.unitName} (AP spent, now {unitToMove.currentActionPoints})...", this);
+        DebugHelper.Log($"Starting movement for {unitToMove.unitName} (AP spent for move, now {unitToMove.currentActionPoints})...", this);
 
-        yield return StartCoroutine(unitToMove.MoveOnPath(path)); // This is the Unit's own movement coroutine
+        yield return StartCoroutine(unitToMove.MoveOnPath(path)); 
 
         DebugHelper.Log($"{unitToMove.unitName} finished movement. AP: {unitToMove.currentActionPoints}/{unitToMove.maxActionPoints}", this);
         
-        // After movement, clear path highlight
-        ClearPathHighlight();
+        ClearPathHighlight(); // Path is done.
 
-        // If unit is still selected (it should be) and can still perform a move:
         if (_selectedUnit != null && _selectedUnit == unitToMove) 
         {
-            if (_selectedUnit.CanAffordAction(MOVE_ACTION_COST))
+            // Check if unit can perform *any* other action (e.g., another move OR wait)
+            bool canMoveAgain = _selectedUnit.CanAffordAction(MOVE_ACTION_COST);
+            bool canWait = _selectedUnit.CanAffordAction(WAIT_ACTION_COST);
+
+            if (canMoveAgain) // If it can move again, show new range
             {
-                // Refresh reachable range from new position
                 ShowReachableRange(_selectedUnit.CurrentTile.gridPosition, _selectedUnit.CalculatedMoveRange, _selectedUnit);
-                _selectedUnit.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit); // Re-highlight selected tile
-                _currentState = InputState.UnitSelected; // Ready for another command (e.g. another move or action)
-                DebugHelper.Log($"{_selectedUnit.unitName} can act again. AP: {_selectedUnit.currentActionPoints}", this);
+                _selectedUnit.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit); 
+                _currentState = InputState.UnitSelected; 
+                DebugHelper.Log($"{_selectedUnit.unitName} can move again. AP: {_selectedUnit.currentActionPoints}", this);
             }
-            else
+            else if (canWait) // Can't move, but maybe can wait or do other 1-AP actions
             {
-                // Unit has moved and has no more AP for another move.
-                DebugHelper.Log($"{_selectedUnit.unitName} finished move and has no more move AP. AP: {_selectedUnit.currentActionPoints}", this);
-                _selectedUnit.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit); // Keep unit selected but no range.
-                _currentState = InputState.UnitSelected; // Still selected, but ShowReachableRange won't trigger if AP check fails on next selection logic
-                                                         // Or, decide to auto-deselect: ClearSelectionAndHighlights();
+                DebugHelper.Log($"{_selectedUnit.unitName} cannot move again, but may have other actions (like Wait). AP: {_selectedUnit.currentActionPoints}", this);
+                _selectedUnit.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit); 
+                _currentState = InputState.UnitSelected; // Stay selected for other actions
+            }
+            else // No AP left for any typical action
+            {
+                DebugHelper.Log($"{_selectedUnit.unitName} finished move and has no AP for further actions (Move/Wait). AP: {_selectedUnit.currentActionPoints}", this);
+                _selectedUnit.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit); // Keep selected for info
+                _currentState = InputState.UnitSelected; // Still selected, but actions will fail AP checks
+                // Or to fully end its turn for player: ClearSelectionAndHighlights();
             }
         }
         else
         {
-            // If selected unit changed or became null during move (shouldn't happen with current logic)
             ClearSelectionAndHighlights();
         }
     }
