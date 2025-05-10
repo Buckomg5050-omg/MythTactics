@@ -19,15 +19,14 @@ namespace MythTactics.Combat
         public override void EnterState(PlayerInputHandler inputHandler)
         {
             base.EnterState(inputHandler);
-            if (_selectedUnit == null || !_selectedUnit.IsAlive || _path == null || _path.Count == 0)
+            if (_selectedUnit == null || !_selectedUnit.IsAlive || 
+                _selectedUnit.Movement == null || // MODIFIED: Add null check for Movement component
+                _path == null || _path.Count == 0)
             {
-                DebugHelper.LogWarning("PIH_UnitMovingState: Entered with invalid unit or path. Reverting to UnitActionPhase.", _inputHandler);
+                DebugHelper.LogWarning("PIH_UnitMovingState: Entered with invalid unit, path, or missing Movement component. Reverting.", _inputHandler);
                 _inputHandler.ChangeState(new PIH_UnitActionPhaseState());
                 return;
             }
-
-            // AP for movement was already spent in PIH_UnitActionPhaseState before transitioning here.
-            // So, the CanAffordAction check here is removed.
             
             DebugHelper.Log($"PIH_UnitMovingState: Entered for {_selectedUnit.unitName}. Starting movement along path.", _inputHandler);
             _moveCoroutine = _inputHandler.StartCoroutine(MoveUnitCoroutine());
@@ -35,41 +34,40 @@ namespace MythTactics.Combat
 
         private IEnumerator MoveUnitCoroutine()
         {
-            yield return _inputHandler.StartCoroutine(_selectedUnit.MoveOnPath(_path)); 
+            // MODIFIED: Call MoveOnPath via _selectedUnit.Movement
+            // Assumes _selectedUnit.Movement was checked in EnterState
+            yield return _inputHandler.StartCoroutine(_selectedUnit.Movement.MoveOnPath(_path)); 
 
-            if (!_inputHandler.SelectedUnit.IsAlive) // Check selected unit from handler, as ours might be stale if unit died.
+            // Check IsAlive through the property on _selectedUnit which gets it from Stats
+            if (_selectedUnit == null || !_selectedUnit.IsAlive) 
             {
-                DebugHelper.Log($"{_selectedUnit.unitName} died or became invalid during/after movement in PIH_UnitMovingState.", _inputHandler);
+                DebugHelper.Log($"{_selectedUnit?.unitName ?? "Unit"} died or became invalid during/after movement in PIH_UnitMovingState.", _inputHandler);
                 _inputHandler.ClearAllHighlights(); 
-                // PIH Update loop will handle transitioning to WaitingForTurn if active unit is null or not player.
-                // If the unit that died was the selected unit, PIH Update will clear _selectedUnit.
-                _inputHandler.ChangeState(new PIH_WaitingForTurnState()); // Go to waiting, let PIH Update sort out next state if needed
+                _inputHandler.ChangeState(new PIH_WaitingForTurnState()); 
                 yield break;
             }
-            
-            // DebugHelper.Log($"PIH_UnitMovingState: {_selectedUnit.unitName} finished movement. AP: {_selectedUnit.currentActionPoints}/{_selectedUnit.maxActionPoints}", _inputHandler);
             
             _inputHandler.ChangeState(new PIH_UnitActionPhaseState());
         }
 
         public override void OnClickInput(InputAction.CallbackContext context, Tile clickedTile)
         {
-            // DebugHelper.Log("PIH_UnitMovingState: Click ignored, unit is moving.", _inputHandler);
+            // Movement is in progress, ignore clicks
         }
 
         public override void OnToggleAttackModeInput(InputAction.CallbackContext context)
         {
-            // DebugHelper.Log("PIH_UnitMovingState: Attack Toggle ignored, unit is moving.", _inputHandler);
+            // Movement is in progress, ignore
         }
 
         public override void OnWaitInput(InputAction.CallbackContext context)
         {
-            // DebugHelper.Log("PIH_UnitMovingState: Wait ignored, unit is moving.", _inputHandler);
+            // Movement is in progress, ignore
         }
 
         public override void OnEndTurnInput(InputAction.CallbackContext context)
         {
-            // DebugHelper.Log("PIH_UnitMovingState: End Turn ignored, unit is moving.", _inputHandler);
+            // Movement is in progress, ignore
         }
         
         public override void ExitState()
@@ -78,7 +76,12 @@ namespace MythTactics.Combat
             {
                 _inputHandler.StopCoroutine(_moveCoroutine);
                 _moveCoroutine = null;
-                // DebugHelper.LogWarning("PIH_UnitMovingState: Exited while move coroutine was active. Stopped coroutine.", _inputHandler);
+                // If movement was interrupted, the unit might not be on its final tile.
+                // UnitMovement.StopMovementCoroutines() might be needed if it handles snapping to current tile.
+                if (_selectedUnit != null && _selectedUnit.Movement != null && _selectedUnit.Movement.IsMoving)
+                {
+                    _selectedUnit.Movement.StopMovementCoroutines(); // Ensure the UnitMovement component knows it stopped.
+                }
             }
             _inputHandler.ClearPathHighlight(); 
             base.ExitState();

@@ -1,25 +1,23 @@
 // PlayerInputHandler.cs
 using UnityEngine;
 using UnityEngine.InputSystem;
-using System.Collections;
-using System.Collections.Generic;
+using System.Collections.Generic; // Ensured this is present
 using System.Linq;
 using MythTactics.Combat;
 
 public class PlayerInputHandler : MonoBehaviour
 {
     [Header("References")]
-    public GridTester gridTester; // Can be null if not testing
-    public const int MoveActionCost = 1; // AP cost
-    public const int WaitActionCost = 1; // AP cost
-    public const int AttackActionCost = 1; // AP cost
-    // public const int AbilityActionCost = 1; // This was likely a general thought, specific ability.apCost is used
+    public GridTester gridTester; 
+    public const int MoveActionCost = 1; 
+    public const int WaitActionCost = 1; 
+    public const int AttackActionCost = 1; 
 
     private PlayerInputStateBase _currentStateObject;
     private Unit _selectedUnit = null;
     private PlayerControls _playerControls;
     private Camera _mainCamera;
-    private Pathfinder _pathfinder; // From GridManager
+    private Pathfinder _pathfinder; 
 
     private List<Tile> _highlightedReachableTiles = new List<Tile>();
     private List<Tile> _highlightedPathTiles = new List<Tile>();
@@ -70,7 +68,8 @@ public class PlayerInputHandler : MonoBehaviour
         }
 
         Unit currentTurnManagerActiveUnit = TurnManager.Instance.ActiveUnit;
-        if (currentTurnManagerActiveUnit != null && currentTurnManagerActiveUnit.IsAlive && currentTurnManagerActiveUnit.CompareTag("Player"))
+        if (currentTurnManagerActiveUnit != null && currentTurnManagerActiveUnit.IsAlive && 
+            currentTurnManagerActiveUnit.CompareTag("Player") && currentTurnManagerActiveUnit.Movement != null) // MODIFIED: Add Movement null check
         {
             if (_selectedUnit != currentTurnManagerActiveUnit ||
                 !(_currentStateObject is PIH_UnitActionPhaseState || 
@@ -87,28 +86,28 @@ public class PlayerInputHandler : MonoBehaviour
                 }
             }
         }
-        else // Not player's turn, or player is dead, or no active unit
+        else 
         {
             if (_selectedUnit != null || !(_currentStateObject is PIH_WaitingForTurnState))
             {
-                // Clear selection highlight if it was the player's unit but it's no longer their turn
-                if (_selectedUnit?.CurrentTile?.occupyingUnit == _selectedUnit && TurnManager.Instance.ActiveUnit != _selectedUnit) 
+                // MODIFIED: Access CurrentTile via _selectedUnit.Movement
+                if (_selectedUnit?.Movement?.CurrentTile?.occupyingUnit == _selectedUnit && TurnManager.Instance.ActiveUnit != _selectedUnit) 
                 {
-                    _selectedUnit.CurrentTile.SetHighlight(TileHighlightState.None);
+                    _selectedUnit.Movement.CurrentTile.SetHighlight(TileHighlightState.None);
                 }
                 _selectedUnit = null; 
                 SelectedAbility = null; 
                 ChangeState(new PIH_WaitingForTurnState());
             }
         }
-        _currentStateObject?.UpdateState(); // Current state handles its own logic
+        _currentStateObject?.UpdateState();
     }
 
     public void ChangeState(PlayerInputStateBase newState)
     {
-        _currentStateObject?.ExitState(); // Call exit on old state
+        _currentStateObject?.ExitState(); 
         _currentStateObject = newState;
-        _currentStateObject.EnterState(this); // Call enter on new state
+        _currentStateObject.EnterState(this); 
         DebugHelper.Log($"PIH changed to state: {newState.GetType().Name}", this);
     }
 
@@ -139,7 +138,7 @@ public class PlayerInputHandler : MonoBehaviour
         if (_mainCamera == null || _currentStateObject == null || GridManager.Instance == null) return;
         Vector2 screenPosition = _playerControls.Gameplay.Point.ReadValue<Vector2>();
         Ray ray = _mainCamera.ScreenPointToRay(screenPosition);
-        if (!new Plane(Vector3.forward, Vector3.zero).Raycast(ray, out float distance)) return; // Assuming grid is on Z=0 plane
+        if (!new Plane(Vector3.forward, Vector3.zero).Raycast(ray, out float distance)) return;
         
         Tile clickedTile = GridManager.Instance.GetTile(GridManager.Instance.WorldToGrid(ray.GetPoint(distance)));
         _currentStateObject.OnClickInput(context, clickedTile);
@@ -152,37 +151,36 @@ public class PlayerInputHandler : MonoBehaviour
 
     public void ClearAllHighlights()
     {
-        Tile previouslySelectedUnitTile = (_selectedUnit?.IsAlive == true) ? _selectedUnit.CurrentTile : null;
+        // MODIFIED: Access CurrentTile via _selectedUnit.Movement
+        Tile previouslySelectedUnitTile = (_selectedUnit?.IsAlive == true && _selectedUnit.Movement != null) ? _selectedUnit.Movement.CurrentTile : null;
 
         ClearReachableHighlight(true); 
         ClearPathHighlight(); 
         ClearAttackRangeHighlight(true); 
         ClearAbilityRangeHighlight(true); 
         
-        if (_selectedUnit?.IsAlive == true && _selectedUnit.CurrentTile != null)
+        if (_selectedUnit?.IsAlive == true && _selectedUnit.Movement != null && _selectedUnit.Movement.CurrentTile != null)
         {
             if (TurnManager.Instance == null || TurnManager.Instance.ActiveUnit != _selectedUnit)
             {
-                // If it's not the active unit's turn, ensure its tile is cleared if it was the one selected
-                if (previouslySelectedUnitTile?.occupyingUnit == _selectedUnit) // Ensure it's still this unit's tile
+                if (previouslySelectedUnitTile?.occupyingUnit == _selectedUnit) 
                     previouslySelectedUnitTile.SetHighlight(TileHighlightState.None);
             }
-            else // It IS the active unit's turn
+            else 
             {
-                 // Re-highlight active unit's tile as 'SelectedUnit' as it's the baseline for action phase
-                 _selectedUnit.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit);
+                 _selectedUnit.Movement.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit);
             }
         }
     }
 
     public void AttemptToShowMoveRangeForSelectedUnit()
     {
-        if (_selectedUnit?.IsAlive == true && _selectedUnit.CurrentTile != null && 
-            _selectedUnit.CanAffordAPForAction(MoveActionCost) && // CanAffordAPForAction is still on Unit
+        // MODIFIED: Check _selectedUnit.Movement and access CurrentTile & CalculatedMoveRange via it
+        if (_selectedUnit?.IsAlive == true && _selectedUnit.Movement != null && _selectedUnit.Movement.CurrentTile != null && 
+            _selectedUnit.CanAffordAPForAction(MoveActionCost) && 
             (_currentStateObject is PIH_UnitActionPhaseState)) 
         {
-            // CalculatedMoveRange is still on Unit
-            ShowReachableRange(_selectedUnit.CurrentTile.gridPosition, _selectedUnit.CalculatedMoveRange, _selectedUnit);
+            ShowReachableRange(_selectedUnit.Movement.CurrentTile.gridPosition, _selectedUnit.Movement.CalculatedMoveRange, _selectedUnit);
         }
         else 
         {
@@ -193,18 +191,19 @@ public class PlayerInputHandler : MonoBehaviour
     public void ShowReachableRange(Vector2Int startPos, int range, Unit requestingUnit)
     {
         ClearReachableHighlight(true);
-        if (_pathfinder == null || requestingUnit?.IsAlive == false || requestingUnit.CurrentTile == null) 
+        // MODIFIED: Check requestingUnit.Movement and access CurrentTile via it
+        if (_pathfinder == null || requestingUnit?.IsAlive == false || requestingUnit.Movement == null || requestingUnit.Movement.CurrentTile == null) 
         { 
             if (_pathfinder == null) DebugHelper.LogWarning("PIH.ShowReachableRange: Pathfinder is null.", this); 
+            if (requestingUnit?.Movement == null) DebugHelper.LogWarning($"PIH.ShowReachableRange: {requestingUnit?.unitName} Movement component is null.", this);
             return; 
         }
         
         _highlightedReachableTiles.Clear();
-        // GetReachableTiles takes Unit for context (e.g. move costs)
-        _highlightedReachableTiles.AddRange(_pathfinder.GetReachableTiles(requestingUnit.CurrentTile.gridPosition, range, requestingUnit));
+        _highlightedReachableTiles.AddRange(_pathfinder.GetReachableTiles(requestingUnit.Movement.CurrentTile.gridPosition, range, requestingUnit));
         foreach (Tile tile in _highlightedReachableTiles) 
         {
-            if (tile != null && tile != requestingUnit.CurrentTile) 
+            if (tile != null && tile != requestingUnit.Movement.CurrentTile) 
                 tile.SetHighlight(TileHighlightState.MovementRange);
         }
     }
@@ -216,7 +215,8 @@ public class PlayerInputHandler : MonoBehaviour
         _highlightedPathTiles.Clear();
         foreach (Tile tileInPath in path) 
         {
-            if (tileInPath != null && (_selectedUnit == null || tileInPath != _selectedUnit.CurrentTile)) 
+            // MODIFIED: Access CurrentTile via _selectedUnit.Movement
+            if (tileInPath != null && (_selectedUnit == null || _selectedUnit.Movement == null || tileInPath != _selectedUnit.Movement.CurrentTile)) 
             { 
                 tileInPath.SetHighlight(TileHighlightState.Path); 
                 _highlightedPathTiles.Add(tileInPath); 
@@ -227,17 +227,18 @@ public class PlayerInputHandler : MonoBehaviour
     public void ShowAttackRange(Unit attacker)
     {
         ClearAttackRangeHighlight(true);
-        if (attacker?.IsAlive == false || attacker.CurrentTile == null || 
-            !attacker.CanAffordAPForAction(AttackActionCost) || // CanAffordAPForAction is still on Unit
+        // MODIFIED: Check attacker.Movement and access CurrentTile via it
+        if (attacker?.IsAlive == false || attacker.Movement == null || attacker.Movement.CurrentTile == null || 
+            !attacker.CanAffordAPForAction(AttackActionCost) || 
             GridManager.Instance == null) 
             return;
         
         _highlightedAttackRangeTiles.Clear();
         // CalculatedAttackRange is still on Unit
-        _highlightedAttackRangeTiles.AddRange(GridManager.Instance.GetTilesInRange(attacker.CurrentTile.gridPosition, attacker.CalculatedAttackRange));
+        _highlightedAttackRangeTiles.AddRange(GridManager.Instance.GetTilesInRange(attacker.Movement.CurrentTile.gridPosition, attacker.CalculatedAttackRange));
         foreach (Tile tile in _highlightedAttackRangeTiles) 
         {
-            if (tile != null && tile != attacker.CurrentTile) 
+            if (tile != null && tile != attacker.Movement.CurrentTile) 
                 tile.SetHighlight(TileHighlightState.AttackRange);
         }
     }
@@ -248,27 +249,28 @@ public class PlayerInputHandler : MonoBehaviour
         ClearAttackRangeHighlight(true);  
         ClearReachableHighlight(true); 
         
-        // MODIFIED: Call CanAffordAbility via caster.Combat
-        if (caster?.IsAlive == false || caster.CurrentTile == null || ability == null || 
+        // MODIFIED: Check caster.Movement and access CurrentTile via it
+        if (caster?.IsAlive == false || caster.Movement == null || caster.Movement.CurrentTile == null || ability == null || 
             caster.Combat == null || !caster.Combat.CanAffordAbility(ability) || 
             GridManager.Instance == null) 
             return;
         
         _highlightedAbilityRangeTiles.Clear();
-        _highlightedAbilityRangeTiles.AddRange(GridManager.Instance.GetTilesInRange(caster.CurrentTile.gridPosition, ability.range));
+        _highlightedAbilityRangeTiles.AddRange(GridManager.Instance.GetTilesInRange(caster.Movement.CurrentTile.gridPosition, ability.range));
         foreach (Tile tile in _highlightedAbilityRangeTiles) 
         {
-            if (tile != null && tile != caster.CurrentTile) 
+            if (tile != null && tile != caster.Movement.CurrentTile) 
                 tile.SetHighlight(TileHighlightState.AbilityRange); 
         }
-        if (caster.CurrentTile != null) caster.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit);
+        if (caster.Movement.CurrentTile != null) caster.Movement.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit);
     }
     
     public void ClearReachableHighlight(bool clearList)
     {
         foreach (Tile tile in _highlightedReachableTiles)
         {
-            if (tile != null && tile != _selectedUnit?.CurrentTile)
+            // MODIFIED: Access CurrentTile via _selectedUnit.Movement
+            if (tile != null && (_selectedUnit?.Movement == null || tile != _selectedUnit.Movement.CurrentTile))
             {
                 if (_highlightedAttackRangeTiles.Contains(tile) && _currentStateObject is PIH_SelectingAttackTargetState) continue;
                 if (_highlightedAbilityRangeTiles.Contains(tile) && _currentStateObject is PIH_SelectingAbilityTargetState) continue;
@@ -282,7 +284,8 @@ public class PlayerInputHandler : MonoBehaviour
     {
         foreach (Tile tile in _highlightedPathTiles)
         {
-            if (tile != null && tile != _selectedUnit?.CurrentTile)
+            // MODIFIED: Access CurrentTile via _selectedUnit.Movement
+            if (tile != null && (_selectedUnit?.Movement == null || tile != _selectedUnit.Movement.CurrentTile))
             {
                 if (_highlightedReachableTiles.Contains(tile) && _currentStateObject is PIH_UnitActionPhaseState)
                     tile.SetHighlight(TileHighlightState.MovementRange);
@@ -301,7 +304,8 @@ public class PlayerInputHandler : MonoBehaviour
     {
         foreach (Tile tile in _highlightedAttackRangeTiles)
         {
-            if (tile != null && tile != _selectedUnit?.CurrentTile)
+            // MODIFIED: Access CurrentTile via _selectedUnit.Movement
+            if (tile != null && (_selectedUnit?.Movement == null || tile != _selectedUnit.Movement.CurrentTile))
             {
                 if (_highlightedAbilityRangeTiles.Contains(tile) && _currentStateObject is PIH_SelectingAbilityTargetState) continue;
                 if (_highlightedReachableTiles.Contains(tile) && _currentStateObject is PIH_UnitActionPhaseState)
@@ -317,7 +321,8 @@ public class PlayerInputHandler : MonoBehaviour
     {
         foreach (Tile tile in _highlightedAbilityRangeTiles)
         {
-             if (tile != null && tile != _selectedUnit?.CurrentTile)
+            // MODIFIED: Access CurrentTile via _selectedUnit.Movement
+            if (tile != null && (_selectedUnit?.Movement == null || tile != _selectedUnit.Movement.CurrentTile))
             {
                 if (_highlightedAttackRangeTiles.Contains(tile) && _currentStateObject is PIH_SelectingAttackTargetState) continue;
                 if (_highlightedReachableTiles.Contains(tile) && _currentStateObject is PIH_UnitActionPhaseState)
@@ -331,25 +336,25 @@ public class PlayerInputHandler : MonoBehaviour
 
     public void CheckAndHandleEndOfTurnActionsPIH()
     {
-        if (_selectedUnit?.IsAlive == false || TurnManager.Instance == null || TurnManager.Instance.ActiveUnit != _selectedUnit) return;
+        // MODIFIED: Check _selectedUnit.Movement
+        if (_selectedUnit?.IsAlive == false || _selectedUnit.Movement == null || TurnManager.Instance == null || TurnManager.Instance.ActiveUnit != _selectedUnit) return;
         
-        // Ensure Combat component exists before trying to use its methods
         if (_selectedUnit.Combat == null)
         {
-            DebugHelper.LogError($"PlayerInputHandler: SelectedUnit {_selectedUnit.unitName} is missing UnitCombat component!", _selectedUnit);
-            TurnManager.Instance.EndUnitTurn(_selectedUnit); // End turn if critical component is missing
+            DebugHelper.LogError($"PIH: SelectedUnit {_selectedUnit.unitName} missing UnitCombat component!", _selectedUnit);
+            TurnManager.Instance.EndUnitTurn(_selectedUnit); 
             return;
         }
 
         bool canMove = _selectedUnit.CanAffordAPForAction(MoveActionCost); 
         bool canAttack = _selectedUnit.CanAffordAPForAction(AttackActionCost); 
-        // MODIFIED: Call CanAffordAbility via _selectedUnit.Combat
         bool canUseAnyAbility = _selectedUnit.knownAbilities.Any(ability => _selectedUnit.Combat.CanAffordAbility(ability)); 
         bool canTakeAnyOneAPAction = _selectedUnit.currentActionPoints >= 1; 
 
         if (canMove || canAttack || canUseAnyAbility)
         {
-            if (_selectedUnit.CurrentTile != null) _selectedUnit.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit);
+            // MODIFIED: Access CurrentTile via _selectedUnit.Movement
+            if (_selectedUnit.Movement.CurrentTile != null) _selectedUnit.Movement.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit);
             if ((_currentStateObject is PIH_UnitActionPhaseState) && canMove) 
             {
                 AttemptToShowMoveRangeForSelectedUnit();
@@ -358,12 +363,14 @@ public class PlayerInputHandler : MonoBehaviour
         else if (canTakeAnyOneAPAction) 
         {
             ClearReachableHighlight(true); ClearAttackRangeHighlight(true); ClearAbilityRangeHighlight(true);
-            if (_selectedUnit.CurrentTile != null) _selectedUnit.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit);
+            // MODIFIED: Access CurrentTile via _selectedUnit.Movement
+            if (_selectedUnit.Movement.CurrentTile != null) _selectedUnit.Movement.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit);
         }
         else 
         {
             ClearAllHighlights(); 
-            if (_selectedUnit.CurrentTile != null) _selectedUnit.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit);
+            // MODIFIED: Access CurrentTile via _selectedUnit.Movement
+            if (_selectedUnit.Movement.CurrentTile != null) _selectedUnit.Movement.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit);
             TurnManager.Instance.EndUnitTurn(_selectedUnit);
         }
     }

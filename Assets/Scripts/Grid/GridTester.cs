@@ -46,14 +46,14 @@ public class GridTester : MonoBehaviour
         SetupDummyUnitsForTest();
         SpawnPlayerUnit();
         
-        yield return null;
+        yield return new WaitForSeconds(0.1f); // Extra small delay to ensure Awakes run on spawned units
 
         TestGridToWorld();
         TestWorldToGrid();
         TestGetNeighbors();
         TestGetTilesInRange();
         TestPathfinding();
-        TestGetReachableTiles(); // Call to the method
+        TestGetReachableTiles();
         DebugHelper.Log("===== GridTester: Finished Initial LOGGING Tests =====", this);
 
         if (turnManager != null)
@@ -104,10 +104,21 @@ public class GridTester : MonoBehaviour
                 {
                      DebugHelper.LogWarning($"GridTester: Prefab {prefab.name} missing Unit comp, adding one.", unitGO);
                      unitComp = unitGO.AddComponent<Unit>();
+                     // Force Awake if added dynamically, though prefabs should be set up
+                     // This is tricky because Awake order isn't guaranteed if added here.
+                     // Best to ensure prefabs have all components (Unit, UnitStats, UnitCombat, UnitMovement).
                 }
                 
                 unitComp.unitName = unitGO.name; 
-                unitComp.PlaceOnTile(tile); 
+                // MODIFIED: Call placement through UnitMovement component
+                if (unitComp.Movement != null)
+                {
+                    unitComp.Movement.SetCurrentTileForced(tile); 
+                }
+                else
+                {
+                    DebugHelper.LogError($"GridTester: {unitComp.unitName} is missing UnitMovement component! Cannot place on tile.", unitComp);
+                }
                 _dummyUnits.Add(unitComp);
 
                 if (turnManager != null) turnManager.RegisterUnit(unitComp);
@@ -144,7 +155,15 @@ public class GridTester : MonoBehaviour
         }
         
         PlayerUnitInstance.unitName = "Player"; 
-        PlayerUnitInstance.PlaceOnTile(startTile);
+        // MODIFIED: Call placement through UnitMovement component
+        if (PlayerUnitInstance.Movement != null)
+        {
+            PlayerUnitInstance.Movement.SetCurrentTileForced(startTile);
+        }
+        else
+        {
+             DebugHelper.LogError($"GridTester: PlayerUnitInstance is missing UnitMovement component! Cannot place on tile.", PlayerUnitInstance);
+        }
         
         if (turnManager != null) turnManager.RegisterUnit(PlayerUnitInstance);
         else DebugHelper.LogError("GridTester: TurnManager null during player spawn!", this);
@@ -180,31 +199,27 @@ public class GridTester : MonoBehaviour
         if (GridManager.Instance.PathfinderInstance == null) { DebugHelper.LogError("PF Test Error: PathfinderInstance null on GridManager.", this); return; }
         DebugHelper.Log("--- GridTester: Testing Pathfinding Calc ---", this);
         DebugHelper.Log($"Pathfinding {logPathTestStart} -> {logPathTestEnd}", this);
-        // Assuming FindPath can take null for unit if not considering unit-specific costs for this generic test
         List<Tile> path1 = GridManager.Instance.PathfinderInstance.FindPath(logPathTestStart, logPathTestEnd, null); 
         if (path1 != null && path1.Count > 0) { DebugHelper.Log($"Path found ({path1.Count} steps): OK", this); } else { DebugHelper.LogWarning($"No path found {logPathTestStart} -> {logPathTestEnd}.", this); }
         DebugHelper.Log("--- GridTester: Finished PF Calc Test ---", this);
     }
 
-    // THIS IS THE METHOD WITH THE CORRECTED CALL at line 213 (approximately)
     void TestGetReachableTiles()
     {
         if (GridManager.Instance.PathfinderInstance == null) { DebugHelper.LogError("Reachable Test Error: PathfinderInstance null on GridManager.", this); return; }
         DebugHelper.Log("--- GridTester: Testing GetReachableTiles Calc (Pathfinder) ---", this);
         Vector2Int center_grt = new Vector2Int(GridManager.Instance.playableWidth/2, GridManager.Instance.playableHeight/2); 
-        int range1_grt = logReachableTestRange; // This is the movementPoints for the test
+        int range1_grt = logReachableTestRange; 
 
         if (GridManager.Instance.IsInPlayableBounds(center_grt)) { 
-            if (PlayerUnitInstance != null && PlayerUnitInstance.Stats != null) // Ensure player and its stats are ready
+            if (PlayerUnitInstance != null && PlayerUnitInstance.Stats != null && PlayerUnitInstance.Movement != null) 
             {
-                // CORRECTED Call: GetReachableTiles(Vector2Int startPos, int movementPoints, Unit unit)
-                // This should be line 213 or very close to it.
                 List<Tile> reach1 = GridManager.Instance.PathfinderInstance.GetReachableTiles(center_grt, range1_grt, PlayerUnitInstance);
                 DebugHelper.Log($"Reachable (Pathfinder) from {center_grt} with {range1_grt} move points for {PlayerUnitInstance.unitName}: Found {reach1.Count} tiles.", this); 
             }
             else
             {
-                DebugHelper.LogWarning($"Reachable Calc Test: PlayerUnitInstance or its Stats not ready for test. Cannot perform this specific test.", this);
+                DebugHelper.LogWarning($"Reachable Calc Test: PlayerUnitInstance, its Stats, or Movement not ready for test.", this);
             }
         } else DebugHelper.LogWarning($"Reachable Calc T1 OOB {center_grt}");
         DebugHelper.Log("--- GridTester: Finished Reachable Calc Test ---", this);
