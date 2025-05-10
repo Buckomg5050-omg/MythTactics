@@ -117,15 +117,13 @@ MonoBehaviour:
   unitName: Player Hero
   level: 1
   knownAbilities:
-  - {fileID: 11400000, guid: bde4c3c75f3e4c048bf2f4097c5556a7, type: 2}
+  - {fileID: 11400000, guid: 722cecde233d2c242a83628b06721cef, type: 2}
   equippedWeapon: {fileID: 11400000, guid: 32db0ab0bf4643243ab12e8e06f6b725, type: 2}
   equippedBodyArmor: {fileID: 11400000, guid: b463ce178bb8cb446a058aba0b6b2990, type: 2}
   moveSpeed: 5
   attackAnimDuration: 0.5
   hurtAnimDuration: 0.3
   deathAnimDuration: 1
-  maxActionPoints: 2
-  currentActionPoints: 0
   actionCounter: 0
 --- !u!114 &1568386280519729019
 MonoBehaviour:
@@ -146,21 +144,23 @@ MonoBehaviour:
     Spark: 5
     Glimmer: 5
     Aura: 5
-  _maxVitalityPoints: 10
+  _baseMaxActionPoints: 2
+  currentActionPoints: 0
+  _baseMaxVitalityPoints: 0
   currentVitalityPoints: 0
-  vitalityRegenRate: 0
-  _maxManaPoints: 10
+  baseVitalityRegenRate: 0
+  _baseMaxManaPoints: 0
   currentManaPoints: 0
-  manaRegenRate: 1
-  _maxStaminaPoints: 10
+  baseManaRegenRate: 1
+  _baseMaxStaminaPoints: 0
   currentStaminaPoints: 0
-  staminaRegenRate: 1
-  _maxFocusPoints: 10
+  baseStaminaRegenRate: 1
+  _baseMaxFocusPoints: 0
   currentFocusPoints: 0
-  focusRegenRate: 1
-  _maxInfluencePoints: 10
+  baseFocusRegenRate: 1
+  _baseMaxInfluencePoints: 0
   currentInfluencePoints: 0
-  influenceRegenRate: 1
+  baseInfluenceRegenRate: 1
 --- !u!114 &6043540816100653047
 MonoBehaviour:
   m_ObjectHideFlags: 0

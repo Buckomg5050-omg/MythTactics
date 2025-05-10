@@ -13,6 +13,7 @@ public class UnitMovement : MonoBehaviour
 
     [Header("Movement Properties")]
     [SerializeField] private float _moveSpeed = 5f; // Default value, can be overridden by Unit's public field if needed
+    public const int MoveActionAPCost = 1; // GDD 3.1: Move Action (use full MoveRange): 1 AP
 
     private Tile _currentTile;
     private bool _isMoving = false;
@@ -20,7 +21,7 @@ public class UnitMovement : MonoBehaviour
 
     public Tile CurrentTile => _currentTile;
     public bool IsMoving => _isMoving;
-    public float MoveSpeed // Allow Unit to set this if needed, or manage it here
+    public float MoveSpeed
     {
         get => _moveSpeed;
         set => _moveSpeed = value;
@@ -41,9 +42,7 @@ public class UnitMovement : MonoBehaviour
             enabled = false; return;
         }
         _unitTransform = _unitMain.transform;
-
-        // If Unit.cs still has a public moveSpeed field, you could sync it here:
-        // _moveSpeed = _unitMain.moveSpeed; 
+        _moveSpeed = _unitMain.moveSpeed;
     }
 
     public int CalculatedMoveRange
@@ -53,24 +52,24 @@ public class UnitMovement : MonoBehaviour
             if (!_unitStats.IsAlive || _unitMain.raceData == null || _unitMain.classData == null || _unitStats.currentAttributes == null)
                 return 0;
 
-            return Mathf.Max(1, 
-                (_unitMain.raceData.baseMovementContribution + 
-                 _unitMain.classData.baseMovementContribution + 
+            return Mathf.Max(1,
+                (_unitMain.raceData.baseMovementContribution +
+                 _unitMain.classData.baseMovementContribution +
                  Mathf.FloorToInt(_unitStats.currentAttributes.Echo / 5f)));
         }
     }
 
     public void PlaceOnTile(Tile tile)
     {
-        if (!_unitStats.IsAlive && tile != null && tile.occupyingUnit == _unitMain) 
-        { 
-            tile.ClearOccupyingUnit(); 
-            _currentTile = null; 
-            return; 
+        if (!_unitStats.IsAlive && tile != null && tile.occupyingUnit == _unitMain)
+        {
+            tile.ClearOccupyingUnit();
+            _currentTile = null;
+            return;
         }
         if (!_unitStats.IsAlive) return;
 
-        StopMovementCoroutines(); // Stop any ongoing movement
+        StopMovementCoroutines();
 
         if (_currentTile != null && _currentTile.occupyingUnit == _unitMain)
         {
@@ -83,18 +82,18 @@ public class UnitMovement : MonoBehaviour
             _unitTransform.position = GridManager.Instance != null ? GridManager.Instance.GridToWorld(tile.gridPosition) : tile.transform.position;
             tile.SetOccupyingUnit(_unitMain);
         }
-        else 
-        { 
-            DebugHelper.LogWarning($"{_unitMain.unitName} (Movement) placed on NULL tile.", _unitMain); 
+        else
+        {
+            DebugHelper.LogWarning($"{_unitMain.unitName} (Movement) placed on NULL tile.", _unitMain);
         }
     }
 
-    public void SetCurrentTileForced(Tile tile) // Used by Unit.cs for initial setup or direct placement
+    public void SetCurrentTileForced(Tile tile)
     {
         PlaceOnTile(tile);
     }
-    
-    public void ClearCurrentTileReferenceForDeath() // Called by UnitCombat when unit dies
+
+    public void ClearCurrentTileReferenceForDeath()
     {
         if (_currentTile != null && _currentTile.occupyingUnit == _unitMain)
         {
@@ -109,46 +108,64 @@ public class UnitMovement : MonoBehaviour
         if (!_unitStats.IsAlive || _isMoving) { yield break; }
         if (path == null || path.Count == 0) { yield break; }
 
+        // Check and spend AP for movement
+        if (_unitStats == null) // Safety check, though Initialize should prevent this
+        {
+            DebugHelper.LogError($"{_unitMain.unitName} cannot move. UnitStats is null.", _unitMain);
+            yield break;
+        }
+
+        if (!_unitStats.SpendActionPoints(MoveActionAPCost))
+        {
+            // UnitStats.SpendActionPoints already logs a warning with current/max AP.
+            // No need for an additional log here if SpendActionPoints is comprehensive.
+            // If more context is needed for movement failure specifically:
+            // DebugHelper.LogWarning($"{_unitMain.unitName} cannot move. Insufficient AP for Move Action. Needs {MoveActionAPCost}, Has {_unitStats.currentActionPoints}.", _unitMain);
+            yield break; // Not enough AP
+        }
+        // Log successful AP expenditure for movement
+        DebugHelper.Log($"{_unitMain.unitName} performs Move Action (Cost: {MoveActionAPCost} AP). Remaining AP: {_unitStats.currentActionPoints}/{_unitStats.MaxActionPoints}.", _unitMain);
+
+
         _isMoving = true;
         _moveCoroutine = StartCoroutine(PerformMovementCoroutine(path));
-        yield return _moveCoroutine; // Wait for the movement to complete
-        _isMoving = false; 
+        yield return _moveCoroutine;
+        _isMoving = false;
         _moveCoroutine = null;
     }
 
     private IEnumerator PerformMovementCoroutine(List<Tile> path)
     {
-        if (CurrentTile != null) // Ensure starting position is accurate
+        if (CurrentTile != null)
         {
-             _unitTransform.position = GridManager.Instance != null ? GridManager.Instance.GridToWorld(CurrentTile.gridPosition) : CurrentTile.transform.position;
+            _unitTransform.position = GridManager.Instance != null ? GridManager.Instance.GridToWorld(CurrentTile.gridPosition) : CurrentTile.transform.position;
         }
 
         for (int i = 0; i < path.Count; i++)
         {
-            if (!_unitStats.IsAlive) 
-            { 
-                DebugHelper.Log($"{_unitMain.unitName} died during movement (PerformMovementCoroutine).", _unitMain); 
-                _isMoving = false; // Ensure flag is reset
-                yield break; 
+            if (!_unitStats.IsAlive)
+            {
+                DebugHelper.Log($"{_unitMain.unitName} died during movement (PerformMovementCoroutine).", _unitMain);
+                _isMoving = false;
+                yield break;
             }
 
             Tile nextTileInPath = path[i];
-            if (nextTileInPath == null) 
-            { 
-                DebugHelper.LogError($"Movement path for {_unitMain.unitName} contained a null tile at index {i}!", _unitMain); 
-                break; 
+            if (nextTileInPath == null)
+            {
+                DebugHelper.LogError($"Movement path for {_unitMain.unitName} contained a null tile at index {i}!", _unitMain);
+                break;
             }
 
             Vector3 startPos = _unitTransform.position;
             Vector3 endPos = GridManager.Instance != null ? GridManager.Instance.GridToWorld(nextTileInPath.gridPosition) : nextTileInPath.transform.position;
 
-            // Clear previous tile, set new current tile
             if (_currentTile != null && _currentTile.occupyingUnit == _unitMain)
             {
                 _currentTile.ClearOccupyingUnit();
             }
             _currentTile = nextTileInPath;
-            if (_unitStats.IsAlive) // Only occupy if still alive
+            if (_unitStats.IsAlive)
             {
                 _currentTile.SetOccupyingUnit(_unitMain);
             }
@@ -162,22 +179,21 @@ public class UnitMovement : MonoBehaviour
                 float journeyFraction = 0f;
                 while (journeyFraction < 1.0f)
                 {
-                    if (!_isMoving || !_unitStats.IsAlive) // Check if movement was cancelled or unit died
-                    { 
+                    if (!_isMoving || !_unitStats.IsAlive)
+                    {
                         if (!_unitStats.IsAlive) DebugHelper.Log($"{_unitMain.unitName} died, interrupting movement lerp.", _unitMain);
                         else DebugHelper.Log($"{_unitMain.unitName} movement lerp interrupted.", _unitMain);
-                        _isMoving = false; // Ensure flag is reset
-                        yield break; 
+                        _isMoving = false;
+                        yield break;
                     }
                     float distCovered = (Time.time - startTime) * _moveSpeed;
                     journeyFraction = distCovered / journeyLength;
                     _unitTransform.position = Vector3.Lerp(startPos, endPos, Mathf.Clamp01(journeyFraction));
-                    yield return null; // Wait for next frame
+                    yield return null;
                 }
             }
-            _unitTransform.position = endPos; // Snap to final position
+            _unitTransform.position = endPos;
         }
-        // _isMoving will be set to false by the calling MoveOnPath coroutine after this one completes
     }
 
     public void StopMovementCoroutines()
