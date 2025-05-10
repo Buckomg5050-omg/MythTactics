@@ -12,13 +12,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b09d1e7a96db0814bb8a706d65b5b459, type: 3}
   m_Name: weakness_debuff
   m_EditorClassIdentifier: 
-  effectID: 
-  effectName: New Effect
-  description: Effect description.
-  icon: {fileID: 0}
+  effectID: weakness_debuff
+  effectName: Weakness
+  description: Decreases Core by 2 for a few turns.
+  icon: {fileID: 21300000, guid: 5719d3a960af97045b194a12ec25ce97, type: 3}
   durationType: 0
   duration: 3
   maxStacks: 1
   stackingBehavior: 1
-  statModifiers: []
-  effectTypeTags: []
+  statModifiers:
+  - stat: 0
+    type: 0
+    value: -2
+  effectTypeTags:
+  - Debuff
+  tickActionType: 0
+  tickActionBasePower: 0
+  tickActionDamageType: 2

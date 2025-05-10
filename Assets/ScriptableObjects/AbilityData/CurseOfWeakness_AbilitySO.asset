@@ -12,18 +12,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 03c22eb5c5793164cb194bc23aced609, type: 3}
   m_Name: CurseOfWeakness_AbilitySO
   m_EditorClassIdentifier: 
-  abilityName: New Ability
-  description: Ability Description.
+  abilityName: Curse of Weakness
+  description: Applies a stacking debuff that weakens the target's Core.
   apCost: 1
-  mpCost: 0
+  mpCost: 5
   spCost: 0
   fpCost: 0
   ipCost: 0
   targetType: 1
-  range: 1
-  baseAccuracy: 80
-  effectType: 0
-  basePower: 10
+  range: 3
+  baseAccuracy: 100
+  effectType: 3
+  basePower: 0
   damageType: 1
   dealsTrueDamage: 0
-  effectsToApplyOnHit: []
+  effectsToApplyOnHit:
+  - {fileID: 11400000, guid: 8464be7b01020b44a82bf19928d91ef5, type: 2}

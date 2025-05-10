@@ -12,13 +12,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b09d1e7a96db0814bb8a706d65b5b459, type: 3}
   m_Name: Poisoned_EffectSO
   m_EditorClassIdentifier: 
-  effectID: 
-  effectName: New Effect
-  description: Effect description.
-  icon: {fileID: 0}
+  effectID: poisoned_dot
+  effectName: Poisoned
+  description: Target takes poison damage at the end of each of its turns.
+  icon: {fileID: 10905, guid: 0000000000000000f000000000000000, type: 0}
   durationType: 0
   duration: 3
   maxStacks: 1
   stackingBehavior: 1
   statModifiers: []
-  effectTypeTags: []
+  effectTypeTags:
+  - Debuff
+  - Poison
+  - DamageOverTime"
+  tickActionType: 1
+  tickActionBasePower: 5
+  tickActionDamageType: 2

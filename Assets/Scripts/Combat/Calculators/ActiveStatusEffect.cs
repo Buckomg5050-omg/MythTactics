@@ -1,15 +1,17 @@
 // ActiveStatusEffect.cs
 using UnityEngine;
+using MythTactics.Combat; // For StatType, if not globally accessible
 
 public class ActiveStatusEffect
 {
     public EffectSO BaseEffect { get; private set; }
-    public Unit Caster { get; private set; } // The unit that applied this effect instance, can be null
+    public Unit Caster { get; private set; }
 
-    public int RemainingDuration { get; set; } // In rounds/turns, if applicable
+    public int RemainingDuration { get; set; }
     public int CurrentStacks { get; set; }
 
     private bool _isPermanent;
+    private int _snapshottedCasterScalingStatValue = 0; // To store the caster's stat value for scaling tick actions
 
     public ActiveStatusEffect(EffectSO baseEffect, Unit caster)
     {
@@ -19,51 +21,71 @@ public class ActiveStatusEffect
         if (BaseEffect == null)
         {
             Debug.LogError("ActiveStatusEffect created with a null BaseEffect SO!");
-            // Potentially throw an error or handle this to prevent further issues
             return;
         }
 
-        CurrentStacks = 1; // Effects always start with at least 1 stack
+        CurrentStacks = 1;
 
         if (BaseEffect.durationType == EffectDurationType.Permanent)
         {
             _isPermanent = true;
-            RemainingDuration = int.MaxValue; // Or a conventional very large number for "permanent"
+            RemainingDuration = int.MaxValue;
         }
         else
         {
             _isPermanent = false;
             RemainingDuration = BaseEffect.duration;
         }
+
+        // --- NEW: Snapshot caster's stat for scaling tick actions ---
+        if (BaseEffect.tickActionScalesWithCasterStat && Caster != null && Caster.Stats != null)
+        {
+            // Get the caster's *effective* primary attribute value for the specified scaling stat
+            UnitPrimaryAttributes casterEffectiveAttrs = Caster.Stats.EffectiveAttributes;
+            switch (BaseEffect.tickScalingStat)
+            {
+                case StatType.Core:
+                    _snapshottedCasterScalingStatValue = casterEffectiveAttrs.Core;
+                    break;
+                case StatType.Echo:
+                    _snapshottedCasterScalingStatValue = casterEffectiveAttrs.Echo;
+                    break;
+                case StatType.Pulse:
+                    _snapshottedCasterScalingStatValue = casterEffectiveAttrs.Pulse;
+                    break;
+                case StatType.Spark:
+                    _snapshottedCasterScalingStatValue = casterEffectiveAttrs.Spark;
+                    break;
+                case StatType.Glimmer:
+                    _snapshottedCasterScalingStatValue = casterEffectiveAttrs.Glimmer;
+                    break;
+                case StatType.Aura:
+                    _snapshottedCasterScalingStatValue = casterEffectiveAttrs.Aura;
+                    break;
+                default:
+                    Debug.LogWarning($"EffectSO '{BaseEffect.effectName}' is set to scale with an unsupported or non-primary StatType '{BaseEffect.tickScalingStat}'. Defaulting snapshot to 0.", BaseEffect);
+                    _snapshottedCasterScalingStatValue = 0;
+                    break;
+            }
+            DebugHelper.Log($"Effect '{BaseEffect.effectName}' snapshotted caster ({Caster.unitName}) {BaseEffect.tickScalingStat}: {_snapshottedCasterScalingStatValue}", Caster);
+        }
+        else if (BaseEffect.tickActionScalesWithCasterStat)
+        {
+            Debug.LogWarning($"EffectSO '{BaseEffect.effectName}' is set to scale, but caster or caster.Stats is null. Snapshotting 0.", BaseEffect);
+             _snapshottedCasterScalingStatValue = 0;
+        }
     }
 
-    /// <summary>
-    /// Ticks down the duration of the effect by one round.
-    /// Should be called at the appropriate time (e.g., end of affected unit's turn).
-    /// </summary>
-    /// <returns>True if the effect has expired after this tick, false otherwise.</returns>
     public bool TickDuration()
     {
-        if (_isPermanent)
-        {
-            return false; // Permanent effects don't expire by ticking
-        }
-
-        if (RemainingDuration > 0)
-        {
-            RemainingDuration--;
-        }
-
+        if (_isPermanent) return false;
+        if (RemainingDuration > 0) RemainingDuration--;
         return RemainingDuration <= 0;
     }
 
-    /// <summary>
-    /// Refreshes the duration of this effect instance based on its EffectSO.
-    /// </summary>
     public void RefreshDuration()
     {
         if (BaseEffect == null) return;
-
         if (BaseEffect.durationType == EffectDurationType.Rounds)
         {
             RemainingDuration = BaseEffect.duration;
@@ -74,36 +96,30 @@ public class ActiveStatusEffect
             RemainingDuration = int.MaxValue;
             _isPermanent = true;
         }
-        // Add other duration types if necessary
     }
 
-    /// <summary>
-    /// Attempts to add a stack to this effect instance, up to its MaxStacks.
-    /// Also refreshes duration if appropriate based on stacking behavior.
-    /// </summary>
-    /// <returns>True if a stack was successfully added, false otherwise (e.g., already at max stacks).</returns>
     public bool AddStack()
     {
         if (BaseEffect == null) return false;
-
+        bool stacked = false;
         if (CurrentStacks < BaseEffect.maxStacks)
         {
             CurrentStacks++;
-            // Typically, adding a stack also refreshes duration
-            if (BaseEffect.stackingBehavior == EffectStackingBehavior.IncreaseStacks ||
-                BaseEffect.stackingBehavior == EffectStackingBehavior.RefreshDuration) // And other relevant behaviors
-            {
-                RefreshDuration();
-            }
-            return true;
+            stacked = true;
         }
-        else if (CurrentStacks >= BaseEffect.maxStacks &&
-                 (BaseEffect.stackingBehavior == EffectStackingBehavior.IncreaseStacks ||
-                  BaseEffect.stackingBehavior == EffectStackingBehavior.RefreshDuration))
+
+        // Always refresh duration when stacking behavior involves increasing or refreshing
+        if (BaseEffect.stackingBehavior == EffectStackingBehavior.IncreaseStacks ||
+            BaseEffect.stackingBehavior == EffectStackingBehavior.RefreshDuration)
         {
-            // At max stacks, but still refresh duration if behavior allows
             RefreshDuration();
         }
-        return false; // Could not add a new stack (was already at max for IncreaseStacks)
+        return stacked; // Return true if a new stack was actually added
+    }
+
+    // --- NEW: Getter for the snapshotted stat value ---
+    public int GetSnapshottedCasterScalingStatValue()
+    {
+        return _snapshottedCasterScalingStatValue;
     }
 }

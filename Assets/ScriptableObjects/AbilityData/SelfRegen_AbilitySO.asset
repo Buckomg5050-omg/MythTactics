@@ -10,21 +10,22 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 03c22eb5c5793164cb194bc23aced609, type: 3}
-  m_Name: PoisonDart_AbilitySO
+  m_Name: SelfRegen_AbilitySO
   m_EditorClassIdentifier: 
-  abilityName: Poison Dart
-  description: Fires a dart that poisons the target, dealing damage over time.
+  abilityName: Self Regeneration
+  description: The user focuses inward, gaining a minor healing effect over several
+    turns.
   apCost: 1
-  mpCost: 10
+  mpCost: 8
   spCost: 0
   fpCost: 0
   ipCost: 0
-  targetType: 1
-  range: 4
-  baseAccuracy: 85
-  effectType: 0
-  basePower: 3
-  damageType: 0
+  targetType: 0
+  range: 0
+  baseAccuracy: 100
+  effectType: 1
+  basePower: 10
+  damageType: 1
   dealsTrueDamage: 0
   effectsToApplyOnHit:
-  - {fileID: 11400000, guid: fb32d3720a72ee2478554a82c5b5e6bf, type: 2}
+  - {fileID: 11400000, guid: 3d2285953a4e4b34d926635b81191dcf, type: 2}

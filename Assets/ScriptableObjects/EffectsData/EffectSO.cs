@@ -1,7 +1,7 @@
 // EffectSO.cs
 using UnityEngine;
 using System.Collections.Generic;
-using MythTactics.Combat; // <<<<<<< ADD THIS LINE
+using MythTactics.Combat;
 
 public enum EffectDurationType
 {
@@ -58,4 +58,15 @@ public class EffectSO : ScriptableObject
 
     [Tooltip("DamageType for tick action, if tickActionType is Damage.")]
     public DamageType tickActionDamageType = DamageType.True;
+
+    // --- NEW: Tick Action Scaling Properties ---
+    [Header("Tick Action Scaling")]
+    [Tooltip("If true, the tick action's power will scale with a stat from the caster.")]
+    public bool tickActionScalesWithCasterStat = false;
+
+    [Tooltip("The primary attribute of the caster that this tick action scales with (e.g., Spark for magical DoTs, Core for physical DoTs). Only used if tickActionScalesWithCasterStat is true.")]
+    public StatType tickScalingStat = StatType.Spark; // Default to Spark, designer can change per effect
+
+    [Tooltip("The factor by which the caster's stat contributes to the tick power (e.g., 0.25 for Stat/4). Only used if tickActionScalesWithCasterStat is true.")]
+    public float tickScalingFactor = 0.25f; // e.g., GDD's Floor(Stat / 4) implies a factor of 0.25f
 }

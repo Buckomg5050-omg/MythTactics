@@ -10,22 +10,20 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: b09d1e7a96db0814bb8a706d65b5b459, type: 3}
-  m_Name: StackingCoreDebuff
+  m_Name: MinorRegeneration_EffectSO
   m_EditorClassIdentifier: 
-  effectID: stacking_core_debuff
-  effectName: Stacking Core Debuff
-  description: Reduces Core by 1 per stack. Stacks up to 3 times.
+  effectID: minor_regen_hot
+  effectName: Minor Regeneration
+  description: Effect description.
   icon: {fileID: 10905, guid: 0000000000000000f000000000000000, type: 0}
   durationType: 0
   duration: 3
-  maxStacks: 3
-  stackingBehavior: 3
-  statModifiers:
-  - stat: 0
-    type: 0
-    value: -1
+  maxStacks: 1
+  stackingBehavior: 1
+  statModifiers: []
   effectTypeTags:
-  - Debuff
-  tickActionType: 0
-  tickActionBasePower: 0
+  - Buff
+  - HealOverTime
+  tickActionType: 2
+  tickActionBasePower: 4
   tickActionDamageType: 2

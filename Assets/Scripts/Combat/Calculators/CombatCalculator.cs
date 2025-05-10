@@ -18,6 +18,7 @@ namespace MythTactics.Combat
 
     public enum AbilityEffectType
     {
+        None,    
         Damage,
         Heal,
         Buff, 

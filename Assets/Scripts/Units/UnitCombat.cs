@@ -1,9 +1,9 @@
 // UnitCombat.cs
 using UnityEngine;
 using System.Collections;
-using MythTactics.Combat; // Assuming your enums like AbilityTargetType are here
-using System.Collections.Generic; // Required for List
-using System.Text; // For StringBuilder
+using MythTactics.Combat;
+using System.Collections.Generic;
+using System.Text;
 
 [RequireComponent(typeof(Unit))]
 public class UnitCombat : MonoBehaviour
@@ -90,7 +90,7 @@ public class UnitCombat : MonoBehaviour
             yield break;
         }
 
-        Unit abilityTarget = null;
+        Unit abilityTarget = null; 
 
         switch (ability.targetType)
         {
@@ -98,7 +98,7 @@ public class UnitCombat : MonoBehaviour
                 abilityTarget = _unitMain;
                 break;
             case AbilityTargetType.EnemyUnit:
-            case AbilityTargetType.AllyUnit:
+            case AbilityTargetType.AllyUnit: 
                 if (targetUnit == null || !targetUnit.IsAlive)
                 {
                     DebugHelper.LogWarning($"{_unitMain.unitName} cannot perform ability {ability.abilityName}: Target unit is invalid or not alive.", _unitMain);
@@ -126,7 +126,6 @@ public class UnitCombat : MonoBehaviour
 
         SpendResourcesForAbility(ability);
 
-        // Using StringBuilder for robust log message construction
         StringBuilder logMessageBuilder = new StringBuilder();
         logMessageBuilder.Append(_unitMain.unitName).Append(" uses ").Append(ability.abilityName).Append(".");
         if (abilityTarget != null && abilityTarget != _unitMain)
@@ -137,24 +136,35 @@ public class UnitCombat : MonoBehaviour
         {
             logMessageBuilder.Append(" On SELF.");
         }
-        logMessageBuilder.Append(" (AP: ").Append(_unitStats.currentActionPoints).Append("/").Append(_unitStats.MaxActionPoints).Append(","); // Line ~125
+        logMessageBuilder.Append(" (AP: ").Append(_unitStats.currentActionPoints).Append("/").Append(_unitStats.MaxActionPoints).Append(",");
         logMessageBuilder.Append(" MP: ").Append(_unitStats.currentManaPoints).Append("/").Append(_unitStats.MaxManaPoints).Append(",");
         logMessageBuilder.Append(" SP: ").Append(_unitStats.currentStaminaPoints).Append("/").Append(_unitStats.MaxStaminaPoints).Append(",");
         logMessageBuilder.Append(" FP: ").Append(_unitStats.currentFocusPoints).Append("/").Append(_unitStats.MaxFocusPoints).Append(",");
         logMessageBuilder.Append(" IP: ").Append(_unitStats.currentInfluencePoints).Append("/").Append(_unitStats.MaxInfluencePoints).Append(")");
         DebugHelper.Log(logMessageBuilder.ToString(), _unitMain);
 
-
         if (_unitMain.Animation != null) yield return _unitMain.Animation.PlayAttackAnimation();
         else yield return new WaitForSeconds(0.5f);
 
-        bool abilityEffectConnects = true;
-        if (ability.targetType == AbilityTargetType.EnemyUnit ||
-            (ability.targetType == AbilityTargetType.AllyUnit && ability.effectType == AbilityEffectType.Damage))
+        bool abilityEffectConnects = true; 
+        
+        bool needsHitRoll = (ability.targetType == AbilityTargetType.EnemyUnit ||
+                             (ability.targetType == AbilityTargetType.AllyUnit && 
+                              (ability.effectType == AbilityEffectType.Damage || ability.effectType == AbilityEffectType.Debuff))) &&
+                             ability.baseAccuracy > 0; 
+
+        if (ability.targetType == AbilityTargetType.Self || 
+            (ability.targetType == AbilityTargetType.AllyUnit && ability.effectType == AbilityEffectType.Buff) || // Buffs on allies auto-connect
+            (ability.effectType == AbilityEffectType.None)) // Utility/StatusOnly abilities might also auto-connect for effects
+        {
+            needsHitRoll = false;
+        }
+
+        if (needsHitRoll)
         {
             if (abilityTarget == null)
             {
-                DebugHelper.LogError($"PerformAbility: abilityTarget is null for a unit-targeting ability '{ability.abilityName}' before hit check.", _unitMain);
+                DebugHelper.LogError($"PerformAbility: abilityTarget is null for a unit-targeting ability '{ability.abilityName}' that needs a hit roll.", _unitMain);
                 abilityEffectConnects = false;
             }
             else
@@ -165,11 +175,12 @@ public class UnitCombat : MonoBehaviour
 
         if (abilityEffectConnects)
         {
-            if (ability.effectType == AbilityEffectType.Damage)
+            if (ability.effectType == AbilityEffectType.Damage && ability.basePower > 0)
             {
                 if (abilityTarget != null && abilityTarget.IsAlive && abilityTarget.Combat != null)
                 {
-                    int totalDamage = DamageCalculator.CalculateMagicalAbilityDamage(ability, _unitMain, abilityTarget);
+                    int totalDamage = DamageCalculator.CalculateMagicalAbilityDamage(ability, _unitMain, abilityTarget); 
+                    DebugHelper.Log($"{_unitMain.unitName}'s ability '{ability.abilityName}' deals {totalDamage} initial damage to {abilityTarget.unitName}.", _unitMain);
                     if (abilityTarget.gameObject.activeInHierarchy)
                     {
                         yield return abilityTarget.StartCoroutine(abilityTarget.Combat.TakeDamage(totalDamage));
@@ -177,7 +188,7 @@ public class UnitCombat : MonoBehaviour
                 }
                 else if (abilityTarget != null && abilityTarget.Combat == null) { DebugHelper.LogError($"{abilityTarget.unitName} is missing UnitCombat. Cannot apply ability damage.", abilityTarget); }
             }
-            else if (ability.effectType == AbilityEffectType.Heal)
+            else if (ability.effectType == AbilityEffectType.Heal && ability.basePower > 0)
             {
                 if (abilityTarget != null && abilityTarget.IsAlive && abilityTarget.Stats != null)
                 {
@@ -186,7 +197,7 @@ public class UnitCombat : MonoBehaviour
                     int totalHeal = baseHealAmount + magicalPotencyBonus;
                     totalHeal = Mathf.Max(0, totalHeal);
 
-                    DebugHelper.Log($"{_unitMain.unitName}'s ability '{ability.abilityName}' heals {abilityTarget.unitName} for {totalHeal} VP.", _unitMain);
+                    DebugHelper.Log($"{_unitMain.unitName}'s ability '{ability.abilityName}' initially heals {abilityTarget.unitName} for {totalHeal} VP.", _unitMain);
                     abilityTarget.Stats.ModifyVitality(totalHeal);
                 }
             }
@@ -224,7 +235,7 @@ public class UnitCombat : MonoBehaviour
                  DebugHelper.LogError("EffectSystem.Instance is null! Cannot apply status effects.", _unitMain);
             }
         }
-        else
+        else 
         {
             DebugHelper.Log($"{ability.abilityName} from {_unitMain.unitName} MISSES {abilityTarget?.unitName ?? "intended target"}!", _unitMain);
         }
@@ -237,33 +248,37 @@ public class UnitCombat : MonoBehaviour
 
     public bool CanAffordAbility(AbilitySO ability, bool logIfNotAffordable = false)
     {
-        if (ability == null) { DebugHelper.LogError($"{_unitMain.unitName}: Attempted to check affordability for a NULL ability.", _unitMain); return false; }
+        if (ability == null) { DebugHelper.LogError(_unitMain.unitName + ": Attempted to check affordability for a NULL ability.", _unitMain); return false; }
         if (!_unitStats.IsAlive) return false;
 
         if (!_unitMain.CanAffordAPForAction(ability.apCost))
         {
-            if (logIfNotAffordable) DebugHelper.LogWarning($"{_unitMain.unitName} cannot afford '{ability.abilityName}'. Insufficient AP. Needs: {ability.apCost}, Has: {_unitStats.currentActionPoints}.", _unitMain);
+            // CORRECTED LOGGING (using string concatenation)
+            if (logIfNotAffordable) DebugHelper.LogWarning(_unitMain.unitName + " cannot afford '" + ability.abilityName + "'. Insufficient AP. Needs: " + ability.apCost + ", Has: " + _unitStats.currentActionPoints + ".", _unitMain);
             return false;
         }
         if (_unitStats.currentManaPoints < ability.mpCost)
         {
-            if (logIfNotAffordable) DebugHelper.LogWarning($"{_unitMain.unitName} cannot afford '{ability.abilityName}'. Insufficient MP. Needs: {ability.mpCost}, Has: {_unitStats.currentManaPoints}.", _unitMain);
+            // CORRECTED LOGGING
+            if (logIfNotAffordable) DebugHelper.LogWarning(_unitMain.unitName + " cannot afford '" + ability.abilityName + "'. Insufficient MP. Needs: " + ability.mpCost + ", Has: " + _unitStats.currentManaPoints + ".", _unitMain);
             return false;
         }
         if (_unitStats.currentStaminaPoints < ability.spCost)
         {
-            if (logIfNotAffordable) DebugHelper.LogWarning($"{_unitMain.unitName} cannot afford '{ability.abilityName}'. Insufficient SP. Needs: {ability.spCost}, Has: {_unitStats.currentStaminaPoints}.", _unitMain);
+            // CORRECTED LOGGING
+            if (logIfNotAffordable) DebugHelper.LogWarning(_unitMain.unitName + " cannot afford '" + ability.abilityName + "'. Insufficient SP. Needs: " + ability.spCost + ", Has: " + _unitStats.currentStaminaPoints + ".", _unitMain);
             return false;
         }
         if (_unitStats.currentFocusPoints < ability.fpCost)
         {
-            if (logIfNotAffordable) DebugHelper.LogWarning($"{_unitMain.unitName} cannot afford '{ability.abilityName}'. Insufficient FP. Needs: {ability.fpCost}, Has: {_unitStats.currentFocusPoints}.", _unitMain);
+            // CORRECTED LOGGING
+            if (logIfNotAffordable) DebugHelper.LogWarning(_unitMain.unitName + " cannot afford '" + ability.abilityName + "'. Insufficient FP. Needs: " + ability.fpCost + ", Has: " + _unitStats.currentFocusPoints + ".", _unitMain);
             return false;
         }
-        // This is line 245 if my count is right for the error message (approximately).
         if (_unitStats.currentInfluencePoints < ability.ipCost)
         {
-            if (logIfNotAffordable) DebugHelper.LogWarning($"{_unitMain.unitName} cannot afford '{ability.abilityName}'. Insufficient IP. Needs: {ability.ipCost}, Has: {_unitStats.currentInfluencePoints}.", _unitMain);
+            // CORRECTED LOGGING (This was approximately line 262)
+            if (logIfNotAffordable) DebugHelper.LogWarning(_unitMain.unitName + " cannot afford '" + ability.abilityName + "'. Insufficient IP. Needs: " + ability.ipCost + ", Has: " + _unitStats.currentInfluencePoints + ".", _unitMain);
             return false;
         }
         return true;

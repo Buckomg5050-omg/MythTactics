@@ -141,7 +141,7 @@ MonoBehaviour:
     Core: 5
     Echo: 5
     Pulse: 5
-    Spark: 5
+    Spark: 10
     Glimmer: 5
     Aura: 5
   _baseMaxActionPoints: 2
