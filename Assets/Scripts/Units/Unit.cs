@@ -4,46 +4,28 @@ using System.Collections;
 using System.Collections.Generic;
 using MythTactics.Combat;
 
+[RequireComponent(typeof(UnitStats))] // Ensure UnitStats is present
 public class Unit : MonoBehaviour
 {
     [Header("Core Unit Data")]
     public RaceDataSO raceData;
     public ClassDataSO classData;
+    // MODIFIED: Primary attributes now live in UnitStats, but Unit.cs might still want to initialize them or pass them.
+    // For simplicity, we'll assume UnitStats manages its own 'currentAttributes' field, but Unit.cs provides the SOs.
+    // If you want to set initial attributes from Unit.cs, you'd pass them to UnitStats.Initialize.
+    [Tooltip("Initial primary attributes. These will be passed to UnitStats on initialization.")]
+    public UnitPrimaryAttributes initialPrimaryAttributes = new UnitPrimaryAttributes();
 
-    [Header("Stats")]
-    public UnitPrimaryAttributes currentAttributes = new UnitPrimaryAttributes();
-    public int level = 1;
+
+    [Header("Stats Component")]
+    public UnitStats Stats { get; private set; } // Public getter for the stats component
 
     [Header("Basic Info")]
     public string unitName = "Unit";
+    public int level = 1; // Level might influence stats, so UnitStats might need it or Unit updates it. For now, it's here.
 
-    [Header("Health (VP - Vitality Points)")]
-    [SerializeField] private int _maxVitalityPoints;
-    public int currentVitalityPoints;
-    public int MaxVitalityPoints => _maxVitalityPoints;
-
-    [Header("Mana (MP - Mana Points)")]
-    [SerializeField] private int _maxManaPoints;
-    public int currentManaPoints;
-    public int MaxManaPoints => _maxManaPoints;
-
-    [Header("Stamina (SP - Stamina Points)")]
-    [SerializeField] private int _maxStaminaPoints;
-    public int currentStaminaPoints;
-    public int MaxStaminaPoints => _maxStaminaPoints;
-
-    // NEW: Focus Points (FP)
-    [Header("Focus (FP - Focus Points)")]
-    [SerializeField] private int _maxFocusPoints;
-    public int currentFocusPoints;
-    public int MaxFocusPoints => _maxFocusPoints;
-
-    // NEW: Influence Points (IP)
-    [Header("Influence (IP - Influence Points)")]
-    [SerializeField] private int _maxInfluencePoints;
-    public int currentInfluencePoints;
-    public int MaxInfluencePoints => _maxInfluencePoints;
-
+    // REMOVED: VP, MP, SP, FP, IP fields and properties (now in UnitStats)
+    // REMOVED: _isAlive (now in UnitStats)
 
     [Header("Abilities")]
     public List<AbilitySO> knownAbilities = new List<AbilitySO>();
@@ -66,156 +48,55 @@ public class Unit : MonoBehaviour
     public int actionCounter = 0;
 
     [Header("AI")]
-    [SerializeField] private BasicAIHandler aiHandler;
+    [SerializeField] private BasicAIHandler aiHandler; // This will likely become its own UnitAI component later
 
     private Tile _currentTile;
     public Tile CurrentTile => _currentTile;
     private bool _isMoving = false;
     public bool IsMoving => _isMoving;
     private Coroutine _moveCoroutine = null;
-    private bool _isAlive = true;
-    public bool IsAlive => _isAlive;
+
+    // Public accessor for IsAlive, now fetched from UnitStats
+    public bool IsAlive => (Stats != null) ? Stats.IsAlive : false;
 
 
-    public int CalculatedMaxVP
-    {
-        get
-        {
-            if (!_isAlive) return 0;
-            int baseVpFromRace = (raceData != null) ? raceData.baseVPContribution : 0;
-            int baseVpFromClass = (classData != null) ? classData.baseVPContribution : 0;
-            int pulseBonus = (currentAttributes != null) ? currentAttributes.Pulse * 5 : 0;
-            int vpFromEquipment = 0;
-            return baseVpFromRace + baseVpFromClass + pulseBonus + vpFromEquipment;
-        }
-    }
-
-    public int CalculatedMaxMP
-    {
-        get
-        {
-            if (!_isAlive) return 0;
-            int baseMpFromRace = (raceData != null) ? raceData.baseMPContribution : 0;
-            int baseMpFromClass = (classData != null) ? classData.baseMPContribution : 0;
-            int sparkBonus = (currentAttributes != null) ? currentAttributes.Spark * 2 : 0;
-            int mpFromEquipment = 0;
-            return baseMpFromRace + baseMpFromClass + sparkBonus + mpFromEquipment;
-        }
-    }
-
-    public int CalculatedMaxSP
-    {
-        get
-        {
-            if (!_isAlive) return 0;
-            int baseSpFromRace = (raceData != null) ? raceData.baseSPContribution : 0;
-            int baseSpFromClass = (classData != null) ? classData.baseSPContribution : 0; // CORRECTED TYPO HERE
-            int coreBonus = (currentAttributes != null) ? currentAttributes.Core : 0;
-            int spFromEquipment = 0;
-            return baseSpFromRace + baseSpFromClass + coreBonus + spFromEquipment;
-        }
-    }
-
-    // NEW: Calculated property for Max FP based on GDD 2.3
-    public int CalculatedMaxFP
-    {
-        get
-        {
-            if (!_isAlive) return 0;
-            int baseFpFromRace = (raceData != null) ? raceData.baseFPContribution : 0;
-            int baseFpFromClass = (classData != null) ? classData.baseFPContribution : 0;
-            int glimmerBonus = (currentAttributes != null) ? currentAttributes.Glimmer : 0; // Glimmer * 1
-            int fpFromEquipment = 0; // Placeholder for MaxFP_From_Equipment
-            return baseFpFromRace + baseFpFromClass + glimmerBonus + fpFromEquipment;
-        }
-    }
-
-    // NEW: Calculated property for Max IP based on GDD 2.3
-    public int CalculatedMaxIP
-    {
-        get
-        {
-            if (!_isAlive) return 0;
-            int baseIpFromRace = (raceData != null) ? raceData.baseIPContribution : 0;
-            int baseIpFromClass = (classData != null) ? classData.baseIPContribution : 0;
-            int auraBonus = (currentAttributes != null) ? currentAttributes.Aura : 0; // Aura * 1
-            int ipFromEquipment = 0; // Placeholder for MaxIP_From_Equipment
-            return baseIpFromRace + baseIpFromClass + auraBonus + ipFromEquipment;
-        }
-    }
-
+    // REMOVED: CalculatedMaxVP, MP, SP, FP, IP (now in UnitStats, accessible via Stats.CalculatedMax...)
 
     void Awake()
     {
-        if (currentAttributes == null) currentAttributes = new UnitPrimaryAttributes();
-        InitializeDerivedAttributesAndResources();
-    }
-
-    void InitializeDerivedAttributesAndResources()
-    {
-        _maxVitalityPoints = CalculatedMaxVP;
-        currentVitalityPoints = _maxVitalityPoints;
-
-        _maxManaPoints = CalculatedMaxMP;
-        currentManaPoints = _maxManaPoints;
-
-        _maxStaminaPoints = CalculatedMaxSP;
-        currentStaminaPoints = _maxStaminaPoints;
-
-        // NEW: Initialize FP
-        _maxFocusPoints = CalculatedMaxFP;
-        currentFocusPoints = _maxFocusPoints;
-
-        // NEW: Initialize IP
-        _maxInfluencePoints = CalculatedMaxIP;
-        currentInfluencePoints = _maxInfluencePoints;
-
-        // Ensure a minimum of 1 for all resources if calculation results in 0 or less, and unit is alive
-        if (_isAlive)
+        // Get or Add UnitStats component
+        Stats = GetComponent<UnitStats>();
+        if (Stats == null)
         {
-            if (_maxVitalityPoints <= 0) _maxVitalityPoints = 1;
-            // Ensure currentVP is also at least 1 if maxVP became 1 (and was initialized from it)
-            if (currentVitalityPoints <= 0 && _maxVitalityPoints == 1) currentVitalityPoints = 1;
-
-
-            if (_maxManaPoints < 0) _maxManaPoints = 0;
-            if (currentManaPoints < 0) currentManaPoints = 0;
-
-            if (_maxStaminaPoints < 0) _maxStaminaPoints = 0;
-            if (currentStaminaPoints < 0) currentStaminaPoints = 0;
-
-            if (_maxFocusPoints < 0) _maxFocusPoints = 0;
-            if (currentFocusPoints < 0) currentFocusPoints = 0;
-
-            if (_maxInfluencePoints < 0) _maxInfluencePoints = 0;
-            if (currentInfluencePoints < 0) currentInfluencePoints = 0;
-        } else { // If not alive, all current resources should be 0
-            currentVitalityPoints = 0;
-            currentManaPoints = 0;
-            currentStaminaPoints = 0;
-            currentFocusPoints = 0;
-            currentInfluencePoints = 0;
+            Stats = gameObject.AddComponent<UnitStats>();
+            DebugHelper.LogWarning($"{unitName} had to add UnitStats component at runtime. Consider adding it in Prefab.", this);
         }
+        
+        // Initialize UnitStats, passing necessary data
+        // The UnitPrimaryAttributes from this Unit script instance will be used to initialize UnitStats's attributes.
+        Stats.Initialize(this, raceData, classData, initialPrimaryAttributes);
 
-
-        // MODIFIED: Updated Debug Log
-        DebugHelper.Log($"{unitName} Initialized Resources: " +
-                        $"VP: {currentVitalityPoints}/{_maxVitalityPoints}, " +
-                        $"MP: {currentManaPoints}/{_maxManaPoints}, " +
-                        $"SP: {currentStaminaPoints}/{_maxStaminaPoints}, " +
-                        $"FP: {currentFocusPoints}/{_maxFocusPoints}, " +
-                        $"IP: {currentInfluencePoints}/{_maxInfluencePoints}", this);
+        // Other initializations for Unit.cs itself
+        // currentActionPoints are reset by TurnManager at turn start, but initial value could be set here or be 0.
+        // For now, let's assume TurnManager will set them before the first turn.
+        // If units need AP before their first turn, initialize currentActionPoints = maxActionPoints;
     }
+
+    // REMOVED: InitializeDerivedAttributesAndResources (now in UnitStats.InitializeDerivedAttributesAndResources called by Stats.Initialize)
 
     public IEnumerator PerformAttack(Unit targetUnit, PlayerInputHandler attackerPIHContext)
     {
-        if (!_isAlive || targetUnit == null || !targetUnit.IsAlive || !CanAffordAPForAction(PlayerInputHandler.AttackActionCost))
+        // MODIFIED: Use Stats.IsAlive and Stats component for resource checks if needed later
+        if (!IsAlive || targetUnit == null || !targetUnit.IsAlive || !CanAffordAPForAction(PlayerInputHandler.AttackActionCost))
         {
             yield break;
         }
-        SpendAPForAction(PlayerInputHandler.AttackActionCost);
+        SpendAPForAction(PlayerInputHandler.AttackActionCost); // AP is still managed by Unit for now
         DebugHelper.Log($"{unitName} attacks {targetUnit.unitName}. (AP: {currentActionPoints})", this);
         yield return StartCoroutine(PerformAttackAnimation());
+
+        // CombatCalculator.ResolveHit still takes 'this' (Unit) and 'targetUnit' (Unit)
+        // It will internally access Stats from these Unit references if needed.
         if (CombatCalculator.ResolveHit(this, targetUnit))
         {
             DebugHelper.Log($"{unitName}'s attack HITS {targetUnit.unitName}!", this);
@@ -228,13 +109,15 @@ public class Unit : MonoBehaviour
                 critMessage = " (CRITICAL HIT!)";
                 DebugHelper.Log($"CRITICAL HIT by {unitName} on {targetUnit.unitName}!", this);
             }
-            if (targetUnit != null && targetUnit.IsAlive)
+            if (targetUnit != null && targetUnit.IsAlive) // Check targetUnit.IsAlive (which checks its Stats)
             {
                 int currentAttackBaseDamage = (equippedWeapon != null) ? equippedWeapon.baseDamage : DamageCalculator.UNARMED_BASE_DAMAGE;
+                // DamageCalculator will also need to access Attacker/Defender Stats via their Unit references
                 int totalDamage = DamageCalculator.CalculatePhysicalAttackDamage(currentAttackBaseDamage, this, targetUnit, criticalDamageMultiplier);
                 DebugHelper.Log($"{unitName} dealing {totalDamage} damage to {targetUnit.unitName}{critMessage}.", this);
                 if (targetUnit != null && targetUnit.gameObject.activeInHierarchy)
                 {
+                    // TakeDamage will now internally call targetUnit.Stats.ModifyVitality
                     yield return targetUnit.StartCoroutine(targetUnit.TakeDamage(totalDamage));
                 }
             }
@@ -250,7 +133,7 @@ public class Unit : MonoBehaviour
     }
 
     public IEnumerator PerformAttackAnimation() { yield return new WaitForSeconds(attackAnimDuration); }
-    private IEnumerator PerformHurtAnimation() { if (!_isAlive) yield break; yield return new WaitForSeconds(hurtAnimDuration); }
+    private IEnumerator PerformHurtAnimation() { if (!IsAlive) yield break; yield return new WaitForSeconds(hurtAnimDuration); }
     private IEnumerator PerformDeathAnimation()
     {
         SpriteRenderer sr = GetComponent<SpriteRenderer>();
@@ -259,12 +142,14 @@ public class Unit : MonoBehaviour
         if (sr != null && this != null && gameObject != null && gameObject.activeInHierarchy) sr.color = Color.black;
     }
 
-    public int CalculatedMoveRange => _isAlive ? Mathf.Max(1, ((raceData != null ? raceData.baseMovementContribution : 0) + (classData != null ? classData.baseMovementContribution : 3) + Mathf.FloorToInt((currentAttributes != null ? currentAttributes.Echo : 0) / 5f))) : 0;
-    public int CalculatedAttackRange
+    // Derived stats like MoveRange, AttackRange, Speed still use Unit's RaceData, ClassData, and Stats.currentAttributes
+    public int CalculatedMoveRange => IsAlive ? Mathf.Max(1, ((raceData != null ? raceData.baseMovementContribution : 0) + (classData != null ? classData.baseMovementContribution : 3) + Mathf.FloorToInt((Stats != null && Stats.currentAttributes != null ? Stats.currentAttributes.Echo : 0) / 5f))) : 0;
+    
+    public int CalculatedAttackRange // This might move to UnitCombat later
     {
         get
         {
-            if (!_isAlive) return 0;
+            if (!IsAlive) return 0;
             int classRange = (classData != null ? Mathf.Max(0, classData.baseAttackRange) : 0);
             int weaponRange = (equippedWeapon != null && equippedWeapon.range > 0) ? equippedWeapon.range : 0;
             if (weaponRange > 0) return weaponRange;
@@ -272,25 +157,26 @@ public class Unit : MonoBehaviour
             return 1;
         }
     }
-    public int RawCalculatedBaseUnitSpeed
+    public int RawCalculatedBaseUnitSpeed // This might move to UnitMovement or stay if TurnManager uses it directly
     {
         get
         {
-            if (!_isAlive) return 1;
+            if (!IsAlive) return 1;
             int raceBonus = (raceData != null) ? raceData.raceSpeedBonus : 0;
             int classBonus = (classData != null) ? classData.classSpeedBonus : 0;
-            int echoFactor = (currentAttributes != null) ? currentAttributes.Echo * 2 : 0;
-            int glimmerFactor = (currentAttributes != null) ? currentAttributes.Glimmer * 1 : 0;
+            int echoFactor = (Stats != null && Stats.currentAttributes != null) ? Stats.currentAttributes.Echo * 2 : 0;
+            int glimmerFactor = (Stats != null && Stats.currentAttributes != null) ? Stats.currentAttributes.Glimmer * 1 : 0;
             return raceBonus + classBonus + echoFactor + glimmerFactor;
         }
     }
-    public int FinalCalculatedBaseUnitSpeed => _isAlive ? Mathf.Max(1, RawCalculatedBaseUnitSpeed) : 1;
-    public int EffectiveSpeed => _isAlive ? (FinalCalculatedBaseUnitSpeed) : 1;
+    public int FinalCalculatedBaseUnitSpeed => IsAlive ? Mathf.Max(1, RawCalculatedBaseUnitSpeed) : 1;
+    public int EffectiveSpeed => IsAlive ? (FinalCalculatedBaseUnitSpeed) : 1;
+
 
     public void PlaceOnTile(Tile tile)
     {
-        if (!_isAlive && tile != null && tile.occupyingUnit == this) { tile.ClearOccupyingUnit(); _currentTile = null; return; }
-        if (!_isAlive) return;
+        if (!IsAlive && tile != null && tile.occupyingUnit == this) { tile.ClearOccupyingUnit(); _currentTile = null; return; }
+        if (!IsAlive) return; // Check IsAlive which checks Stats.IsAlive
         if (_isMoving && _moveCoroutine != null) { StopCoroutine(_moveCoroutine); _isMoving = false; }
         if (_currentTile != null && _currentTile.occupyingUnit == this) _currentTile.ClearOccupyingUnit();
         _currentTile = tile;
@@ -303,9 +189,9 @@ public class Unit : MonoBehaviour
     }
     public void SetCurrentTile(Tile tile) { PlaceOnTile(tile); }
 
-    public IEnumerator MoveOnPath(List<Tile> path)
+    public IEnumerator MoveOnPath(List<Tile> path) // This will largely move to UnitMovement
     {
-        if (!_isAlive || _isMoving) { yield break; }
+        if (!IsAlive || _isMoving) { yield break; }
         if (path == null || path.Count == 0) { yield break; }
         _isMoving = true;
         _moveCoroutine = StartCoroutine(PerformMovement(path));
@@ -314,19 +200,19 @@ public class Unit : MonoBehaviour
         _moveCoroutine = null;
     }
 
-    private IEnumerator PerformMovement(List<Tile> path)
+    private IEnumerator PerformMovement(List<Tile> path) // This will largely move to UnitMovement
     {
         if (CurrentTile != null) transform.position = GridManager.Instance != null ? GridManager.Instance.GridToWorld(CurrentTile.gridPosition) : CurrentTile.transform.position;
         for (int i = 0; i < path.Count; i++)
         {
-            if (!_isAlive) { DebugHelper.Log($"{unitName} died during movement.", this); yield break; }
+            if (!IsAlive) { DebugHelper.Log($"{unitName} died during movement.", this); yield break; }
             Tile nextTileInPath = path[i];
             if (nextTileInPath == null) { DebugHelper.LogError($"Movement path for {unitName} contained a null tile at index {i}!", this); break; }
             Vector3 startPos = transform.position;
             Vector3 endPos = GridManager.Instance != null ? GridManager.Instance.GridToWorld(nextTileInPath.gridPosition) : nextTileInPath.transform.position;
             if (_currentTile != null && _currentTile.occupyingUnit == this) _currentTile.ClearOccupyingUnit();
             _currentTile = nextTileInPath;
-            if (_isAlive) _currentTile.SetOccupyingUnit(this);
+            if (IsAlive) _currentTile.SetOccupyingUnit(this); // Check IsAlive
             float journeyLength = Vector3.Distance(startPos, endPos);
             float startTime = Time.time;
             if (journeyLength > 0.01f && moveSpeed > 0)
@@ -334,7 +220,7 @@ public class Unit : MonoBehaviour
                 float journeyFraction = 0f;
                 while (journeyFraction < 1.0f)
                 {
-                    if (!_isMoving || !_isAlive) { if (!_isAlive) DebugHelper.Log($"{unitName} died, interrupting movement lerp.", this); yield break; }
+                    if (!_isMoving || !IsAlive) { if (!IsAlive) DebugHelper.Log($"{unitName} died, interrupting movement lerp.", this); yield break; }
                     float distCovered = (Time.time - startTime) * moveSpeed;
                     journeyFraction = distCovered / journeyLength;
                     transform.position = Vector3.Lerp(startPos, endPos, Mathf.Clamp01(journeyFraction));
@@ -345,86 +231,106 @@ public class Unit : MonoBehaviour
         }
     }
 
-    public void ResetActionPoints() { if (!_isAlive) { currentActionPoints = 0; return; } currentActionPoints = maxActionPoints; }
+    public void ResetActionPoints() { if (!IsAlive) { currentActionPoints = 0; return; } currentActionPoints = maxActionPoints; }
 
-    public bool CanAffordAPForAction(int apCost)
+    public bool CanAffordAPForAction(int apCost) // AP still managed by Unit for now
     {
-        if (!_isAlive) return false;
+        if (!IsAlive) return false;
         return currentActionPoints >= apCost;
     }
 
     public bool CanAffordAbility(AbilitySO ability, bool logIfNotAffordable = false)
     {
         if (ability == null) { DebugHelper.LogError($"{unitName}: Attempted to check affordability for a NULL ability.", this); return false; }
-        if (!_isAlive) return false;
+        if (!IsAlive) return false;
         if (!CanAffordAPForAction(ability.apCost))
         {
             if (logIfNotAffordable) DebugHelper.LogWarning($"{unitName} cannot afford '{ability.abilityName}'. Insufficient AP. Needs: {ability.apCost}, Has: {currentActionPoints}.", this);
             return false;
         }
-        if (currentManaPoints < ability.mpCost)
+        // MODIFIED: Access resources via Stats component
+        if (Stats.currentManaPoints < ability.mpCost)
         {
-            if (logIfNotAffordable) DebugHelper.LogWarning($"{unitName} cannot afford '{ability.abilityName}'. Insufficient MP. Needs: {ability.mpCost}, Has: {currentManaPoints}.", this);
+            if (logIfNotAffordable) DebugHelper.LogWarning($"{unitName} cannot afford '{ability.abilityName}'. Insufficient MP. Needs: {ability.mpCost}, Has: {Stats.currentManaPoints}.", this);
             return false;
         }
-        if (currentStaminaPoints < ability.spCost)
+        if (Stats.currentStaminaPoints < ability.spCost)
         {
-            if (logIfNotAffordable) DebugHelper.LogWarning($"{unitName} cannot afford '{ability.abilityName}'. Insufficient SP. Needs: {ability.spCost}, Has: {currentStaminaPoints}.", this);
+            if (logIfNotAffordable) DebugHelper.LogWarning($"{unitName} cannot afford '{ability.abilityName}'. Insufficient SP. Needs: {ability.spCost}, Has: {Stats.currentStaminaPoints}.", this);
             return false;
         }
-        // Future: Add checks for FP and IP costs here
-        // if (currentFocusPoints < ability.fpCost) { ... return false; }
-        // if (currentInfluencePoints < ability.ipCost) { ... return false; }
+        // Future: Add checks for Stats.currentFocusPoints and Stats.currentInfluencePoints
         return true;
     }
 
-    public void SpendAPForAction(int apCost)
+    public void SpendAPForAction(int apCost) // AP still managed by Unit for now
     {
-        if (!_isAlive) return;
+        if (!IsAlive) return;
         if (apCost <= 0) return;
         if (currentActionPoints >= apCost) currentActionPoints -= apCost;
         else DebugHelper.LogWarning($"{unitName} FAILED to spend AP cost {apCost}. Has {currentActionPoints}/{maxActionPoints}. This indicates a logic error.", this);
     }
 
-    public void SpendResourcesForAbility(AbilitySO ability)
+    public void SpendResourcesForAbility(AbilitySO ability) // This will likely move to UnitCombat
     {
-        if (ability == null || !_isAlive) return;
+        if (ability == null || !IsAlive) return;
         SpendAPForAction(ability.apCost);
-        if (ability.mpCost > 0) { currentManaPoints -= ability.mpCost; currentManaPoints = Mathf.Max(0, currentManaPoints); }
-        if (ability.spCost > 0) { currentStaminaPoints -= ability.spCost; currentStaminaPoints = Mathf.Max(0, currentStaminaPoints); }
-        // Future: Add spending for FP and IP costs here
-        // if (ability.fpCost > 0) { currentFocusPoints -= ability.fpCost; currentFocusPoints = Mathf.Max(0, currentFocusPoints); }
-        // if (ability.ipCost > 0) { currentInfluencePoints -= ability.ipCost; currentInfluencePoints = Mathf.Max(0, currentInfluencePoints); }
+        // MODIFIED: Call spend methods on Stats component
+        if (ability.mpCost > 0) Stats.SpendMana(ability.mpCost);
+        if (ability.spCost > 0) Stats.SpendStamina(ability.spCost);
+        // Future: if (ability.fpCost > 0) Stats.SpendFocus(ability.fpCost);
+        // Future: if (ability.ipCost > 0) Stats.SpendInfluence(ability.ipCost);
 
-        DebugHelper.Log($"{unitName} spent resources for {ability.abilityName}. AP: {currentActionPoints}, MP: {currentManaPoints}, SP: {currentStaminaPoints}", this);
+        DebugHelper.Log($"{unitName} spent resources for {ability.abilityName}. AP: {currentActionPoints}, MP: {Stats.currentManaPoints}, SP: {Stats.currentStaminaPoints}", this);
     }
 
-    public IEnumerator TakeDamage(int damageAmount)
+    public IEnumerator TakeDamage(int damageAmount) // This will likely move to UnitCombat
     {
-        if (!_isAlive) yield break;
-        currentVitalityPoints -= damageAmount;
-        currentVitalityPoints = Mathf.Max(0, currentVitalityPoints);
-        DebugHelper.Log($"{unitName} takes {damageAmount} damage, has {currentVitalityPoints}/{_maxVitalityPoints} VP remaining.", this);
-        if (currentVitalityPoints > 0) yield return StartCoroutine(PerformHurtAnimation());
-        else yield return StartCoroutine(Die());
+        if (!IsAlive) yield break; // Check IsAlive which checks Stats.IsAlive
+
+        Stats.ModifyVitality(-damageAmount); // Negative for damage
+
+        DebugHelper.Log($"{unitName} takes {damageAmount} damage, has {Stats.currentVitalityPoints}/{Stats.MaxVitalityPoints} VP remaining. (Alive: {Stats.IsAlive})", this);
+
+        if (Stats.IsAlive) // Check the updated IsAlive status from Stats
+        {
+            yield return StartCoroutine(PerformHurtAnimation());
+        }
+        else
+        {
+            // If ModifyVitality set IsAlive to false, trigger Die()
+            yield return StartCoroutine(Die());
+        }
     }
 
-    private IEnumerator Die()
+    private IEnumerator Die() // This will likely move to UnitCombat or UnitState
     {
-        if (!_isAlive) yield break;
-        _isAlive = false;
+        // Note: The IsAlive flag is already false in Stats at this point if called from TakeDamage
+        // If Die() is called directly for other reasons, ensure Stats.SetAliveStatus(false) is called.
+        // For simplicity, we'll assume TakeDamage is the primary path to Die().
+        // If UnitStats.IsAlive is already false, this might be redundant, but safe.
+        if (!Stats.IsAlive && currentActionPoints == 0) { /* Already processed as dead by Stats, and possibly previous Die call */ yield break; }
+
+        Stats.SetAliveStatus(false); // Explicitly ensure stats component knows unit is dead.
+        
         DebugHelper.Log($"!!!!!! {unitName} has been defeated! !!!!!!", this);
         if (_isMoving && _moveCoroutine != null) { StopCoroutine(_moveCoroutine); _isMoving = false; _moveCoroutine = null; }
+        
         yield return StartCoroutine(PerformDeathAnimation());
+        
         if (_currentTile != null && _currentTile.occupyingUnit == this) _currentTile.ClearOccupyingUnit();
         _currentTile = null;
+        
         if (TurnManager.Instance != null) TurnManager.Instance.UnregisterUnit(this);
+        
+        // Consider deactivating a parent object if Unit is part of a more complex hierarchy,
+        // or if UnitStats/Combat/Movement etc. are children. For now, deactivating self is fine.
         if (gameObject != null) gameObject.SetActive(false);
     }
 
-    public IEnumerator ProcessAITurn()
+    public IEnumerator ProcessAITurn() // This will largely move to UnitAI
     {
-        if (!_isAlive) { if (TurnManager.Instance != null && TurnManager.Instance.ActiveUnit == this) TurnManager.Instance.EndUnitTurn(this); yield break; }
+        if (!IsAlive) { if (TurnManager.Instance != null && TurnManager.Instance.ActiveUnit == this) TurnManager.Instance.EndUnitTurn(this); yield break; }
         if (CompareTag("Player")) { if (TurnManager.Instance != null && TurnManager.Instance.ActiveUnit == this) TurnManager.Instance.EndUnitTurn(this); yield break; }
         if (aiHandler == null)
         {
@@ -432,13 +338,13 @@ public class Unit : MonoBehaviour
             if (TurnManager.Instance != null && TurnManager.Instance.ActiveUnit == this) TurnManager.Instance.EndUnitTurn(this);
             yield break;
         }
-        yield return StartCoroutine(aiHandler.ExecuteTurn(this));
+        yield return StartCoroutine(aiHandler.ExecuteTurn(this)); // aiHandler will need access to Unit's components (Stats, Combat, Movement)
         if (TurnManager.Instance != null && TurnManager.Instance.ActiveUnit == this) TurnManager.Instance.EndUnitTurn(this);
     }
 
-    public IEnumerator PerformAbility(AbilitySO ability, Unit targetUnit, PlayerInputHandler attackerPIHContext)
+    public IEnumerator PerformAbility(AbilitySO ability, Unit targetUnit, PlayerInputHandler attackerPIHContext) // This will largely move to UnitCombat
     {
-        if (!_isAlive || ability == null )
+        if (!IsAlive || ability == null )
         {
             DebugHelper.LogWarning($"{unitName} PerformAbility called with null ability or dead unit. This should be caught earlier.", this);
             yield break;
@@ -457,9 +363,9 @@ public class Unit : MonoBehaviour
         }
 
         SpendResourcesForAbility(ability);
-        DebugHelper.Log($"{unitName} uses {ability.abilityName}." + (targetUnit != null ? $" Targeting {targetUnit.unitName}." : "") + $" (AP: {currentActionPoints}, MP: {currentManaPoints}, SP: {currentStaminaPoints})", this);
+        DebugHelper.Log($"{unitName} uses {ability.abilityName}." + (targetUnit != null ? $" Targeting {targetUnit.unitName}." : "") + $" (AP: {currentActionPoints}, MP: {Stats.currentManaPoints}, SP: {Stats.currentStaminaPoints})", this);
 
-        yield return new WaitForSeconds(attackAnimDuration);
+        yield return new WaitForSeconds(attackAnimDuration); // Placeholder, will move to UnitAnimation
 
         bool abilityHits = true;
         if (ability.targetType == AbilityTargetType.EnemyUnit || ability.targetType == AbilityTargetType.AllyUnit)
@@ -471,6 +377,7 @@ public class Unit : MonoBehaviour
             }
             else
             {
+                // CombatCalculator will need to access Stats via the Unit references
                 abilityHits = CombatCalculator.ResolveAbilityHit(ability, this, targetUnit);
             }
         }
@@ -481,6 +388,7 @@ public class Unit : MonoBehaviour
             {
                 if (targetUnit != null && targetUnit.IsAlive)
                 {
+                    // DamageCalculator will need to access Stats via Unit references
                     int totalDamage = DamageCalculator.CalculateMagicalAbilityDamage(ability, this, targetUnit);
 
                     if (targetUnit.gameObject.activeInHierarchy)

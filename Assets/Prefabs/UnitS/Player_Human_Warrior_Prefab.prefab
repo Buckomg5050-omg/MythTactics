@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 8063990176001632274}
   - component: {fileID: 730798995356705079}
   - component: {fileID: 6908189616136713099}
+  - component: {fileID: 1568386280519729019}
   m_Layer: 0
   m_Name: Player_Human_Warrior_Prefab
   m_TagString: Player
@@ -102,21 +103,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   raceData: {fileID: 11400000, guid: a4a37fdc0bafcc842969c6f1060741aa, type: 2}
   classData: {fileID: 11400000, guid: 22debfe3dab8b764f8c8354c38193a3c, type: 2}
-  currentAttributes:
-    Core: 10
+  initialPrimaryAttributes:
+    Core: 5
     Echo: 5
     Pulse: 5
     Spark: 5
     Glimmer: 5
     Aura: 5
-  level: 1
   unitName: Player Hero
-  maxVitalityPoints: 50
-  currentVitalityPoints: 0
-  _maxManaPoints: 0
-  currentManaPoints: 0
-  _maxStaminaPoints: 0
-  currentStaminaPoints: 0
+  level: 1
   knownAbilities:
   - {fileID: 11400000, guid: bde4c3c75f3e4c048bf2f4097c5556a7, type: 2}
   equippedWeapon: {fileID: 11400000, guid: 32db0ab0bf4643243ab12e8e06f6b725, type: 2}
@@ -129,3 +124,32 @@ MonoBehaviour:
   currentActionPoints: 0
   actionCounter: 0
   aiHandler: {fileID: 0}
+--- !u!114 &1568386280519729019
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9173187324434785590}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 880b604ee6489b448a9b65a9bb77ec9e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  currentAttributes:
+    Core: 5
+    Echo: 5
+    Pulse: 5
+    Spark: 5
+    Glimmer: 5
+    Aura: 5
+  _maxVitalityPoints: 0
+  currentVitalityPoints: 0
+  _maxManaPoints: 0
+  currentManaPoints: 0
+  _maxStaminaPoints: 0
+  currentStaminaPoints: 0
+  _maxFocusPoints: 0
+  currentFocusPoints: 0
+  _maxInfluencePoints: 0
+  currentInfluencePoints: 0

@@ -62,7 +62,7 @@ public class TurnManager : MonoBehaviour
         if (!_combatUnits.Contains(unit))
         {
             _combatUnits.Add(unit);
-            unit.actionCounter = 0;
+            unit.actionCounter = 0; // actionCounter is still on Unit
             DebugHelper.Log($"TurnManager: Registered unit '{unit.unitName}'. Total units: {_combatUnits.Count}", this);
         }
         else
@@ -123,10 +123,10 @@ public class TurnManager : MonoBehaviour
         DebugHelper.Log($"TurnManager: Preparing for combat. Initializing {_combatUnits.Count} units.", this);
         foreach (Unit unit in _combatUnits)
         {
-            if (unit != null && unit.IsAlive) // Ensure unit is not null and is alive
+            if (unit != null && unit.IsAlive) 
             {
-                unit.ResetActionPoints();
-                unit.actionCounter = 0;
+                unit.ResetActionPoints(); // AP methods are still on Unit
+                unit.actionCounter = 0;   // actionCounter is still on Unit
             }
         }
 
@@ -163,7 +163,7 @@ public class TurnManager : MonoBehaviour
         {
             if (ActiveUnit == null)
             {
-                _combatUnits.RemoveAll(u => u == null || !u.IsAlive);
+                _combatUnits.RemoveAll(u => u == null || !u.IsAlive); // IsAlive now checks Unit.Stats.IsAlive
 
                 if (_combatUnits.Count == 0)
                 {
@@ -184,10 +184,19 @@ public class TurnManager : MonoBehaviour
                     {
                         if (unit == null || !unit.IsAlive) continue;
 
-                        if (unit.currentAttributes != null)
+                        // MODIFIED: Check unit.Stats and unit.Stats.currentAttributes before using EffectiveSpeed.
+                        // EffectiveSpeed itself uses unit.Stats.currentAttributes.
+                        // For actionCounter increment, it primarily depends on EffectiveSpeed which now correctly gets attributes from Stats.
+                        if (unit.Stats != null) // EffectiveSpeed needs Stats to be not null
+                        {
                             unit.actionCounter += unit.EffectiveSpeed;
+                        }
                         else
-                            unit.actionCounter += 1;
+                        {
+                            DebugHelper.LogWarning($"TurnManager: Unit {unit.unitName} has null Stats component. Incrementing AC by 1.", unit);
+                            unit.actionCounter += 1; // Fallback if stats component is missing
+                        }
+
 
                         if (unit.actionCounter >= ActionCounterThreshold)
                         {
@@ -207,11 +216,12 @@ public class TurnManager : MonoBehaviour
                 if (!_isCombatActive) yield break;
 
                 List<Unit> readyUnits = _combatUnits
-                    .Where(u => u != null && u.IsAlive && u.actionCounter >= ActionCounterThreshold)
+                    .Where(u => u != null && u.IsAlive && u.actionCounter >= ActionCounterThreshold && u.Stats != null && u.Stats.currentAttributes != null) // Added Stats null checks
                     .OrderByDescending(u => u.actionCounter)
                     .ThenByDescending(u => u.EffectiveSpeed)
-                    .ThenByDescending(u => u.currentAttributes?.Echo ?? 0)
-                    .ThenByDescending(u => u.currentAttributes?.Glimmer ?? 0)
+                    // MODIFIED: Access Echo and Glimmer via u.Stats.currentAttributes
+                    .ThenByDescending(u => u.Stats.currentAttributes.Echo)
+                    .ThenByDescending(u => u.Stats.currentAttributes.Glimmer)
                     .ToList();
 
                 if (readyUnits.Count > 0)
@@ -224,7 +234,7 @@ public class TurnManager : MonoBehaviour
                     }
 
                     ActiveUnit = nextUnit;
-                    if (ActiveUnit == null || !ActiveUnit.IsAlive)
+                    if (ActiveUnit == null || !ActiveUnit.IsAlive) // IsAlive checks ActiveUnit.Stats.IsAlive
                     {
                         ActiveUnit = null;
                         DebugHelper.LogWarning("TurnManager: Next chosen unit was null or not alive. Skipping its turn.", this);
@@ -232,7 +242,7 @@ public class TurnManager : MonoBehaviour
                         continue;
                     }
 
-                    ActiveUnit.ResetActionPoints();
+                    ActiveUnit.ResetActionPoints(); // AP is still on Unit
 
                     if (ActiveUnit.CurrentTile != null)
                     {
@@ -250,11 +260,9 @@ public class TurnManager : MonoBehaviour
 
                     if (!ActiveUnit.CompareTag("Player"))
                     {
-                        // AI unit's turn
                         DebugHelper.Log($"TurnManager: Starting AI turn processing for {ActiveUnit.unitName}.", ActiveUnit);
-                        StartCoroutine(ActiveUnit.ProcessAITurn()); // << MODIFIED LINE
+                        StartCoroutine(ActiveUnit.ProcessAITurn());
                     }
-                    // Player turn is handled by PlayerInputHandler reacting to ActiveUnit change
                 }
             }
             yield return null;
@@ -271,13 +279,13 @@ public class TurnManager : MonoBehaviour
             return;
         }
 
-        if (ActiveUnit != unit && unit.IsAlive)
+        if (ActiveUnit != unit && unit.IsAlive) // IsAlive checks unit.Stats.IsAlive
         {
             DebugHelper.LogWarning($"TurnManager: Unit '{unit.unitName}' tried to end turn, but is not the current ActiveUnit ('{ActiveUnit?.unitName ?? "None"}'). Turn not ended by this call unless it's a death scenario handled by PIH.", this);
             return;
         }
 
-        if (ActiveUnit == unit || !unit.IsAlive)
+        if (ActiveUnit == unit || !unit.IsAlive) // IsAlive checks unit.Stats.IsAlive
         {
             DebugHelper.Log($"TurnManager: --- Unit {unit.unitName}'s Turn End --- Resetting AC from {unit.actionCounter} to 0.", unit);
             if (_previousActiveUnitTile != null && (_previousActiveUnitTile == unit.CurrentTile || !unit.IsAlive))
@@ -302,7 +310,7 @@ public class TurnManager : MonoBehaviour
         {
             if (_isCombatActive)
             {
-                List<Unit> aliveCombatUnits = _combatUnits.Where(u => u != null && u.IsAlive).ToList();
+                List<Unit> aliveCombatUnits = _combatUnits.Where(u => u != null && u.IsAlive).ToList(); // IsAlive checks u.Stats.IsAlive
                 if (aliveCombatUnits.Count > 0)
                 {
                     List<Unit> forecast = GetTurnOrderForecast(aliveCombatUnits);
@@ -329,18 +337,19 @@ public class TurnManager : MonoBehaviour
     {
         List<Unit> forecast = new List<Unit>();
 
-        if (ActiveUnit != null && ActiveUnit.IsAlive)
+        if (ActiveUnit != null && ActiveUnit.IsAlive) // IsAlive checks ActiveUnit.Stats.IsAlive
         {
             forecast.Add(ActiveUnit);
         }
 
         var sortedUpcoming = unitsToConsider
-            .Where(u => u != ActiveUnit && u.IsAlive)
+            .Where(u => u != ActiveUnit && u.IsAlive && u.Stats != null && u.Stats.currentAttributes != null) // Added Stats null checks
             .OrderByDescending(u => u.actionCounter >= ActionCounterThreshold)
             .ThenByDescending(u => u.actionCounter)
-            .ThenByDescending(u => u.EffectiveSpeed)
-            .ThenByDescending(u => u.currentAttributes?.Echo ?? 0)
-            .ThenByDescending(u => u.currentAttributes?.Glimmer ?? 0)
+            .ThenByDescending(u => u.EffectiveSpeed) // EffectiveSpeed itself uses Stats.currentAttributes
+            // MODIFIED: Access Echo and Glimmer via u.Stats.currentAttributes
+            .ThenByDescending(u => u.Stats.currentAttributes.Echo)
+            .ThenByDescending(u => u.Stats.currentAttributes.Glimmer)
             .ToList();
 
         forecast.AddRange(sortedUpcoming);
