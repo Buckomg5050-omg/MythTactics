@@ -6,29 +6,28 @@ namespace MythTactics.Combat
     public static class DamageCalculator
     {
         public const int UNARMED_BASE_DAMAGE = 1;
-        public const float CRITICAL_HIT_MULTIPLIER = 1.5f; // Universal for now
+        public const float CRITICAL_HIT_MULTIPLIER = 1.5f; 
         public const float K_ARMOR_CONSTANT = 50f;
 
         public static int CalculatePhysicalAttackDamage(int baseDamageFromWeaponOrUnarmed, Unit attacker, Unit defender, float criticalMultiplier = 1.0f)
         {
-            // ... (existing CalculatePhysicalAttackDamage method remains unchanged) ...
             if (attacker == null)
             {
                 DebugHelper.LogWarning("DamageCalculator: Attacker is null for physical attack. Returning 0 damage.", null);
                 return 0;
             }
 
-            bool isTrueDamage = false;
+            bool isTrueDamageFromWeapon = false; // Specifically for weapon-based true damage
             if (attacker.equippedWeapon != null && attacker.equippedWeapon.dealsTrueDamage)
             {
-                isTrueDamage = true;
+                isTrueDamageFromWeapon = true;
                 DebugHelper.Log($"DamageCalculator: {attacker.unitName}'s physical attack is True Damage (from weapon). PDR will be skipped.", attacker);
             }
             
             int attackerCoreBonus = (attacker.currentAttributes != null) ? Mathf.FloorToInt(attacker.currentAttributes.Core / 4f) : 0;
             float rawDamage = baseDamageFromWeaponOrUnarmed + attackerCoreBonus;
 
-            if (criticalMultiplier > 1.0f) // This criticalMultiplier comes from CombatCalculator.CheckCriticalHit
+            if (criticalMultiplier > 1.0f) 
             {
                 rawDamage *= criticalMultiplier;
             }
@@ -36,7 +35,7 @@ namespace MythTactics.Combat
             float pdrPercentage = 0f;
             float damageAfterPDR = rawDamage; 
 
-            if (!isTrueDamage) 
+            if (!isTrueDamageFromWeapon) 
             {
                 if (defender != null && defender.equippedBodyArmor != null)
                 {
@@ -66,26 +65,43 @@ namespace MythTactics.Combat
                 return 0;
             }
 
+            // MODIFIED: Check if the ability itself deals true damage
+            bool isAbilityTrueDamage = ability.dealsTrueDamage;
+            if (isAbilityTrueDamage)
+            {
+                DebugHelper.Log($"DamageCalculator: Ability '{ability.abilityName}' is True Damage. Mitigations will be skipped.", caster);
+            }
+
             int casterSparkBonus = (caster.currentAttributes != null) ? Mathf.FloorToInt(caster.currentAttributes.Spark / 4f) : 0;
             float rawDamage = ability.basePower + casterSparkBonus;
 
-            // MODIFIED: Check for magical critical hit
             bool isMagicalCrit = CombatCalculator.CheckMagicalCriticalHit(caster, target);
-            string critMessage = ""; // For logging
+            string critMessage = ""; 
             if (isMagicalCrit)
             {
-                rawDamage *= CRITICAL_HIT_MULTIPLIER; // Using the universal crit multiplier for now
+                rawDamage *= CRITICAL_HIT_MULTIPLIER; 
                 critMessage = " (MAGICAL CRITICAL HIT!)";
-                // The CombatCalculator.CheckMagicalCriticalHit already logs the crit occurrence.
-                // We can add an additional log here if desired, or just let the final damage reflect it.
             }
 
-            // ... (Future: general damage % modifiers, resistances, variance) ...
+            // TODO: Apply Caster's general damage % modifiers (Future)
+
+            // TODO: Apply Target's Mitigations (Magical Resistances/Vulnerabilities) (Future)
+            // If isAbilityTrueDamage is true, this section would be skipped.
+            // For now, no magical mitigations exist, so the effect of true damage is mainly for logging and future-proofing.
+            // Example structure for when mitigations exist:
+            // if (!isAbilityTrueDamage)
+            // {
+            //     // Apply magical resistances/vulnerabilities to rawDamage
+            // }
+
+
+            // TODO: Apply +/- Damage Variance (Future)
 
             int finalDamage = Mathf.Max(1, Mathf.FloorToInt(rawDamage));
 
-            DebugHelper.Log($"DamageCalculator: Magical ability '{ability.abilityName}' from {caster.unitName} to {target?.unitName ?? "targetless effect"}{critMessage}. " +
-                            $"BasePower: {ability.basePower}, SparkBonus: {casterSparkBonus}. Raw (post-crit if any): {rawDamage}. Final: {finalDamage}", caster);
+            DebugHelper.Log($"DamageCalculator: Magical ability '{ability.abilityName}' ({ (isAbilityTrueDamage ? "True Damage, " : "") }Type: {ability.damageType}) " +
+                            $"from {caster.unitName} to {target?.unitName ?? "targetless effect"}{critMessage}. " +
+                            $"BasePower: {ability.basePower}, SparkBonus: {casterSparkBonus}. Raw (post-crit, pre-mitigation): {rawDamage}. Final: {finalDamage}", caster);
 
             return finalDamage;
         }

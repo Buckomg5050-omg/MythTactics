@@ -18,16 +18,32 @@ public class Unit : MonoBehaviour
     public string unitName = "Unit";
 
     [Header("Health (VP - Vitality Points)")]
-    public int maxVitalityPoints = 50;
+    [SerializeField] private int _maxVitalityPoints;
     public int currentVitalityPoints;
+    public int MaxVitalityPoints => _maxVitalityPoints;
 
     [Header("Mana (MP - Mana Points)")]
     [SerializeField] private int _maxManaPoints;
     public int currentManaPoints;
+    public int MaxManaPoints => _maxManaPoints;
 
     [Header("Stamina (SP - Stamina Points)")]
     [SerializeField] private int _maxStaminaPoints;
     public int currentStaminaPoints;
+    public int MaxStaminaPoints => _maxStaminaPoints;
+
+    // NEW: Focus Points (FP)
+    [Header("Focus (FP - Focus Points)")]
+    [SerializeField] private int _maxFocusPoints;
+    public int currentFocusPoints;
+    public int MaxFocusPoints => _maxFocusPoints;
+
+    // NEW: Influence Points (IP)
+    [Header("Influence (IP - Influence Points)")]
+    [SerializeField] private int _maxInfluencePoints;
+    public int currentInfluencePoints;
+    public int MaxInfluencePoints => _maxInfluencePoints;
+
 
     [Header("Abilities")]
     public List<AbilitySO> knownAbilities = new List<AbilitySO>();
@@ -60,9 +76,19 @@ public class Unit : MonoBehaviour
     private bool _isAlive = true;
     public bool IsAlive => _isAlive;
 
-    public int MaxManaPoints => _maxManaPoints;
-    public int MaxStaminaPoints => _maxStaminaPoints;
 
+    public int CalculatedMaxVP
+    {
+        get
+        {
+            if (!_isAlive) return 0;
+            int baseVpFromRace = (raceData != null) ? raceData.baseVPContribution : 0;
+            int baseVpFromClass = (classData != null) ? classData.baseVPContribution : 0;
+            int pulseBonus = (currentAttributes != null) ? currentAttributes.Pulse * 5 : 0;
+            int vpFromEquipment = 0;
+            return baseVpFromRace + baseVpFromClass + pulseBonus + vpFromEquipment;
+        }
+    }
 
     public int CalculatedMaxMP
     {
@@ -83,27 +109,102 @@ public class Unit : MonoBehaviour
         {
             if (!_isAlive) return 0;
             int baseSpFromRace = (raceData != null) ? raceData.baseSPContribution : 0;
-            int baseSpFromClass = (classData != null) ? classData.baseSPContribution : 0;
+            int baseSpFromClass = (classData != null) ? classData.baseSPContribution : 0; // CORRECTED TYPO HERE
             int coreBonus = (currentAttributes != null) ? currentAttributes.Core : 0;
             int spFromEquipment = 0;
             return baseSpFromRace + baseSpFromClass + coreBonus + spFromEquipment;
         }
     }
 
+    // NEW: Calculated property for Max FP based on GDD 2.3
+    public int CalculatedMaxFP
+    {
+        get
+        {
+            if (!_isAlive) return 0;
+            int baseFpFromRace = (raceData != null) ? raceData.baseFPContribution : 0;
+            int baseFpFromClass = (classData != null) ? classData.baseFPContribution : 0;
+            int glimmerBonus = (currentAttributes != null) ? currentAttributes.Glimmer : 0; // Glimmer * 1
+            int fpFromEquipment = 0; // Placeholder for MaxFP_From_Equipment
+            return baseFpFromRace + baseFpFromClass + glimmerBonus + fpFromEquipment;
+        }
+    }
+
+    // NEW: Calculated property for Max IP based on GDD 2.3
+    public int CalculatedMaxIP
+    {
+        get
+        {
+            if (!_isAlive) return 0;
+            int baseIpFromRace = (raceData != null) ? raceData.baseIPContribution : 0;
+            int baseIpFromClass = (classData != null) ? classData.baseIPContribution : 0;
+            int auraBonus = (currentAttributes != null) ? currentAttributes.Aura : 0; // Aura * 1
+            int ipFromEquipment = 0; // Placeholder for MaxIP_From_Equipment
+            return baseIpFromRace + baseIpFromClass + auraBonus + ipFromEquipment;
+        }
+    }
+
+
     void Awake()
     {
         if (currentAttributes == null) currentAttributes = new UnitPrimaryAttributes();
-        InitializeResources();
+        InitializeDerivedAttributesAndResources();
     }
 
-    void InitializeResources()
+    void InitializeDerivedAttributesAndResources()
     {
-        currentVitalityPoints = maxVitalityPoints;
+        _maxVitalityPoints = CalculatedMaxVP;
+        currentVitalityPoints = _maxVitalityPoints;
+
         _maxManaPoints = CalculatedMaxMP;
         currentManaPoints = _maxManaPoints;
+
         _maxStaminaPoints = CalculatedMaxSP;
         currentStaminaPoints = _maxStaminaPoints;
-        DebugHelper.Log($"{unitName} Initialized Resources: VP: {currentVitalityPoints}/{maxVitalityPoints}, MP: {currentManaPoints}/{_maxManaPoints}, SP: {currentStaminaPoints}/{_maxStaminaPoints}", this);
+
+        // NEW: Initialize FP
+        _maxFocusPoints = CalculatedMaxFP;
+        currentFocusPoints = _maxFocusPoints;
+
+        // NEW: Initialize IP
+        _maxInfluencePoints = CalculatedMaxIP;
+        currentInfluencePoints = _maxInfluencePoints;
+
+        // Ensure a minimum of 1 for all resources if calculation results in 0 or less, and unit is alive
+        if (_isAlive)
+        {
+            if (_maxVitalityPoints <= 0) _maxVitalityPoints = 1;
+            // Ensure currentVP is also at least 1 if maxVP became 1 (and was initialized from it)
+            if (currentVitalityPoints <= 0 && _maxVitalityPoints == 1) currentVitalityPoints = 1;
+
+
+            if (_maxManaPoints < 0) _maxManaPoints = 0;
+            if (currentManaPoints < 0) currentManaPoints = 0;
+
+            if (_maxStaminaPoints < 0) _maxStaminaPoints = 0;
+            if (currentStaminaPoints < 0) currentStaminaPoints = 0;
+
+            if (_maxFocusPoints < 0) _maxFocusPoints = 0;
+            if (currentFocusPoints < 0) currentFocusPoints = 0;
+
+            if (_maxInfluencePoints < 0) _maxInfluencePoints = 0;
+            if (currentInfluencePoints < 0) currentInfluencePoints = 0;
+        } else { // If not alive, all current resources should be 0
+            currentVitalityPoints = 0;
+            currentManaPoints = 0;
+            currentStaminaPoints = 0;
+            currentFocusPoints = 0;
+            currentInfluencePoints = 0;
+        }
+
+
+        // MODIFIED: Updated Debug Log
+        DebugHelper.Log($"{unitName} Initialized Resources: " +
+                        $"VP: {currentVitalityPoints}/{_maxVitalityPoints}, " +
+                        $"MP: {currentManaPoints}/{_maxManaPoints}, " +
+                        $"SP: {currentStaminaPoints}/{_maxStaminaPoints}, " +
+                        $"FP: {currentFocusPoints}/{_maxFocusPoints}, " +
+                        $"IP: {currentInfluencePoints}/{_maxInfluencePoints}", this);
     }
 
     public IEnumerator PerformAttack(Unit targetUnit, PlayerInputHandler attackerPIHContext)
@@ -144,7 +245,7 @@ public class Unit : MonoBehaviour
         }
         if (attackerPIHContext != null && attackerPIHContext.SelectedUnit == this)
         {
-            attackerPIHContext.CheckAndHandleEndOfTurnActionsPIH(); 
+            attackerPIHContext.CheckAndHandleEndOfTurnActionsPIH();
         }
     }
 
@@ -209,7 +310,7 @@ public class Unit : MonoBehaviour
         _isMoving = true;
         _moveCoroutine = StartCoroutine(PerformMovement(path));
         yield return _moveCoroutine;
-        _isMoving = false; 
+        _isMoving = false;
         _moveCoroutine = null;
     }
 
@@ -255,7 +356,7 @@ public class Unit : MonoBehaviour
     public bool CanAffordAbility(AbilitySO ability, bool logIfNotAffordable = false)
     {
         if (ability == null) { DebugHelper.LogError($"{unitName}: Attempted to check affordability for a NULL ability.", this); return false; }
-        if (!_isAlive) return false; 
+        if (!_isAlive) return false;
         if (!CanAffordAPForAction(ability.apCost))
         {
             if (logIfNotAffordable) DebugHelper.LogWarning($"{unitName} cannot afford '{ability.abilityName}'. Insufficient AP. Needs: {ability.apCost}, Has: {currentActionPoints}.", this);
@@ -271,6 +372,9 @@ public class Unit : MonoBehaviour
             if (logIfNotAffordable) DebugHelper.LogWarning($"{unitName} cannot afford '{ability.abilityName}'. Insufficient SP. Needs: {ability.spCost}, Has: {currentStaminaPoints}.", this);
             return false;
         }
+        // Future: Add checks for FP and IP costs here
+        // if (currentFocusPoints < ability.fpCost) { ... return false; }
+        // if (currentInfluencePoints < ability.ipCost) { ... return false; }
         return true;
     }
 
@@ -288,6 +392,10 @@ public class Unit : MonoBehaviour
         SpendAPForAction(ability.apCost);
         if (ability.mpCost > 0) { currentManaPoints -= ability.mpCost; currentManaPoints = Mathf.Max(0, currentManaPoints); }
         if (ability.spCost > 0) { currentStaminaPoints -= ability.spCost; currentStaminaPoints = Mathf.Max(0, currentStaminaPoints); }
+        // Future: Add spending for FP and IP costs here
+        // if (ability.fpCost > 0) { currentFocusPoints -= ability.fpCost; currentFocusPoints = Mathf.Max(0, currentFocusPoints); }
+        // if (ability.ipCost > 0) { currentInfluencePoints -= ability.ipCost; currentInfluencePoints = Mathf.Max(0, currentInfluencePoints); }
+
         DebugHelper.Log($"{unitName} spent resources for {ability.abilityName}. AP: {currentActionPoints}, MP: {currentManaPoints}, SP: {currentStaminaPoints}", this);
     }
 
@@ -296,7 +404,7 @@ public class Unit : MonoBehaviour
         if (!_isAlive) yield break;
         currentVitalityPoints -= damageAmount;
         currentVitalityPoints = Mathf.Max(0, currentVitalityPoints);
-        DebugHelper.Log($"{unitName} takes {damageAmount} damage, has {currentVitalityPoints}/{maxVitalityPoints} VP remaining.", this);
+        DebugHelper.Log($"{unitName} takes {damageAmount} damage, has {currentVitalityPoints}/{_maxVitalityPoints} VP remaining.", this);
         if (currentVitalityPoints > 0) yield return StartCoroutine(PerformHurtAnimation());
         else yield return StartCoroutine(Die());
     }
@@ -330,15 +438,15 @@ public class Unit : MonoBehaviour
 
     public IEnumerator PerformAbility(AbilitySO ability, Unit targetUnit, PlayerInputHandler attackerPIHContext)
     {
-        if (!_isAlive || ability == null ) 
-        { 
-            DebugHelper.LogWarning($"{unitName} PerformAbility called with null ability or dead unit. This should be caught earlier.", this); 
-            yield break; 
+        if (!_isAlive || ability == null )
+        {
+            DebugHelper.LogWarning($"{unitName} PerformAbility called with null ability or dead unit. This should be caught earlier.", this);
+            yield break;
         }
-        if (!CanAffordAbility(ability, true)) 
-        { 
-            DebugHelper.LogWarning($"{unitName} somehow attempted PerformAbility for '{ability.abilityName}' without sufficient resources (redundant check failed). PIH states should prevent this.", this); 
-            yield break; 
+        if (!CanAffordAbility(ability, true))
+        {
+            DebugHelper.LogWarning($"{unitName} somehow attempted PerformAbility for '{ability.abilityName}' without sufficient resources (redundant check failed). PIH states should prevent this.", this);
+            yield break;
         }
 
         if (ability.targetType == AbilityTargetType.EnemyUnit || ability.targetType == AbilityTargetType.AllyUnit)
@@ -347,37 +455,55 @@ public class Unit : MonoBehaviour
             if (this.CurrentTile == null || targetUnit.CurrentTile == null) { DebugHelper.LogWarning($"{unitName} or target {targetUnit.unitName} is not on a tile. Cannot perform ability {ability.abilityName}.", this); yield break; }
             if (GridManager.Instance.CalculateManhattanDistance(this.CurrentTile.gridPosition, targetUnit.CurrentTile.gridPosition) > ability.range) { DebugHelper.LogWarning($"{unitName} cannot perform ability {ability.abilityName} on {targetUnit.unitName}: Target out of range.", this); yield break; }
         }
-        
+
         SpendResourcesForAbility(ability);
         DebugHelper.Log($"{unitName} uses {ability.abilityName}." + (targetUnit != null ? $" Targeting {targetUnit.unitName}." : "") + $" (AP: {currentActionPoints}, MP: {currentManaPoints}, SP: {currentStaminaPoints})", this);
-        
-        yield return new WaitForSeconds(attackAnimDuration); // Placeholder for ability animation
 
-        if (ability.effectType == AbilityEffectType.Damage)
+        yield return new WaitForSeconds(attackAnimDuration);
+
+        bool abilityHits = true;
+        if (ability.targetType == AbilityTargetType.EnemyUnit || ability.targetType == AbilityTargetType.AllyUnit)
         {
-            if (targetUnit != null && targetUnit.IsAlive) 
+            if (targetUnit == null)
             {
-                DebugHelper.Log($"{ability.abilityName} from {unitName} HITS {targetUnit.unitName}!", this); // Still useful to log the general hit
+                DebugHelper.LogError($"PerformAbility: TargetUnit is null for a unit-targeting ability '{ability.abilityName}'. This should not happen.", this);
+                abilityHits = false;
+            }
+            else
+            {
+                abilityHits = CombatCalculator.ResolveAbilityHit(ability, this, targetUnit);
+            }
+        }
 
-                int totalDamage = DamageCalculator.CalculateMagicalAbilityDamage(ability, this, targetUnit);
-                // Detailed damage breakdown (base, bonus, crit status, final) is now logged by DamageCalculator.CalculateMagicalAbilityDamage
-                
-                if (targetUnit != null && targetUnit.gameObject.activeInHierarchy) 
+        if (abilityHits)
+        {
+            if (ability.effectType == AbilityEffectType.Damage)
+            {
+                if (targetUnit != null && targetUnit.IsAlive)
                 {
-                    yield return targetUnit.StartCoroutine(targetUnit.TakeDamage(totalDamage));
+                    int totalDamage = DamageCalculator.CalculateMagicalAbilityDamage(ability, this, targetUnit);
+
+                    if (targetUnit.gameObject.activeInHierarchy)
+                    {
+                        yield return targetUnit.StartCoroutine(targetUnit.TakeDamage(totalDamage));
+                    }
+                }
+                else if (ability.targetType != AbilityTargetType.Self && (targetUnit == null || !targetUnit.IsAlive) )
+                {
+                    DebugHelper.LogWarning($"{ability.abilityName} by {unitName} was meant to damage, but target is invalid/null post-hit-check. Ability may have missed or target died.", this);
                 }
             }
-            else if (ability.targetType != AbilityTargetType.Self && targetUnit == null)
-            { 
-                DebugHelper.LogWarning($"{ability.abilityName} by {unitName} requires a target but none was provided or target is invalid.", this); 
+            else if (ability.effectType == AbilityEffectType.Heal)
+            {
+                DebugHelper.Log($"{ability.abilityName} would heal (not implemented).", this);
             }
         }
-        else if (ability.effectType == AbilityEffectType.Heal) 
-        { 
-            DebugHelper.Log($"{ability.abilityName} would heal (not implemented).", this); 
+        else
+        {
+             DebugHelper.Log($"{ability.abilityName} from {unitName} MISSES {targetUnit?.unitName ?? "intended target"}!", this);
         }
-        
-        if (attackerPIHContext != null && attackerPIHContext.SelectedUnit == this) 
+
+        if (attackerPIHContext != null && attackerPIHContext.SelectedUnit == this)
         {
             attackerPIHContext.CheckAndHandleEndOfTurnActionsPIH();
         }

@@ -1,21 +1,5 @@
 // ClassDataSO.cs
 using UnityEngine;
-// using System.Collections.Generic; // If you add lists for skills, etc.
-
-// Assuming UnitDataTypes.SerializablePrimaryStatGain is defined elsewhere
-// If not, and it's simple, it could be nested or defined in a common types file.
-// For now, I'll assume it exists as you've indicated.
-// namespace UnitDataTypes // Example namespace
-// {
-//     [System.Serializable]
-//     public class SerializablePrimaryStatGain 
-//     {
-//         public int coreGain;
-//         public int echoGain;
-//         // ... and so on for other primary stats
-//     }
-// }
-
 
 [CreateAssetMenu(fileName = "NewClassData", menuName = "MythTactics/Unit Class Data")]
 public class ClassDataSO : ScriptableObject
@@ -32,24 +16,28 @@ public class ClassDataSO : ScriptableObject
     [Tooltip("Flat speed bonus granted by this class. GDD 1.1.")]
     public int classSpeedBonus = 0;
 
-    // MOVED baseMP and baseSP here for better grouping with other resource-related base stats
-    [Header("Base Resource Contributions")] // NEW or MOVED HEADER
+    [Header("Base Resource Contributions")]
+    [Tooltip("Base Vitality Points (VP) contribution from this class. GDD 2.3.")]
+    public int baseVPContribution = 0;
+
     [Tooltip("Base Mana Points (MP) contribution from this class. GDD 2.3.")]
-    public int baseMPContribution = 0; // NEW FIELD
+    public int baseMPContribution = 0;
 
     [Tooltip("Base Stamina Points (SP) contribution from this class. GDD 2.3.")]
-    public int baseSPContribution = 0; // NEW FIELD
+    public int baseSPContribution = 0;
+
+    // NEW FIELDS ADDED
+    [Tooltip("Base Focus Points (FP) contribution from this class. GDD 2.3.")]
+    public int baseFPContribution = 0;
+
+    [Tooltip("Base Influence Points (IP) contribution from this class. GDD 2.3.")]
+    public int baseIPContribution = 0;
 
     [Header("Combat Stats")]
     [Tooltip("The base range (in tiles) for this class's standard attack. GDD 7.1.1 (simplified for basic attack).")]
-    public int baseAttackRange = 1; // Default to 1 (melee)
+    public int baseAttackRange = 1;
 
     [Header("Attribute Growth Per Level (GDD 2.2)")]
     [Tooltip("Defines how primary attributes increase automatically per level for this class.")]
     public UnitDataTypes.SerializablePrimaryStatGain primaryStatGains;
-
-    // Add other class-specific properties here:
-    // e.g., Skill Trees, Equipment Proficiencies, Allowed Weapon Types, etc.
-    // public List<AbilitySO> startingClassAbilities;
-    // public List<EquipmentType> proficientEquipment;
 }

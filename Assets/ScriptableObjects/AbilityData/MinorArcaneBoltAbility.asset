@@ -19,6 +19,8 @@ MonoBehaviour:
   spCost: 0
   targetType: 1
   range: 3
+  baseAccuracy: 80
   effectType: 0
   basePower: 8
   damageType: 1
+  dealsTrueDamage: 1

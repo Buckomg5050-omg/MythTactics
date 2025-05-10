@@ -1,7 +1,8 @@
 // Full content for Assets/Scripts/Abilities/AbilitySO.cs
+// Or Assets/ScriptableObjects/AbilityData/AbilitySO.cs (wherever your AbilitySO.cs actually is)
 
 using UnityEngine;
-using MythTactics.Combat; // This should now work correctly
+using MythTactics.Combat; // This is the crucial line
 
 /// <summary>
 /// ScriptableObject defining the properties of an ability.
@@ -21,7 +22,7 @@ public class AbilitySO : ScriptableObject
 
     [Header("Costs")]
     [Tooltip("Action Points (AP) required to use this ability.")]
-    public int apCost = 1; // GDD 3.1: Basic Skill/Spell: 1 AP
+    public int apCost = 1; 
 
     [Tooltip("Mana Points (MP) required to use this ability.")]
     public int mpCost = 0;
@@ -36,6 +37,10 @@ public class AbilitySO : ScriptableObject
     [Tooltip("The range of the ability in tiles. 0 for self-cast, 1 for adjacent, etc.")]
     public int range = 1;
 
+    [Tooltip("Base accuracy of the ability (0-100). Used in hit chance calculation if applicable.")]
+    [Range(0, 100)] 
+    public int baseAccuracy = 80; 
+
     [Header("Effects")]
     [Tooltip("The primary type of effect this ability produces (e.g., Damage, Heal).")]
     public AbilityEffectType effectType = AbilityEffectType.Damage; // Uses enum from MythTactics.Combat
@@ -46,5 +51,7 @@ public class AbilitySO : ScriptableObject
     [Tooltip("The type of damage dealt by this ability, if applicable (e.g., Physical, Magical, Fire).")]
     public DamageType damageType = DamageType.Magical; // Uses enum from MythTactics.Combat
 
-    // ... (other commented out future fields)
+    [Tooltip("If true, this ability's damage bypasses most resistances and mitigations.")]
+    public bool dealsTrueDamage = false;
+
 }
