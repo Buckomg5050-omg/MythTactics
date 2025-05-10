@@ -16,6 +16,8 @@ public class UnitStats : MonoBehaviour
     [SerializeField] private int _maxVitalityPoints;
     public int currentVitalityPoints;
     public int MaxVitalityPoints => _maxVitalityPoints;
+    [Tooltip("Amount of VP regenerated at the start of this unit's turn. Default 0.")] 
+    public int vitalityRegenRate = 0; 
 
     [Header("Mana (MP - Mana Points)")]
     [SerializeField] private int _maxManaPoints;
@@ -123,128 +125,41 @@ public class UnitStats : MonoBehaviour
                         $"IP: {currentInfluencePoints}/{_maxInfluencePoints}", _unit);
     }
 
-    public int CalculatedMaxVP
-    {
-        get
-        {
-            int baseVpFromRace = (_raceData != null) ? _raceData.baseVPContribution : 0;
-            int baseVpFromClass = (_classData != null) ? _classData.baseVPContribution : 0;
-            int pulseBonus = (currentAttributes != null) ? currentAttributes.Pulse * 5 : 0;
-            int vpFromEquipment = 0; 
-            return baseVpFromRace + baseVpFromClass + pulseBonus + vpFromEquipment;
-        }
-    }
-
-    public int CalculatedMaxMP
-    {
-        get
-        {
-            int baseMpFromRace = (_raceData != null) ? _raceData.baseMPContribution : 0;
-            int baseMpFromClass = (_classData != null) ? _classData.baseMPContribution : 0;
-            int sparkBonus = (currentAttributes != null) ? currentAttributes.Spark * 2 : 0;
-            int mpFromEquipment = 0; 
-            return baseMpFromRace + baseMpFromClass + sparkBonus + mpFromEquipment;
-        }
-    }
-
-    public int CalculatedMaxSP
-    {
-        get
-        {
-            int baseSpFromRace = (_raceData != null) ? _raceData.baseSPContribution : 0;
-            int baseSpFromClass = (_classData != null) ? _classData.baseSPContribution : 0;
-            int coreBonus = (currentAttributes != null) ? currentAttributes.Core : 0;
-            int spFromEquipment = 0; 
-            return baseSpFromRace + baseSpFromClass + coreBonus + spFromEquipment;
-        }
-    }
-
-    public int CalculatedMaxFP
-    {
-        get
-        {
-            int baseFpFromRace = (_raceData != null) ? _raceData.baseFPContribution : 0;
-            int baseFpFromClass = (_classData != null) ? _classData.baseFPContribution : 0;
-            int glimmerBonus = (currentAttributes != null) ? currentAttributes.Glimmer : 0; 
-            int fpFromEquipment = 0; 
-            return baseFpFromRace + baseFpFromClass + glimmerBonus + fpFromEquipment;
-        }
-    }
-
-    public int CalculatedMaxIP
-    {
-        get
-        {
-            int baseIpFromRace = (_raceData != null) ? _raceData.baseIPContribution : 0;
-            int baseIpFromClass = (_classData != null) ? _classData.baseIPContribution : 0;
-            int auraBonus = (currentAttributes != null) ? currentAttributes.Aura : 0; 
-            int ipFromEquipment = 0; 
-            return baseIpFromRace + baseIpFromClass + auraBonus + ipFromEquipment;
-        }
-    }
+    public int CalculatedMaxVP { get { int baseVpFromRace = (_raceData != null) ? _raceData.baseVPContribution : 0; int baseVpFromClass = (_classData != null) ? _classData.baseVPContribution : 0; int pulseBonus = (currentAttributes != null) ? currentAttributes.Pulse * 5 : 0; int vpFromEquipment = 0; return baseVpFromRace + baseVpFromClass + pulseBonus + vpFromEquipment; } }
+    public int CalculatedMaxMP { get { int baseMpFromRace = (_raceData != null) ? _raceData.baseMPContribution : 0; int baseMpFromClass = (_classData != null) ? _classData.baseMPContribution : 0; int sparkBonus = (currentAttributes != null) ? currentAttributes.Spark * 2 : 0; int mpFromEquipment = 0; return baseMpFromRace + baseMpFromClass + sparkBonus + mpFromEquipment; } }
+    public int CalculatedMaxSP { get { int baseSpFromRace = (_raceData != null) ? _raceData.baseSPContribution : 0; int baseSpFromClass = (_classData != null) ? _classData.baseSPContribution : 0; int coreBonus = (currentAttributes != null) ? currentAttributes.Core : 0; int spFromEquipment = 0; return baseSpFromRace + baseSpFromClass + coreBonus + spFromEquipment; } }
+    public int CalculatedMaxFP { get { int baseFpFromRace = (_raceData != null) ? _raceData.baseFPContribution : 0; int baseFpFromClass = (_classData != null) ? _classData.baseFPContribution : 0; int glimmerBonus = (currentAttributes != null) ? currentAttributes.Glimmer : 0; int fpFromEquipment = 0; return baseFpFromRace + baseFpFromClass + glimmerBonus + fpFromEquipment; } }
+    public int CalculatedMaxIP { get { int baseIpFromRace = (_raceData != null) ? _raceData.baseIPContribution : 0; int baseIpFromClass = (_classData != null) ? _classData.baseIPContribution : 0; int auraBonus = (currentAttributes != null) ? currentAttributes.Aura : 0; int ipFromEquipment = 0; return baseIpFromRace + baseIpFromClass + auraBonus + ipFromEquipment; } }
 
     public void ModifyVitality(int amount) 
     {
         if (!_isAlive && amount < 0) return; 
-
         currentVitalityPoints += amount;
         currentVitalityPoints = Mathf.Clamp(currentVitalityPoints, 0, _maxVitalityPoints);
-
-        if (currentVitalityPoints <= 0)
-        {
-            _isAlive = false;
-            currentVitalityPoints = 0; 
-        }
+        if (currentVitalityPoints <= 0) { _isAlive = false; currentVitalityPoints = 0; }
+        else if (currentVitalityPoints > 0 && !_isAlive) { _isAlive = true; }
     }
 
     public void SetAliveStatus(bool alive)
     {
         _isAlive = alive;
-        if (!_isAlive)
-        {
-            currentVitalityPoints = 0;
-        }
+        if (!_isAlive) { currentVitalityPoints = 0; }
     }
 
-    public void SpendMana(int amount)
-    {
-        if (amount <= 0) return;
-        currentManaPoints -= amount;
-        currentManaPoints = Mathf.Max(0, currentManaPoints);
-    }
-
-    public void SpendStamina(int amount)
-    {
-        if (amount <= 0) return;
-        currentStaminaPoints -= amount;
-        currentStaminaPoints = Mathf.Max(0, currentStaminaPoints);
-    }
-
-    public void SpendFocus(int amount) 
-    {
-        if (amount <= 0) return;
-        currentFocusPoints -= amount;
-        currentFocusPoints = Mathf.Max(0, currentFocusPoints);
-    }
-
-    public void SpendInfluence(int amount)
-    {
-        if (amount <= 0) return;
-        currentInfluencePoints -= amount;
-        currentInfluencePoints = Mathf.Max(0, currentInfluencePoints);
-    }
+    public void SpendMana(int amount) { if (amount <= 0) return; currentManaPoints -= amount; currentManaPoints = Mathf.Max(0, currentManaPoints); }
+    public void SpendStamina(int amount) { if (amount <= 0) return; currentStaminaPoints -= amount; currentStaminaPoints = Mathf.Max(0, currentStaminaPoints); }
+    public void SpendFocus(int amount) { if (amount <= 0) return; currentFocusPoints -= amount; currentFocusPoints = Mathf.Max(0, currentFocusPoints); }
+    public void SpendInfluence(int amount) { if (amount <= 0) return; currentInfluencePoints -= amount; currentInfluencePoints = Mathf.Max(0, currentInfluencePoints); }
 
     public void RegenerateResourcesAtTurnStart()
     {
-        if (_unit != null) 
-            DebugHelper.Log($"--- {_unit.unitName} ENTERING RegenerateResourcesAtTurnStart. IsAlive: {_isAlive}. MP: {currentManaPoints}/{MaxManaPoints}", _unit);
-        else 
-            DebugHelper.Log("--- UnitStats: ENTERING RegenerateResourcesAtTurnStart for a NULL _unit reference.", this);
+        // REMOVED: Initial "ENTERING" verbose log
+        // if (_unit != null) DebugHelper.Log($"--- {_unit.unitName} ENTERING RegenerateResourcesAtTurnStart. IsAlive: {_isAlive}. VP: {currentVitalityPoints}/{MaxVitalityPoints}, MP: {currentManaPoints}/{MaxManaPoints}", _unit);
+        // else DebugHelper.Log("--- UnitStats: ENTERING RegenerateResourcesAtTurnStart for a NULL _unit reference.", this);
 
         if (!_isAlive || _unit == null) 
         {
-            if (_unit != null) DebugHelper.Log($"--- {_unit.unitName} EXITING RegenerateResourcesAtTurnStart EARLY (Not Alive or Null Unit).", _unit);
-            else DebugHelper.Log("--- UnitStats: EXITING RegenerateResourcesAtTurnStart EARLY (Null Unit).", this);
+            // REMOVED: Verbose "EXITING EARLY" log
             return; 
         }
 
@@ -252,8 +167,21 @@ public class UnitStats : MonoBehaviour
         regenLogBuilder.Append($"REGEN LOG for {_unit.unitName}: ");
         bool hasRegeneratedAnything = false;
 
+        // Vitality Regeneration
+        // REMOVED: Verbose "VP Regen Phase" log
+        if (vitalityRegenRate > 0 && currentVitalityPoints < MaxVitalityPoints && currentVitalityPoints > 0) 
+        {
+            int oldVP = currentVitalityPoints;
+            currentVitalityPoints = Mathf.Min(currentVitalityPoints + vitalityRegenRate, MaxVitalityPoints);
+            if (currentVitalityPoints != oldVP)
+            {
+                regenLogBuilder.Append($"VP +{currentVitalityPoints - oldVP} ({currentVitalityPoints}/{MaxVitalityPoints}). ");
+                hasRegeneratedAnything = true;
+            }
+        }
+        
         // Mana Regeneration
-        DebugHelper.Log($"--- {_unit.unitName} MP Regen Phase. Rate: {manaRegenRate}, CurrentMP: {currentManaPoints}, MaxMP: {MaxManaPoints}. Condition (Current < Max): {currentManaPoints < MaxManaPoints}", _unit);
+        // REMOVED: Verbose "MP Regen Phase" log
         if (manaRegenRate > 0 && currentManaPoints < MaxManaPoints) 
         {
             int oldMP = currentManaPoints;
@@ -266,7 +194,7 @@ public class UnitStats : MonoBehaviour
         }
 
         // Stamina Regeneration
-        DebugHelper.Log($"--- {_unit.unitName} SP Regen Phase. Rate: {staminaRegenRate}, CurrentSP: {currentStaminaPoints}, MaxSP: {MaxStaminaPoints}. Condition (Current < Max): {currentStaminaPoints < MaxStaminaPoints}", _unit);
+        // REMOVED: Verbose "SP Regen Phase" log
         if (staminaRegenRate > 0 && currentStaminaPoints < MaxStaminaPoints)
         {
             int oldSP = currentStaminaPoints;
@@ -279,7 +207,7 @@ public class UnitStats : MonoBehaviour
         }
 
         // Focus Regeneration
-        DebugHelper.Log($"--- {_unit.unitName} FP Regen Phase. Rate: {focusRegenRate}, CurrentFP: {currentFocusPoints}, MaxFP: {MaxFocusPoints}. Condition (Current < Max): {currentFocusPoints < MaxFocusPoints}", _unit);
+        // REMOVED: Verbose "FP Regen Phase" log
         if (focusRegenRate > 0 && currentFocusPoints < MaxFocusPoints)
         {
             int oldFP = currentFocusPoints;
@@ -292,7 +220,7 @@ public class UnitStats : MonoBehaviour
         }
 
         // Influence Regeneration
-        DebugHelper.Log($"--- {_unit.unitName} IP Regen Phase. Rate: {influenceRegenRate}, CurrentIP: {currentInfluencePoints}, MaxIP: {MaxInfluencePoints}. Condition (Current < Max): {currentInfluencePoints < MaxInfluencePoints}", _unit);
+        // REMOVED: Verbose "IP Regen Phase" log
         if (influenceRegenRate > 0 && currentInfluencePoints < MaxInfluencePoints)
         {
             int oldIP = currentInfluencePoints;
@@ -308,6 +236,6 @@ public class UnitStats : MonoBehaviour
         {
             DebugHelper.Log(regenLogBuilder.ToString().TrimEnd(), _unit); 
         }
-        DebugHelper.Log($"--- {_unit.unitName} EXITING RegenerateResourcesAtTurnStart (Normal End).", _unit);
+        // REMOVED: Verbose "EXITING (Normal End)" log
     }
 }

@@ -148,14 +148,19 @@ MonoBehaviour:
     Aura: 5
   _maxVitalityPoints: 10
   currentVitalityPoints: 0
+  vitalityRegenRate: 0
   _maxManaPoints: 10
   currentManaPoints: 0
+  manaRegenRate: 1
   _maxStaminaPoints: 10
   currentStaminaPoints: 0
+  staminaRegenRate: 1
   _maxFocusPoints: 10
   currentFocusPoints: 0
+  focusRegenRate: 1
   _maxInfluencePoints: 10
   currentInfluencePoints: 0
+  influenceRegenRate: 1
 --- !u!114 &6043540816100653047
 MonoBehaviour:
   m_ObjectHideFlags: 0
