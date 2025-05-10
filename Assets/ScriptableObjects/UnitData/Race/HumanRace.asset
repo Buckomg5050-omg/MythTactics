@@ -19,5 +19,8 @@ MonoBehaviour:
 '
   baseMovementContribution: 0
   raceSpeedBonus: 50
+  baseVPContribution: 5
   baseMPContribution: 5
   baseSPContribution: 5
+  baseFPContribution: 5
+  baseIPContribution: 7

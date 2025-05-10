@@ -17,8 +17,11 @@ MonoBehaviour:
     fighters, skilled with a variety of weapons and armor.
   baseMovementContribution: 3
   classSpeedBonus: 0
+  baseVPContribution: 5
   baseMPContribution: 0
   baseSPContribution: 10
+  baseFPContribution: 3
+  baseIPContribution: 4
   baseAttackRange: 1
   primaryStatGains:
     coreGain: 4

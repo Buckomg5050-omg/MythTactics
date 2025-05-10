@@ -22,17 +22,25 @@ public class BasicAIHandler : MonoBehaviour
 
     public IEnumerator ExecuteTurn(Unit aiUnit) 
     {
-        if (aiUnit == null || !aiUnit.IsAlive)
+        if (aiUnit == null || !aiUnit.IsAlive) // IsAlive now checks aiUnit.Stats.IsAlive
         {
             DebugHelper.LogWarning($"BasicAIHandler: ExecuteTurn called for null or dead unit ({aiUnit?.unitName}).", this);
             EndTurnSafety(aiUnit);
             yield break;
         }
+        // Ensure Combat component is available
+        if (aiUnit.Combat == null)
+        {
+            DebugHelper.LogError($"BasicAIHandler: Unit {aiUnit.unitName} is missing UnitCombat component! AI cannot function.", aiUnit);
+            EndTurnSafety(aiUnit);
+            yield break;
+        }
+
 
         DebugHelper.Log($"--- {aiUnit.unitName} (AI) Turn Start. AP: {aiUnit.currentActionPoints} ---", aiUnit);
 
         Unit playerTarget = FindPlayerUnit();
-        if (playerTarget == null || !playerTarget.IsAlive)
+        if (playerTarget == null || !playerTarget.IsAlive) // IsAlive checks playerTarget.Stats.IsAlive
         {
             DebugHelper.LogWarning($"{aiUnit.unitName} (AI): No alive player target found. Waiting and ending turn.", aiUnit);
             yield return PerformWaitActionIfAble(aiUnit);
@@ -41,22 +49,23 @@ public class BasicAIHandler : MonoBehaviour
         }
         DebugHelper.Log($"{aiUnit.unitName} (AI): Target acquired - {playerTarget.unitName} at {playerTarget.CurrentTile?.gridPosition}", aiUnit);
 
-        // MODIFIED: Renamed method
+        // Attack if in range and can afford
         if (aiUnit.CanAffordAPForAction(PlayerInputHandler.AttackActionCost) && IsTargetInAttackRange(aiUnit, playerTarget))
         {
             DebugHelper.Log($"{aiUnit.unitName} (AI): Target {playerTarget.unitName} is in attack range. Attacking.", aiUnit);
-            yield return aiUnit.StartCoroutine(aiUnit.PerformAttack(playerTarget, null)); 
+            // MODIFIED: Call PerformAttack via aiUnit.Combat
+            yield return aiUnit.StartCoroutine(aiUnit.Combat.PerformAttack(playerTarget, null)); 
             yield return new WaitForSeconds(AI_ACTION_DELAY);
 
-            if (!aiUnit.IsAlive) { EndTurnSafety(aiUnit); yield break; }
-            if (!playerTarget.IsAlive)
+            if (!aiUnit.IsAlive) { EndTurnSafety(aiUnit); yield break; } // Check own survival
+            if (!playerTarget.IsAlive) // Check target survival
             {
                 DebugHelper.Log($"{aiUnit.unitName} (AI): Target {playerTarget.unitName} defeated.", aiUnit);
             }
         }
 
+        // Move if not in range (and alive, target alive, can afford move)
         if (aiUnit.IsAlive && playerTarget.IsAlive &&
-            // MODIFIED: Renamed method
             aiUnit.CanAffordAPForAction(PlayerInputHandler.MoveActionCost) &&
             !IsTargetInAttackRange(aiUnit, playerTarget))
         {
@@ -76,11 +85,12 @@ public class BasicAIHandler : MonoBehaviour
                     aiUnit.CurrentTile.gridPosition,
                     playerTarget.CurrentTile.gridPosition,
                     aiUnit,
-                    true 
+                    true // findAdjacentToTargetInstead
                 );
 
                 if (path != null && path.Count > 0)
                 {
+                    // GetActualPathWithinMovementRange still uses aiUnit.CalculatedMoveRange which is fine
                     List<Tile> actualMovePath = GetActualPathWithinMovementRange(path, aiUnit);
 
                     if (actualMovePath.Count > 0)
@@ -88,18 +98,19 @@ public class BasicAIHandler : MonoBehaviour
                         Tile destinationTileThisMove = actualMovePath.Last();
                         DebugHelper.Log($"{aiUnit.unitName} (AI): Moving from {aiUnit.CurrentTile.gridPosition} to {destinationTileThisMove.gridPosition} (Path segment length: {actualMovePath.Count}) towards {playerTarget.unitName} at {playerTarget.CurrentTile?.gridPosition}.", aiUnit);
                         
-                        // MODIFIED: Renamed method
-                        aiUnit.SpendAPForAction(PlayerInputHandler.MoveActionCost);
+                        aiUnit.SpendAPForAction(PlayerInputHandler.MoveActionCost); // AP management still on Unit
+                        // MoveOnPath is still on Unit for now
                         yield return aiUnit.StartCoroutine(aiUnit.MoveOnPath(actualMovePath));
                         yield return new WaitForSeconds(AI_ACTION_DELAY);
 
                         if (!aiUnit.IsAlive) { EndTurnSafety(aiUnit); yield break; }
 
-                        // MODIFIED: Renamed method
+                        // Attack after moving if possible
                         if (playerTarget.IsAlive && aiUnit.CanAffordAPForAction(PlayerInputHandler.AttackActionCost) && IsTargetInAttackRange(aiUnit, playerTarget))
                         {
                             DebugHelper.Log($"{aiUnit.unitName} (AI): Target {playerTarget.unitName} is NOW in attack range after moving. Attacking.", aiUnit);
-                            yield return aiUnit.StartCoroutine(aiUnit.PerformAttack(playerTarget, null));
+                            // MODIFIED: Call PerformAttack via aiUnit.Combat
+                            yield return aiUnit.StartCoroutine(aiUnit.Combat.PerformAttack(playerTarget, null));
                             yield return new WaitForSeconds(AI_ACTION_DELAY);
 
                             if (!aiUnit.IsAlive) { EndTurnSafety(aiUnit); yield break; }
@@ -115,7 +126,7 @@ public class BasicAIHandler : MonoBehaviour
                     }
                     else
                     {
-                        DebugHelper.Log($"{aiUnit.unitName} (AI): Path found but cannot afford to move to the first tile or path is effectively empty.", aiUnit);
+                        DebugHelper.Log($"{aiUnit.unitName} (AI): Path found but cannot afford to move to the first tile or path is effectively empty (within move range).", aiUnit);
                     }
                 }
                 else
@@ -126,15 +137,16 @@ public class BasicAIHandler : MonoBehaviour
         }
         else if (aiUnit.IsAlive && playerTarget.IsAlive && !IsTargetInAttackRange(aiUnit, playerTarget))
         {
-            DebugHelper.Log($"{aiUnit.unitName} (AI): Target not in range, but did not attempt move (e.g. no AP for move). AP: {aiUnit.currentActionPoints}", aiUnit);
+             DebugHelper.Log($"{aiUnit.unitName} (AI): Target not in range, but did not attempt move (e.g. no AP for move). AP: {aiUnit.currentActionPoints}", aiUnit);
         }
 
+        // Wait if AP remaining
         if (aiUnit.IsAlive)
         {
             if (aiUnit.currentActionPoints > 0)
             {
                  DebugHelper.Log($"{aiUnit.unitName} (AI): Has {aiUnit.currentActionPoints} AP remaining. Attempting to wait.", aiUnit);
-                 yield return PerformWaitActionIfAble(aiUnit);
+                 yield return PerformWaitActionIfAble(aiUnit); // This internally calls Unit's AP methods
             }
             else
             {
@@ -151,13 +163,14 @@ public class BasicAIHandler : MonoBehaviour
         List<Tile> actualMovePath = new List<Tile>();
         if (fullPath == null || unit == null) return actualMovePath;
 
-        int movePointsAvailable = unit.CalculatedMoveRange;
+        // CalculatedMoveRange is still on Unit for now
+        int movePointsAvailable = unit.CalculatedMoveRange; 
         int currentPathCost = 0;
 
         foreach (Tile pathTile in fullPath)
         {
             if (pathTile == null) continue;
-            int costToThisTile = pathTile.GetMovementCost(unit);
+            int costToThisTile = pathTile.GetMovementCost(unit); // GetMovementCost is on Tile
             if (currentPathCost + costToThisTile <= movePointsAvailable)
             {
                 actualMovePath.Add(pathTile);
@@ -165,7 +178,7 @@ public class BasicAIHandler : MonoBehaviour
             }
             else
             {
-                break;
+                break; 
             }
         }
         return actualMovePath;
@@ -176,7 +189,8 @@ public class BasicAIHandler : MonoBehaviour
         if (TurnManager.Instance == null) return null;
         foreach (var unit in TurnManager.Instance.CombatUnits)
         {
-            if (unit != null && unit.IsAlive && unit.CompareTag("Player"))
+            // IsAlive now checks unit.Stats.IsAlive
+            if (unit != null && unit.IsAlive && unit.CompareTag("Player")) 
             {
                 return unit;
             }
@@ -187,7 +201,8 @@ public class BasicAIHandler : MonoBehaviour
 
     private bool IsTargetInAttackRange(Unit attacker, Unit target)
     {
-        if (attacker == null || target == null || attacker.CurrentTile == null || target.CurrentTile == null || !attacker.IsAlive || !target.IsAlive)
+        // IsAlive checks attacker.Stats.IsAlive / target.Stats.IsAlive
+        if (attacker == null || target == null || attacker.CurrentTile == null || target.CurrentTile == null || !attacker.IsAlive || !target.IsAlive) 
         {
             return false;
         }
@@ -198,24 +213,17 @@ public class BasicAIHandler : MonoBehaviour
             return false;
         }
         
-        // For AI, simple Manhattan distance for attack range check is usually fine.
         int distance = GridManager.Instance.CalculateManhattanDistance(attacker.CurrentTile.gridPosition, target.CurrentTile.gridPosition);
         
-        int attackRange = attacker.CalculatedAttackRange;
-        // Using CalculatedAttackRange which already considers weapon/class.
-        // if (attacker.equippedWeapon != null && attacker.equippedWeapon.range > 0)
-        // {
-        //     attackRange = attacker.equippedWeapon.range;
-        // }
-        // if (attackRange <= 0) attackRange = 1; // CalculatedAttackRange should handle min 1.
-
+        // CalculatedAttackRange is still on Unit
+        int attackRange = attacker.CalculatedAttackRange; 
         return distance <= attackRange;
     }
 
     private IEnumerator PerformWaitActionIfAble(Unit aiUnit)
     {
-        // MODIFIED: Renamed methods
-        if (aiUnit.CanAffordAPForAction(PlayerInputHandler.WaitActionCost))
+        // CanAffordAPForAction and SpendAPForAction are still on Unit
+        if (aiUnit.CanAffordAPForAction(PlayerInputHandler.WaitActionCost)) 
         {
             aiUnit.SpendAPForAction(PlayerInputHandler.WaitActionCost);
             DebugHelper.Log($"{aiUnit.unitName} (AI) performed 'Wait' action. AP: {aiUnit.currentActionPoints}", aiUnit);
@@ -234,7 +242,8 @@ public class BasicAIHandler : MonoBehaviour
 
         if (TurnManager.Instance != null)
         {
-            if (TurnManager.Instance.ActiveUnit == unitToEnd && unitToEnd.IsAlive)
+            // IsAlive checks unitToEnd.Stats.IsAlive
+            if (TurnManager.Instance.ActiveUnit == unitToEnd && unitToEnd.IsAlive) 
             {
                 TurnManager.Instance.EndUnitTurn(unitToEnd);
             }
@@ -243,7 +252,6 @@ public class BasicAIHandler : MonoBehaviour
                  DebugHelper.Log($"{unitToEnd.unitName} (AI) is dead but was still ActiveUnit. Forcing EndUnitTurn.", unitToEnd);
                  TurnManager.Instance.EndUnitTurn(unitToEnd);
             }
-            // If it's not the active unit, don't try to end its turn.
         }
         else
         {

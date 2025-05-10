@@ -17,8 +17,11 @@ MonoBehaviour:
     exploiting enemy weaknesses. They favor speed and evasion over heavy defenses.
   baseMovementContribution: 4
   classSpeedBonus: 10
+  baseVPContribution: 5
   baseMPContribution: 5
   baseSPContribution: 10
+  baseFPContribution: 7
+  baseIPContribution: 6
   baseAttackRange: 1
   primaryStatGains:
     coreGain: 1
