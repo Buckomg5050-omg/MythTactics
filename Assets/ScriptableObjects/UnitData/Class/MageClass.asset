@@ -17,6 +17,9 @@ MonoBehaviour:
     energies from a distance, often unburdened by heavy armor.
   baseMovementContribution: 2
   classSpeedBonus: -5
+  baseMPContribution: 20
+  baseSPContribution: 0
+  baseAttackRange: 1
   primaryStatGains:
     coreGain: 0
     echoGain: 1

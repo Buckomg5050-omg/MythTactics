@@ -2,7 +2,7 @@
 using UnityEngine.InputSystem;
 using System.Linq;
 using System.Collections;
-using UnityEngine; // Added for DebugHelper if it's in UnityEngine namespace, or remove if not needed
+using UnityEngine;
 
 namespace MythTactics.Combat
 {
@@ -11,7 +11,8 @@ namespace MythTactics.Combat
         public override void EnterState(PlayerInputHandler inputHandler)
         {
             base.EnterState(inputHandler);
-            if (_selectedUnit == null || !_selectedUnit.IsAlive || !_selectedUnit.CanAffordAction(PlayerInputHandler.AttackActionCost))
+            // MODIFIED: Renamed method
+            if (_selectedUnit == null || !_selectedUnit.IsAlive || !_selectedUnit.CanAffordAPForAction(PlayerInputHandler.AttackActionCost))
             {
                 DebugHelper.LogWarning("PIH_SelectingAttackTargetState: Entered with no/dead unit or insufficient AP for attack. Reverting to UnitActionPhase.", _inputHandler);
                 _inputHandler.ChangeState(new PIH_UnitActionPhaseState());
@@ -31,7 +32,8 @@ namespace MythTactics.Combat
         {
             if (_selectedUnit == null || !_selectedUnit.IsAlive || clickedTile == null) return;
 
-            if (!_selectedUnit.CanAffordAction(PlayerInputHandler.AttackActionCost))
+            // MODIFIED: Renamed method
+            if (!_selectedUnit.CanAffordAPForAction(PlayerInputHandler.AttackActionCost))
             {
                 DebugHelper.LogWarning($"{_selectedUnit.unitName} cannot afford ATTACK (cost: {PlayerInputHandler.AttackActionCost}) upon click. AP: {_selectedUnit.currentActionPoints}. Reverting.", _inputHandler);
                 _inputHandler.ChangeState(new PIH_UnitActionPhaseState());
@@ -43,11 +45,10 @@ namespace MythTactics.Combat
                 Unit targetUnit = clickedTile.occupyingUnit;
                 if (targetUnit != null && targetUnit != _selectedUnit && targetUnit.IsAlive)
                 {
-                    // PlayerInputHandler starts the unit's attack coroutine
-                    // MODIFIED LINE: Added _inputHandler as the second argument
                     _inputHandler.StartCoroutine(_selectedUnit.PerformAttack(targetUnit, _inputHandler)); 
-
-                    _inputHandler.ChangeState(new PIH_WaitingForTurnState());
+                    // Note: PerformAttack will call SpendAPForAction internally. No need to call it here.
+                    // It will also call CheckAndHandleEndOfTurnActionsPIH.
+                    _inputHandler.ChangeState(new PIH_WaitingForTurnState()); // Or PIH_UnitActionPhaseState if more actions possible
                 }
                 else if (targetUnit == _selectedUnit)
                 {
@@ -77,9 +78,10 @@ namespace MythTactics.Combat
         {
             if (_selectedUnit == null || !_selectedUnit.IsAlive) return;
 
-            if (_selectedUnit.CanAffordAction(PlayerInputHandler.WaitActionCost))
+            // MODIFIED: Renamed methods
+            if (_selectedUnit.CanAffordAPForAction(PlayerInputHandler.WaitActionCost))
             {
-                _selectedUnit.SpendActionPoints(PlayerInputHandler.WaitActionCost);
+                _selectedUnit.SpendAPForAction(PlayerInputHandler.WaitActionCost);
 
                 _inputHandler.ClearAllHighlights();
                 if (TurnManager.Instance != null) TurnManager.Instance.EndUnitTurn(_selectedUnit);
@@ -103,25 +105,25 @@ namespace MythTactics.Combat
         public override void UpdateState()
         {
             if (_selectedUnit == null || !_selectedUnit.IsAlive ||
-                !_selectedUnit.CanAffordAction(PlayerInputHandler.AttackActionCost) ||
+                // MODIFIED: Renamed method
+                !_selectedUnit.CanAffordAPForAction(PlayerInputHandler.AttackActionCost) ||
                 (_inputHandler.CombatActive && TurnManager.Instance != null && TurnManager.Instance.ActiveUnit != _selectedUnit))
             {
-                // Check if _inputHandler is null before changing state to prevent errors during scene transitions or destruction
                 if (_inputHandler != null) 
                 {
                     _inputHandler.ChangeState(new PIH_UnitActionPhaseState());
                 }
                 return;
             }
-            if (_inputHandler != null && _selectedUnit != null) // Ensure _inputHandler and _selectedUnit are not null
+            if (_inputHandler != null && _selectedUnit != null)
             {
                 _inputHandler.ShowAttackRange(_selectedUnit);
+                 if (_selectedUnit.CurrentTile != null) _selectedUnit.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit); // Re-ensure selected unit tile highlight
             }
         }
 
         public override void ExitState()
         {
-            // Check if _inputHandler is null before clearing highlights
             if (_inputHandler != null)
             {
                 _inputHandler.ClearAttackRangeHighlight(true);

@@ -13,3 +13,6 @@ MonoBehaviour:
   m_Name: Basic_Sword_WeaponData
   m_EditorClassIdentifier: 
   baseDamage: 5
+  range: 1
+  baseAccuracy: 75
+  dealsTrueDamage: 0

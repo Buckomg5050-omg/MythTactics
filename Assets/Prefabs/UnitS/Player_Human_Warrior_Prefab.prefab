@@ -117,6 +117,8 @@ MonoBehaviour:
   currentManaPoints: 0
   _maxStaminaPoints: 0
   currentStaminaPoints: 0
+  knownAbilities:
+  - {fileID: 11400000, guid: bde4c3c75f3e4c048bf2f4097c5556a7, type: 2}
   equippedWeapon: {fileID: 11400000, guid: 32db0ab0bf4643243ab12e8e06f6b725, type: 2}
   equippedBodyArmor: {fileID: 11400000, guid: b463ce178bb8cb446a058aba0b6b2990, type: 2}
   moveSpeed: 5

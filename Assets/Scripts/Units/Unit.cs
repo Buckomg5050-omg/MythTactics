@@ -18,18 +18,19 @@ public class Unit : MonoBehaviour
     public string unitName = "Unit";
 
     [Header("Health (VP - Vitality Points)")]
-    public int maxVitalityPoints = 50; // This could also become a calculated property later
+    public int maxVitalityPoints = 50;
     public int currentVitalityPoints;
 
-    // NEW: Mana Points (MP)
     [Header("Mana (MP - Mana Points)")]
-    [SerializeField] private int _maxManaPoints; // Backing field for editor viewing if needed, calculated primarily
+    [SerializeField] private int _maxManaPoints;
     public int currentManaPoints;
 
-    // NEW: Stamina Points (SP)
     [Header("Stamina (SP - Stamina Points)")]
-    [SerializeField] private int _maxStaminaPoints; // Backing field
+    [SerializeField] private int _maxStaminaPoints;
     public int currentStaminaPoints;
+
+    [Header("Abilities")]
+    public List<AbilitySO> knownAbilities = new List<AbilitySO>();
 
     [Header("Equipment")]
     public WeaponSO equippedWeapon;
@@ -59,7 +60,10 @@ public class Unit : MonoBehaviour
     private bool _isAlive = true;
     public bool IsAlive => _isAlive;
 
-    // --- Calculated Properties for Resources ---
+    public int MaxManaPoints => _maxManaPoints;
+    public int MaxStaminaPoints => _maxStaminaPoints;
+
+
     public int CalculatedMaxMP
     {
         get
@@ -68,9 +72,7 @@ public class Unit : MonoBehaviour
             int baseMpFromRace = (raceData != null) ? raceData.baseMPContribution : 0;
             int baseMpFromClass = (classData != null) ? classData.baseMPContribution : 0;
             int sparkBonus = (currentAttributes != null) ? currentAttributes.Spark * 2 : 0;
-            int mpFromEquipment = 0; // Placeholder for when equipment can grant MaxMP
-
-            // GDD: BaseMP_From_Race_And_Class + (Spark * 2) + MaxMP_From_Equipment
+            int mpFromEquipment = 0;
             return baseMpFromRace + baseMpFromClass + sparkBonus + mpFromEquipment;
         }
     }
@@ -82,93 +84,54 @@ public class Unit : MonoBehaviour
             if (!_isAlive) return 0;
             int baseSpFromRace = (raceData != null) ? raceData.baseSPContribution : 0;
             int baseSpFromClass = (classData != null) ? classData.baseSPContribution : 0;
-            int coreBonus = (currentAttributes != null) ? currentAttributes.Core : 0; // GDD: + Core
-            int spFromEquipment = 0; // Placeholder for when equipment can grant MaxSP
-
-            // GDD: BaseSP_From_Race_And_Class + Core + MaxSP_From_Equipment
+            int coreBonus = (currentAttributes != null) ? currentAttributes.Core : 0;
+            int spFromEquipment = 0;
             return baseSpFromRace + baseSpFromClass + coreBonus + spFromEquipment;
         }
     }
-    // --- End Calculated Properties ---
 
     void Awake()
     {
-        if (currentAttributes == null)
-        {
-            currentAttributes = new UnitPrimaryAttributes();
-        }
+        if (currentAttributes == null) currentAttributes = new UnitPrimaryAttributes();
         InitializeResources();
     }
 
-    // NEW: Method to initialize all resources
     void InitializeResources()
     {
-        // VP
-        currentVitalityPoints = maxVitalityPoints; // Assuming maxVitalityPoints is set or calculated elsewhere
-
-        // MP
+        currentVitalityPoints = maxVitalityPoints;
         _maxManaPoints = CalculatedMaxMP;
         currentManaPoints = _maxManaPoints;
-
-        // SP
         _maxStaminaPoints = CalculatedMaxSP;
         currentStaminaPoints = _maxStaminaPoints;
-
-        // AP
-        // ResetActionPoints(); // Called by TurnManager at start of combat/turn
-
         DebugHelper.Log($"{unitName} Initialized Resources: VP: {currentVitalityPoints}/{maxVitalityPoints}, MP: {currentManaPoints}/{_maxManaPoints}, SP: {currentStaminaPoints}/{_maxStaminaPoints}", this);
     }
 
-
     public IEnumerator PerformAttack(Unit targetUnit, PlayerInputHandler attackerPIHContext)
     {
-        if (!_isAlive || targetUnit == null || !targetUnit.IsAlive || !CanAffordAction(PlayerInputHandler.AttackActionCost))
+        if (!_isAlive || targetUnit == null || !targetUnit.IsAlive || !CanAffordAPForAction(PlayerInputHandler.AttackActionCost))
         {
             yield break;
         }
-
-        SpendActionPoints(PlayerInputHandler.AttackActionCost);
+        SpendAPForAction(PlayerInputHandler.AttackActionCost);
         DebugHelper.Log($"{unitName} attacks {targetUnit.unitName}. (AP: {currentActionPoints})", this);
-
         yield return StartCoroutine(PerformAttackAnimation());
-
         if (CombatCalculator.ResolveHit(this, targetUnit))
         {
             DebugHelper.Log($"{unitName}'s attack HITS {targetUnit.unitName}!", this);
-
             bool isCritical = CombatCalculator.CheckCriticalHit(this, targetUnit);
             float criticalDamageMultiplier = 1.0f;
             string critMessage = "";
-
             if (isCritical)
             {
                 criticalDamageMultiplier = DamageCalculator.CRITICAL_HIT_MULTIPLIER;
                 critMessage = " (CRITICAL HIT!)";
                 DebugHelper.Log($"CRITICAL HIT by {unitName} on {targetUnit.unitName}!", this);
             }
-
             if (targetUnit != null && targetUnit.IsAlive)
             {
-                int currentAttackBaseDamage;
-                string damageSourceMessage;
-
-                if (equippedWeapon != null)
-                {
-                    currentAttackBaseDamage = equippedWeapon.baseDamage;
-                    damageSourceMessage = equippedWeapon.name;
-                }
-                else
-                {
-                    currentAttackBaseDamage = DamageCalculator.UNARMED_BASE_DAMAGE;
-                    damageSourceMessage = "Unarmed";
-                }
-
+                int currentAttackBaseDamage = (equippedWeapon != null) ? equippedWeapon.baseDamage : DamageCalculator.UNARMED_BASE_DAMAGE;
                 int totalDamage = DamageCalculator.CalculatePhysicalAttackDamage(currentAttackBaseDamage, this, targetUnit, criticalDamageMultiplier);
-
-                int coreBonus = (currentAttributes != null) ? Mathf.FloorToInt(currentAttributes.Core / 4f) : 0;
-                DebugHelper.Log($"{unitName} dealing {totalDamage} damage to {targetUnit.unitName} using {damageSourceMessage}{critMessage} (Base: {currentAttackBaseDamage}, CoreBonus: {coreBonus}, CritMult: {criticalDamageMultiplier}).", this);
-
+                DebugHelper.Log($"{unitName} dealing {totalDamage} damage to {targetUnit.unitName}{critMessage}.", this);
                 if (targetUnit != null && targetUnit.gameObject.activeInHierarchy)
                 {
                     yield return targetUnit.StartCoroutine(targetUnit.TakeDamage(totalDamage));
@@ -179,19 +142,14 @@ public class Unit : MonoBehaviour
         {
             DebugHelper.Log($"{unitName}'s attack MISSES {targetUnit.unitName}!", this);
         }
+        if (attackerPIHContext != null && attackerPIHContext.SelectedUnit == this)
+        {
+            attackerPIHContext.CheckAndHandleEndOfTurnActionsPIH(); 
+        }
     }
 
-    public IEnumerator PerformAttackAnimation()
-    {
-        yield return new WaitForSeconds(attackAnimDuration);
-    }
-
-    private IEnumerator PerformHurtAnimation()
-    {
-        if (!_isAlive) yield break;
-        yield return new WaitForSeconds(hurtAnimDuration);
-    }
-
+    public IEnumerator PerformAttackAnimation() { yield return new WaitForSeconds(attackAnimDuration); }
+    private IEnumerator PerformHurtAnimation() { if (!_isAlive) yield break; yield return new WaitForSeconds(hurtAnimDuration); }
     private IEnumerator PerformDeathAnimation()
     {
         SpriteRenderer sr = GetComponent<SpriteRenderer>();
@@ -213,7 +171,6 @@ public class Unit : MonoBehaviour
             return 1;
         }
     }
-
     public int RawCalculatedBaseUnitSpeed
     {
         get
@@ -231,88 +188,52 @@ public class Unit : MonoBehaviour
 
     public void PlaceOnTile(Tile tile)
     {
-        if (!_isAlive && tile != null && tile.occupyingUnit == this)
-        {
-            tile.ClearOccupyingUnit();
-            _currentTile = null;
-            return;
-        }
+        if (!_isAlive && tile != null && tile.occupyingUnit == this) { tile.ClearOccupyingUnit(); _currentTile = null; return; }
         if (!_isAlive) return;
-
-        if (_isMoving && _moveCoroutine != null)
-        {
-            StopCoroutine(_moveCoroutine);
-            _isMoving = false;
-        }
-        if (_currentTile != null && _currentTile.occupyingUnit == this)
-        {
-            _currentTile.ClearOccupyingUnit();
-        }
+        if (_isMoving && _moveCoroutine != null) { StopCoroutine(_moveCoroutine); _isMoving = false; }
+        if (_currentTile != null && _currentTile.occupyingUnit == this) _currentTile.ClearOccupyingUnit();
         _currentTile = tile;
         if (tile != null)
         {
-            if (GridManager.Instance != null)
-                transform.position = GridManager.Instance.GridToWorld(tile.gridPosition);
-            else
-                transform.position = tile.transform.position;
+            transform.position = GridManager.Instance != null ? GridManager.Instance.GridToWorld(tile.gridPosition) : tile.transform.position;
             tile.SetOccupyingUnit(this);
         }
         else { DebugHelper.LogWarning($"{unitName} placed on NULL tile.", this); }
     }
-
     public void SetCurrentTile(Tile tile) { PlaceOnTile(tile); }
 
     public IEnumerator MoveOnPath(List<Tile> path)
     {
         if (!_isAlive || _isMoving) { yield break; }
         if (path == null || path.Count == 0) { yield break; }
-
         _isMoving = true;
-        Coroutine localMoveCoroutine = StartCoroutine(PerformMovement(path));
-        _moveCoroutine = localMoveCoroutine;
-        yield return localMoveCoroutine;
-        if (_moveCoroutine == localMoveCoroutine) _moveCoroutine = null;
-        _isMoving = false;
+        _moveCoroutine = StartCoroutine(PerformMovement(path));
+        yield return _moveCoroutine;
+        _isMoving = false; 
+        _moveCoroutine = null;
     }
 
     private IEnumerator PerformMovement(List<Tile> path)
     {
-        Vector3 startPos, endPos;
-        Tile nextTileInPath;
-
-        if (CurrentTile != null)
-            transform.position = GridManager.Instance != null ? GridManager.Instance.GridToWorld(CurrentTile.gridPosition) : CurrentTile.transform.position;
-
+        if (CurrentTile != null) transform.position = GridManager.Instance != null ? GridManager.Instance.GridToWorld(CurrentTile.gridPosition) : CurrentTile.transform.position;
         for (int i = 0; i < path.Count; i++)
         {
             if (!_isAlive) { DebugHelper.Log($"{unitName} died during movement.", this); yield break; }
-            nextTileInPath = path[i];
+            Tile nextTileInPath = path[i];
             if (nextTileInPath == null) { DebugHelper.LogError($"Movement path for {unitName} contained a null tile at index {i}!", this); break; }
-
-            startPos = transform.position;
-            endPos = GridManager.Instance != null ? GridManager.Instance.GridToWorld(nextTileInPath.gridPosition) : nextTileInPath.transform.position;
-
-            if (_currentTile != null && _currentTile.occupyingUnit == this)
-                _currentTile.ClearOccupyingUnit();
+            Vector3 startPos = transform.position;
+            Vector3 endPos = GridManager.Instance != null ? GridManager.Instance.GridToWorld(nextTileInPath.gridPosition) : nextTileInPath.transform.position;
+            if (_currentTile != null && _currentTile.occupyingUnit == this) _currentTile.ClearOccupyingUnit();
             _currentTile = nextTileInPath;
-            if (_isAlive)
-            {
-                _currentTile.SetOccupyingUnit(this);
-            }
-
+            if (_isAlive) _currentTile.SetOccupyingUnit(this);
             float journeyLength = Vector3.Distance(startPos, endPos);
             float startTime = Time.time;
-
             if (journeyLength > 0.01f && moveSpeed > 0)
             {
                 float journeyFraction = 0f;
                 while (journeyFraction < 1.0f)
                 {
-                    if (!_isMoving || !_isAlive)
-                    {
-                        if (!_isAlive) DebugHelper.Log($"{unitName} died, interrupting movement lerp.", this);
-                        yield break;
-                    }
+                    if (!_isMoving || !_isAlive) { if (!_isAlive) DebugHelper.Log($"{unitName} died, interrupting movement lerp.", this); yield break; }
                     float distCovered = (Time.time - startTime) * moveSpeed;
                     journeyFraction = distCovered / journeyLength;
                     transform.position = Vector3.Lerp(startPos, endPos, Mathf.Clamp01(journeyFraction));
@@ -323,30 +244,51 @@ public class Unit : MonoBehaviour
         }
     }
 
-    public void ResetActionPoints()
-    {
-        if (!_isAlive) { currentActionPoints = 0; return; }
-        currentActionPoints = maxActionPoints;
-    }
+    public void ResetActionPoints() { if (!_isAlive) { currentActionPoints = 0; return; } currentActionPoints = maxActionPoints; }
 
-    public bool CanAffordAction(int cost)
+    public bool CanAffordAPForAction(int apCost)
     {
         if (!_isAlive) return false;
-        return currentActionPoints >= cost;
+        return currentActionPoints >= apCost;
     }
 
-    public void SpendActionPoints(int cost)
+    public bool CanAffordAbility(AbilitySO ability, bool logIfNotAffordable = false)
+    {
+        if (ability == null) { DebugHelper.LogError($"{unitName}: Attempted to check affordability for a NULL ability.", this); return false; }
+        if (!_isAlive) return false; 
+        if (!CanAffordAPForAction(ability.apCost))
+        {
+            if (logIfNotAffordable) DebugHelper.LogWarning($"{unitName} cannot afford '{ability.abilityName}'. Insufficient AP. Needs: {ability.apCost}, Has: {currentActionPoints}.", this);
+            return false;
+        }
+        if (currentManaPoints < ability.mpCost)
+        {
+            if (logIfNotAffordable) DebugHelper.LogWarning($"{unitName} cannot afford '{ability.abilityName}'. Insufficient MP. Needs: {ability.mpCost}, Has: {currentManaPoints}.", this);
+            return false;
+        }
+        if (currentStaminaPoints < ability.spCost)
+        {
+            if (logIfNotAffordable) DebugHelper.LogWarning($"{unitName} cannot afford '{ability.abilityName}'. Insufficient SP. Needs: {ability.spCost}, Has: {currentStaminaPoints}.", this);
+            return false;
+        }
+        return true;
+    }
+
+    public void SpendAPForAction(int apCost)
     {
         if (!_isAlive) return;
-        if (cost <= 0) return;
-        if (CanAffordAction(cost))
-        {
-            currentActionPoints -= cost;
-        }
-        else
-        {
-            DebugHelper.LogWarning($"{unitName} FAILED to spend AP cost {cost}. Has {currentActionPoints}/{maxActionPoints}.", this);
-        }
+        if (apCost <= 0) return;
+        if (currentActionPoints >= apCost) currentActionPoints -= apCost;
+        else DebugHelper.LogWarning($"{unitName} FAILED to spend AP cost {apCost}. Has {currentActionPoints}/{maxActionPoints}. This indicates a logic error.", this);
+    }
+
+    public void SpendResourcesForAbility(AbilitySO ability)
+    {
+        if (ability == null || !_isAlive) return;
+        SpendAPForAction(ability.apCost);
+        if (ability.mpCost > 0) { currentManaPoints -= ability.mpCost; currentManaPoints = Mathf.Max(0, currentManaPoints); }
+        if (ability.spCost > 0) { currentStaminaPoints -= ability.spCost; currentStaminaPoints = Mathf.Max(0, currentStaminaPoints); }
+        DebugHelper.Log($"{unitName} spent resources for {ability.abilityName}. AP: {currentActionPoints}, MP: {currentManaPoints}, SP: {currentStaminaPoints}", this);
     }
 
     public IEnumerator TakeDamage(int damageAmount)
@@ -355,14 +297,8 @@ public class Unit : MonoBehaviour
         currentVitalityPoints -= damageAmount;
         currentVitalityPoints = Mathf.Max(0, currentVitalityPoints);
         DebugHelper.Log($"{unitName} takes {damageAmount} damage, has {currentVitalityPoints}/{maxVitalityPoints} VP remaining.", this);
-        if (currentVitalityPoints > 0)
-        {
-            yield return StartCoroutine(PerformHurtAnimation());
-        }
-        else
-        {
-            yield return StartCoroutine(Die());
-        }
+        if (currentVitalityPoints > 0) yield return StartCoroutine(PerformHurtAnimation());
+        else yield return StartCoroutine(Die());
     }
 
     private IEnumerator Die()
@@ -370,50 +306,80 @@ public class Unit : MonoBehaviour
         if (!_isAlive) yield break;
         _isAlive = false;
         DebugHelper.Log($"!!!!!! {unitName} has been defeated! !!!!!!", this);
-        if (_isMoving && _moveCoroutine != null)
-        {
-            StopCoroutine(_moveCoroutine);
-            _isMoving = false;
-            _moveCoroutine = null;
-        }
+        if (_isMoving && _moveCoroutine != null) { StopCoroutine(_moveCoroutine); _isMoving = false; _moveCoroutine = null; }
         yield return StartCoroutine(PerformDeathAnimation());
-        if (_currentTile != null && _currentTile.occupyingUnit == this)
-        {
-            _currentTile.ClearOccupyingUnit();
-        }
+        if (_currentTile != null && _currentTile.occupyingUnit == this) _currentTile.ClearOccupyingUnit();
         _currentTile = null;
-        if (TurnManager.Instance != null)
-        {
-            TurnManager.Instance.UnregisterUnit(this);
-        }
-        if (gameObject != null)
-        {
-            gameObject.SetActive(false);
-        }
+        if (TurnManager.Instance != null) TurnManager.Instance.UnregisterUnit(this);
+        if (gameObject != null) gameObject.SetActive(false);
     }
 
     public IEnumerator ProcessAITurn()
     {
-        if (!_isAlive)
-        {
-            if (TurnManager.Instance != null && TurnManager.Instance.ActiveUnit == this) TurnManager.Instance.EndUnitTurn(this);
-            yield break;
-        }
-        if (CompareTag("Player"))
-        {
-            if (TurnManager.Instance != null && TurnManager.Instance.ActiveUnit == this) TurnManager.Instance.EndUnitTurn(this);
-            yield break;
-        }
+        if (!_isAlive) { if (TurnManager.Instance != null && TurnManager.Instance.ActiveUnit == this) TurnManager.Instance.EndUnitTurn(this); yield break; }
+        if (CompareTag("Player")) { if (TurnManager.Instance != null && TurnManager.Instance.ActiveUnit == this) TurnManager.Instance.EndUnitTurn(this); yield break; }
         if (aiHandler == null)
         {
-            if (CanAffordAction(PlayerInputHandler.WaitActionCost)) SpendActionPoints(PlayerInputHandler.WaitActionCost);
+            if (CanAffordAPForAction(PlayerInputHandler.WaitActionCost)) SpendAPForAction(PlayerInputHandler.WaitActionCost);
             if (TurnManager.Instance != null && TurnManager.Instance.ActiveUnit == this) TurnManager.Instance.EndUnitTurn(this);
             yield break;
         }
         yield return StartCoroutine(aiHandler.ExecuteTurn(this));
-        if (TurnManager.Instance != null && TurnManager.Instance.ActiveUnit == this)
+        if (TurnManager.Instance != null && TurnManager.Instance.ActiveUnit == this) TurnManager.Instance.EndUnitTurn(this);
+    }
+
+    public IEnumerator PerformAbility(AbilitySO ability, Unit targetUnit, PlayerInputHandler attackerPIHContext)
+    {
+        if (!_isAlive || ability == null ) 
+        { 
+            DebugHelper.LogWarning($"{unitName} PerformAbility called with null ability or dead unit. This should be caught earlier.", this); 
+            yield break; 
+        }
+        if (!CanAffordAbility(ability, true)) 
+        { 
+            DebugHelper.LogWarning($"{unitName} somehow attempted PerformAbility for '{ability.abilityName}' without sufficient resources (redundant check failed). PIH states should prevent this.", this); 
+            yield break; 
+        }
+
+        if (ability.targetType == AbilityTargetType.EnemyUnit || ability.targetType == AbilityTargetType.AllyUnit)
         {
-            TurnManager.Instance.EndUnitTurn(this);
+            if (targetUnit == null || !targetUnit.IsAlive) { DebugHelper.LogWarning($"{unitName} cannot perform ability {ability.abilityName}: Target unit is invalid or not alive.", this); yield break; }
+            if (this.CurrentTile == null || targetUnit.CurrentTile == null) { DebugHelper.LogWarning($"{unitName} or target {targetUnit.unitName} is not on a tile. Cannot perform ability {ability.abilityName}.", this); yield break; }
+            if (GridManager.Instance.CalculateManhattanDistance(this.CurrentTile.gridPosition, targetUnit.CurrentTile.gridPosition) > ability.range) { DebugHelper.LogWarning($"{unitName} cannot perform ability {ability.abilityName} on {targetUnit.unitName}: Target out of range.", this); yield break; }
+        }
+        
+        SpendResourcesForAbility(ability);
+        DebugHelper.Log($"{unitName} uses {ability.abilityName}." + (targetUnit != null ? $" Targeting {targetUnit.unitName}." : "") + $" (AP: {currentActionPoints}, MP: {currentManaPoints}, SP: {currentStaminaPoints})", this);
+        
+        yield return new WaitForSeconds(attackAnimDuration); // Placeholder for ability animation
+
+        if (ability.effectType == AbilityEffectType.Damage)
+        {
+            if (targetUnit != null && targetUnit.IsAlive) 
+            {
+                DebugHelper.Log($"{ability.abilityName} from {unitName} HITS {targetUnit.unitName}!", this); // Still useful to log the general hit
+
+                int totalDamage = DamageCalculator.CalculateMagicalAbilityDamage(ability, this, targetUnit);
+                // Detailed damage breakdown (base, bonus, crit status, final) is now logged by DamageCalculator.CalculateMagicalAbilityDamage
+                
+                if (targetUnit != null && targetUnit.gameObject.activeInHierarchy) 
+                {
+                    yield return targetUnit.StartCoroutine(targetUnit.TakeDamage(totalDamage));
+                }
+            }
+            else if (ability.targetType != AbilityTargetType.Self && targetUnit == null)
+            { 
+                DebugHelper.LogWarning($"{ability.abilityName} by {unitName} requires a target but none was provided or target is invalid.", this); 
+            }
+        }
+        else if (ability.effectType == AbilityEffectType.Heal) 
+        { 
+            DebugHelper.Log($"{ability.abilityName} would heal (not implemented).", this); 
+        }
+        
+        if (attackerPIHContext != null && attackerPIHContext.SelectedUnit == this) 
+        {
+            attackerPIHContext.CheckAndHandleEndOfTurnActionsPIH();
         }
     }
 }

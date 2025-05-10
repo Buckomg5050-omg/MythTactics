@@ -6,9 +6,9 @@ using System.Linq;
 
 public class BasicAIHandler : MonoBehaviour
 {
-    private Unit _unit; // Reference to the Unit this AI handler controls
+    private Unit _unit; 
 
-    private const float AI_ACTION_DELAY = 0.3f; // Small delay to make AI actions observable
+    private const float AI_ACTION_DELAY = 0.3f; 
 
     void Awake()
     {
@@ -16,11 +16,11 @@ public class BasicAIHandler : MonoBehaviour
         if (_unit == null)
         {
             DebugHelper.LogError("BasicAIHandler is attached to a GameObject without a Unit component!", this);
-            enabled = false; // Disable this component if no Unit is found
+            enabled = false; 
         }
     }
 
-    public IEnumerator ExecuteTurn(Unit aiUnit) // aiUnit is the same as _unit, passed for clarity from Unit.cs
+    public IEnumerator ExecuteTurn(Unit aiUnit) 
     {
         if (aiUnit == null || !aiUnit.IsAlive)
         {
@@ -31,7 +31,6 @@ public class BasicAIHandler : MonoBehaviour
 
         DebugHelper.Log($"--- {aiUnit.unitName} (AI) Turn Start. AP: {aiUnit.currentActionPoints} ---", aiUnit);
 
-        // 1. Find Target (Player Unit)
         Unit playerTarget = FindPlayerUnit();
         if (playerTarget == null || !playerTarget.IsAlive)
         {
@@ -42,11 +41,11 @@ public class BasicAIHandler : MonoBehaviour
         }
         DebugHelper.Log($"{aiUnit.unitName} (AI): Target acquired - {playerTarget.unitName} at {playerTarget.CurrentTile?.gridPosition}", aiUnit);
 
-        // PHASE 1: Try to Attack if already in range
-        if (aiUnit.CanAffordAction(PlayerInputHandler.AttackActionCost) && IsTargetInAttackRange(aiUnit, playerTarget))
+        // MODIFIED: Renamed method
+        if (aiUnit.CanAffordAPForAction(PlayerInputHandler.AttackActionCost) && IsTargetInAttackRange(aiUnit, playerTarget))
         {
             DebugHelper.Log($"{aiUnit.unitName} (AI): Target {playerTarget.unitName} is in attack range. Attacking.", aiUnit);
-            yield return aiUnit.StartCoroutine(aiUnit.PerformAttack(playerTarget, null)); // Pass null for PIHContext
+            yield return aiUnit.StartCoroutine(aiUnit.PerformAttack(playerTarget, null)); 
             yield return new WaitForSeconds(AI_ACTION_DELAY);
 
             if (!aiUnit.IsAlive) { EndTurnSafety(aiUnit); yield break; }
@@ -56,9 +55,9 @@ public class BasicAIHandler : MonoBehaviour
             }
         }
 
-        // PHASE 2: Try to Move if not in attack range and has AP for move.
         if (aiUnit.IsAlive && playerTarget.IsAlive &&
-            aiUnit.CanAffordAction(PlayerInputHandler.MoveActionCost) &&
+            // MODIFIED: Renamed method
+            aiUnit.CanAffordAPForAction(PlayerInputHandler.MoveActionCost) &&
             !IsTargetInAttackRange(aiUnit, playerTarget))
         {
             DebugHelper.Log($"{aiUnit.unitName} (AI): Target {playerTarget.unitName} not in attack range. Attempting to move.", aiUnit);
@@ -77,7 +76,7 @@ public class BasicAIHandler : MonoBehaviour
                     aiUnit.CurrentTile.gridPosition,
                     playerTarget.CurrentTile.gridPosition,
                     aiUnit,
-                    true // findAdjacentToTargetInstead = true
+                    true 
                 );
 
                 if (path != null && path.Count > 0)
@@ -89,14 +88,15 @@ public class BasicAIHandler : MonoBehaviour
                         Tile destinationTileThisMove = actualMovePath.Last();
                         DebugHelper.Log($"{aiUnit.unitName} (AI): Moving from {aiUnit.CurrentTile.gridPosition} to {destinationTileThisMove.gridPosition} (Path segment length: {actualMovePath.Count}) towards {playerTarget.unitName} at {playerTarget.CurrentTile?.gridPosition}.", aiUnit);
                         
-                        aiUnit.SpendActionPoints(PlayerInputHandler.MoveActionCost);
+                        // MODIFIED: Renamed method
+                        aiUnit.SpendAPForAction(PlayerInputHandler.MoveActionCost);
                         yield return aiUnit.StartCoroutine(aiUnit.MoveOnPath(actualMovePath));
                         yield return new WaitForSeconds(AI_ACTION_DELAY);
 
                         if (!aiUnit.IsAlive) { EndTurnSafety(aiUnit); yield break; }
 
-                        // PHASE 3: After moving, try to Attack again
-                        if (playerTarget.IsAlive && aiUnit.CanAffordAction(PlayerInputHandler.AttackActionCost) && IsTargetInAttackRange(aiUnit, playerTarget))
+                        // MODIFIED: Renamed method
+                        if (playerTarget.IsAlive && aiUnit.CanAffordAPForAction(PlayerInputHandler.AttackActionCost) && IsTargetInAttackRange(aiUnit, playerTarget))
                         {
                             DebugHelper.Log($"{aiUnit.unitName} (AI): Target {playerTarget.unitName} is NOW in attack range after moving. Attacking.", aiUnit);
                             yield return aiUnit.StartCoroutine(aiUnit.PerformAttack(playerTarget, null));
@@ -129,7 +129,6 @@ public class BasicAIHandler : MonoBehaviour
             DebugHelper.Log($"{aiUnit.unitName} (AI): Target not in range, but did not attempt move (e.g. no AP for move). AP: {aiUnit.currentActionPoints}", aiUnit);
         }
 
-        // PHASE 4: End of turn actions / Wait
         if (aiUnit.IsAlive)
         {
             if (aiUnit.currentActionPoints > 0)
@@ -198,24 +197,27 @@ public class BasicAIHandler : MonoBehaviour
             DebugHelper.LogError("IsTargetInAttackRange: GridManager or PathfinderInstance is null!", attacker);
             return false;
         }
-
-        int distance = GridManager.Instance.PathfinderInstance.CalculateManhattanDistance(attacker.CurrentTile.gridPosition, target.CurrentTile.gridPosition);
+        
+        // For AI, simple Manhattan distance for attack range check is usually fine.
+        int distance = GridManager.Instance.CalculateManhattanDistance(attacker.CurrentTile.gridPosition, target.CurrentTile.gridPosition);
         
         int attackRange = attacker.CalculatedAttackRange;
-        if (attacker.equippedWeapon != null && attacker.equippedWeapon.range > 0)
-        {
-            attackRange = attacker.equippedWeapon.range;
-        }
-        if (attackRange <= 0) attackRange = 1;
+        // Using CalculatedAttackRange which already considers weapon/class.
+        // if (attacker.equippedWeapon != null && attacker.equippedWeapon.range > 0)
+        // {
+        //     attackRange = attacker.equippedWeapon.range;
+        // }
+        // if (attackRange <= 0) attackRange = 1; // CalculatedAttackRange should handle min 1.
 
         return distance <= attackRange;
     }
 
     private IEnumerator PerformWaitActionIfAble(Unit aiUnit)
     {
-        if (aiUnit.CanAffordAction(PlayerInputHandler.WaitActionCost))
+        // MODIFIED: Renamed methods
+        if (aiUnit.CanAffordAPForAction(PlayerInputHandler.WaitActionCost))
         {
-            aiUnit.SpendActionPoints(PlayerInputHandler.WaitActionCost);
+            aiUnit.SpendAPForAction(PlayerInputHandler.WaitActionCost);
             DebugHelper.Log($"{aiUnit.unitName} (AI) performed 'Wait' action. AP: {aiUnit.currentActionPoints}", aiUnit);
             yield return new WaitForSeconds(AI_ACTION_DELAY / 2f);
         }
@@ -241,6 +243,7 @@ public class BasicAIHandler : MonoBehaviour
                  DebugHelper.Log($"{unitToEnd.unitName} (AI) is dead but was still ActiveUnit. Forcing EndUnitTurn.", unitToEnd);
                  TurnManager.Instance.EndUnitTurn(unitToEnd);
             }
+            // If it's not the active unit, don't try to end its turn.
         }
         else
         {

@@ -17,3 +17,5 @@ MonoBehaviour:
     keen senses and swiftness.
   baseMovementContribution: 1
   raceSpeedBonus: 60
+  baseMPContribution: 10
+  baseSPContribution: 0

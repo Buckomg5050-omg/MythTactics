@@ -143,7 +143,7 @@ public class GridManager : MonoBehaviour
         float relativeX = worldPos.x - gridOriginX; float relativeY = worldPos.y - gridOriginY;
         int arrayX = Mathf.FloorToInt(relativeX); int arrayY = Mathf.FloorToInt(relativeY);
         int playableX = arrayX - 1; int playableY = arrayY - 1;
-        if (arrayX < 0 || arrayX >= _totalWidth || arrayY < 0 || arrayY >= _totalHeight) return new Vector2Int(-999,-999);
+        if (arrayX < 0 || arrayX >= _totalWidth || arrayY < 0 || arrayY >= _totalHeight) return new Vector2Int(-999,-999); // MODIFIED: Added check for out of total bounds
         return new Vector2Int(playableX, playableY);
     }
 
@@ -180,7 +180,7 @@ public class GridManager : MonoBehaviour
                 Vector2Int currentPosPlayable = new Vector2Int(x, y);
                 if (IsInPlayableBounds(currentPosPlayable))
                 {
-                    int manhattanDistance = Mathf.Abs(currentPosPlayable.x - playableCenter.x) + Mathf.Abs(currentPosPlayable.y - playableCenter.y);
+                    int manhattanDistance = CalculateManhattanDistance(currentPosPlayable, playableCenter); // MODIFIED: Used new method
                     if (manhattanDistance <= range)
                     {
                         Tile tile = GetTile(currentPosPlayable);
@@ -190,5 +190,11 @@ public class GridManager : MonoBehaviour
             }
         }
         return tilesInRange;
+    }
+
+    // NEW: Helper method to calculate Manhattan distance between two grid positions
+    public int CalculateManhattanDistance(Vector2Int posA, Vector2Int posB)
+    {
+        return Mathf.Abs(posA.x - posB.x) + Mathf.Abs(posA.y - posB.y);
     }
 }

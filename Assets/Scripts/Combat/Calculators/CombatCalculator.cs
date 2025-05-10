@@ -1,8 +1,38 @@
 // CombatCalculator.cs
-using UnityEngine;
+// Located in: Assets/Scripts/Combat/Calculators/CombatCalculator.cs
+
+using UnityEngine; // ENSURE THIS (and any other usings) IS AT THE TOP
 
 namespace MythTactics.Combat
 {
+    // Enums shared within the Combat namespace
+    public enum AbilityTargetType
+    {
+        Self,
+        EnemyUnit,
+        AllyUnit,
+        Tile 
+    }
+
+    public enum AbilityEffectType
+    {
+        Damage,
+        Heal,
+        Buff, 
+        Debuff 
+    }
+
+    public enum DamageType 
+    {
+        Physical,
+        Magical,
+        True, 
+        Fire,
+        Cold,
+        Ice,    
+        Lightning
+    }
+
     public static class CombatCalculator
     {
         // Constants for Hit Chance Calculation (GDD 2.3)
@@ -10,10 +40,10 @@ namespace MythTactics.Combat
         public const int MIN_HIT_CHANCE = 5;
         public const int MAX_HIT_CHANCE = 95;
 
-        // NEW: Constants for Critical Hit Calculation (GDD 3.2)
-        public const int BASE_CRIT_CHANCE = 5; // Universal base crit chance
-        public const int MIN_CRIT_CHANCE = 0;  // Minimum possible crit chance
-        public const int MAX_CRIT_CHANCE = 100; // Maximum possible crit chance (can be adjusted for balance)
+        // Constants for Critical Hit Calculation (GDD 3.2)
+        public const int BASE_CRIT_CHANCE = 5; 
+        public const int MIN_CRIT_CHANCE = 0;  
+        public const int MAX_CRIT_CHANCE = 100; 
 
 
         public static bool ResolveHit(Unit attacker, Unit target)
@@ -41,13 +71,13 @@ namespace MythTactics.Combat
             }
             int totalOffensiveRating = attackerBaseAccuracy + attackerEchoBonus;
 
-            int defenderBaseEvasion = 0;
+            int defenderBaseEvasion = 0; // Assuming this comes from armor/shields, which aren't fully implemented for evasion yet
             int defenderGlimmerBonus = 0;
             int defenderSparkBonus = 0;
             if (target.currentAttributes != null)
             {
                 defenderGlimmerBonus = Mathf.FloorToInt(target.currentAttributes.Glimmer / 2f);
-                defenderSparkBonus = Mathf.FloorToInt(target.currentAttributes.Spark / 4f);
+                defenderSparkBonus = Mathf.FloorToInt(target.currentAttributes.Spark / 4f); // As per GDD 2.3
             }
 
             int defenderCoverBonus = 0;
@@ -55,6 +85,7 @@ namespace MythTactics.Combat
             {
                 defenderCoverBonus = target.CurrentTile.tileTypeData.evasionBonus;
             }
+            // GDD 2.3: Hit% = (AttackerWeaponBaseAccuracy + Floor(AttackerEcho / 2)) - (DefenderArmorBaseEvasion + Floor(DefenderGlimmer / 2) + Floor(DefenderSpark / 4) + DefenderCoverBonusFromTile)
             int totalDefensiveRating = defenderBaseEvasion + defenderGlimmerBonus + defenderSparkBonus + defenderCoverBonus;
 
             int hitChance = totalOffensiveRating - totalDefensiveRating;
@@ -69,41 +100,54 @@ namespace MythTactics.Combat
                             $"Final Hit%: {hitChance}. Roll: {roll}. Result: {(didHit ? "HIT" : "MISS")}", attacker);
             return didHit;
         }
-
-        /// <summary>
-        /// Determines if a successful hit is also a critical hit.
-        /// Physical Crit Chance = BaseCritChance + Floor(AttackerCore / 4) + Floor(AttackerEcho / 4)
-        /// </summary>
-        /// <param name="attacker">The attacking unit.</param>
-        /// <param name="target">The defending unit (currently unused for physical crit chance calc).</param>
-        /// <returns>True if the hit is critical, false otherwise.</returns>
-        public static bool CheckCriticalHit(Unit attacker, Unit target) // target param kept for future use (e.g. crit resistance)
+        
+        public static bool CheckCriticalHit(Unit attacker, Unit target) 
         {
             if (attacker == null || attacker.currentAttributes == null)
             {
-                DebugHelper.LogWarning("CombatCalculator.CheckCriticalHit: Attacker or attacker attributes are null. Defaulting to no crit.", attacker);
+                DebugHelper.LogWarning("CombatCalculator.CheckCriticalHit (Physical): Attacker or attacker attributes are null. Defaulting to no crit.", attacker);
                 return false;
             }
 
             int totalCritChance = BASE_CRIT_CHANCE;
-
-            // Add bonuses for Physical Crit Chance (GDD 3.2)
             totalCritChance += Mathf.FloorToInt(attacker.currentAttributes.Core / 4f);
             totalCritChance += Mathf.FloorToInt(attacker.currentAttributes.Echo / 4f);
-            // TODO: Add Equipment/AbilityCritBonuses when those systems exist
-
+            
             totalCritChance = Mathf.Clamp(totalCritChance, MIN_CRIT_CHANCE, MAX_CRIT_CHANCE);
-
-            int roll = Random.Range(1, 101); // d100 roll
+            int roll = Random.Range(1, 101); 
             bool isCritical = roll <= totalCritChance;
 
             int coreCritBonus = Mathf.FloorToInt(attacker.currentAttributes.Core / 4f);
             int echoCritBonus = Mathf.FloorToInt(attacker.currentAttributes.Echo / 4f);
 
-            DebugHelper.Log($"CombatCalculator.CheckCriticalHit: {attacker.unitName}. " +
+            DebugHelper.Log($"CombatCalculator.CheckCriticalHit (Physical): {attacker.unitName}. " +
                             $"BaseCrit:{BASE_CRIT_CHANCE} + CoreBns:{coreCritBonus} + EchoBns:{echoCritBonus} = TotalCrit%: {totalCritChance}. " +
                             $"Roll: {roll}. Result: {(isCritical ? "CRITICAL HIT!" : "Normal Hit")}", attacker);
+            return isCritical;
+        }
+        
+        public static bool CheckMagicalCriticalHit(Unit caster, Unit target)
+        {
+            if (caster == null || caster.currentAttributes == null)
+            {
+                DebugHelper.LogWarning("CombatCalculator.CheckMagicalCriticalHit: Caster or caster attributes are null. Defaulting to no magical crit.", caster);
+                return false;
+            }
 
+            int totalCritChance = BASE_CRIT_CHANCE;
+            totalCritChance += Mathf.FloorToInt(caster.currentAttributes.Spark / 4f);
+            totalCritChance += Mathf.FloorToInt(caster.currentAttributes.Glimmer / 4f);
+            
+            totalCritChance = Mathf.Clamp(totalCritChance, MIN_CRIT_CHANCE, MAX_CRIT_CHANCE);
+            int roll = Random.Range(1, 101); 
+            bool isCritical = roll <= totalCritChance;
+
+            int sparkCritBonus = Mathf.FloorToInt(caster.currentAttributes.Spark / 4f);
+            int glimmerCritBonus = Mathf.FloorToInt(caster.currentAttributes.Glimmer / 4f);
+
+            DebugHelper.Log($"CombatCalculator.CheckMagicalCriticalHit: {caster.unitName}. " +
+                            $"BaseCrit:{BASE_CRIT_CHANCE} + SparkBns:{sparkCritBonus} + GlimmerBns:{glimmerCritBonus} = TotalCrit%: {totalCritChance}. " +
+                            $"Roll: {roll}. Result: {(isCritical ? "MAGICAL CRITICAL HIT!" : "Normal Magical Hit")}", caster);
             return isCritical;
         }
     }

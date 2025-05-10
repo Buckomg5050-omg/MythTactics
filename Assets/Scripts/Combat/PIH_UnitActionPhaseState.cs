@@ -1,7 +1,8 @@
 // PIH_UnitActionPhaseState.cs
 using UnityEngine.InputSystem;
 using System.Collections.Generic; 
-using System.Linq; // NEW: Added for .Contains() on IReadOnlyList
+using System.Linq;
+using UnityEngine;
 
 namespace MythTactics.Combat
 {
@@ -16,40 +17,22 @@ namespace MythTactics.Combat
                 _inputHandler.ChangeState(new PIH_WaitingForTurnState());
                 return;
             }
-
-            // DebugHelper.Log($"PIH_UnitActionPhaseState: Entered for {_selectedUnit.unitName}. AP: {_selectedUnit.currentActionPoints}", _inputHandler);
-            _inputHandler.ClearAttackRangeHighlight(true); 
-            _inputHandler.ClearPathHighlight();          
+            _inputHandler.SelectedAbility = null; 
+            _inputHandler.ClearAllHighlights(); 
             _inputHandler.AttemptToShowMoveRangeForSelectedUnit();
-            if (_selectedUnit.CurrentTile != null)
-            {
-                _selectedUnit.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit);
-            }
+            if (_selectedUnit.CurrentTile != null) _selectedUnit.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit);
             _inputHandler.CheckAndHandleEndOfTurnActionsPIH(); 
         }
 
         public override void OnClickInput(InputAction.CallbackContext context, Tile clickedTile)
         {
             if (_selectedUnit == null || !_selectedUnit.IsAlive || clickedTile == null) return;
-
-            if (clickedTile == _selectedUnit.CurrentTile)
-            {
-                DebugHelper.Log("PIH_UnitActionPhaseState: Clicked selected unit's tile.", _inputHandler);
-                return;
-            }
-            
-            // Now we use the public accessor which returns IReadOnlyList
+            if (clickedTile == _selectedUnit.CurrentTile) { DebugHelper.Log("PIH_UnitActionPhaseState: Clicked selected unit's tile. No action.", _inputHandler); return; }
             if (_inputHandler.HighlightedReachableTiles.Contains(clickedTile) && !clickedTile.IsOccupied)
             {
-                if (!_selectedUnit.CanAffordAction(PlayerInputHandler.MoveActionCost))
-                {
-                    DebugHelper.LogWarning($"{_selectedUnit.unitName} cannot afford MOVE AP cost ({PlayerInputHandler.MoveActionCost}). Has {_selectedUnit.currentActionPoints}. Move blocked.", _inputHandler);
-                    return;
-                }
-                _selectedUnit.SpendActionPoints(PlayerInputHandler.MoveActionCost); 
-
+                if (!_selectedUnit.CanAffordAPForAction(PlayerInputHandler.MoveActionCost)) { DebugHelper.LogWarning($"{_selectedUnit.unitName} cannot afford MOVE AP cost ({PlayerInputHandler.MoveActionCost}). Has {_selectedUnit.currentActionPoints}. Move blocked.", _inputHandler); return; }
+                _selectedUnit.SpendAPForAction(PlayerInputHandler.MoveActionCost); 
                 List<Tile> path = _pathfinder.FindPath(_selectedUnit.CurrentTile.gridPosition, clickedTile.gridPosition, _selectedUnit);
-
                 if (path != null && path.Count > 0)
                 {
                     _inputHandler.ClearReachableHighlight(false); 
@@ -65,51 +48,54 @@ namespace MythTactics.Combat
                 }
             }
             else if (clickedTile.IsOccupied && clickedTile.occupyingUnit != _selectedUnit)
-            {
-                 DebugHelper.Log($"PIH_UnitActionPhaseState: Clicked on occupied tile {clickedTile.gridPosition} ({clickedTile.occupyingUnit.unitName}). No move action.", _inputHandler);
-            }
-            else
-            {
-                DebugHelper.Log($"PIH_UnitActionPhaseState: Clicked tile {clickedTile.gridPosition} is not a valid move target.", _inputHandler);
-            }
+            { DebugHelper.Log($"PIH_UnitActionPhaseState: Clicked on occupied tile {clickedTile.gridPosition} ({clickedTile.occupyingUnit.unitName}). No move action.", _inputHandler); }
+            else { DebugHelper.Log($"PIH_UnitActionPhaseState: Clicked tile {clickedTile.gridPosition} is not a valid move target.", _inputHandler); }
         }
 
         public override void OnToggleAttackModeInput(InputAction.CallbackContext context)
         {
             if (_selectedUnit == null || !_selectedUnit.IsAlive) return;
+            if (_selectedUnit.CanAffordAPForAction(PlayerInputHandler.AttackActionCost)) _inputHandler.ChangeState(new PIH_SelectingAttackTargetState());
+            else DebugHelper.LogWarning($"{_selectedUnit.unitName} cannot afford ATTACK (cost: {PlayerInputHandler.AttackActionCost}). Has {_selectedUnit.currentActionPoints} AP. Cannot enter attack mode.", _inputHandler);
+        }
 
-            if (_selectedUnit.CanAffordAction(PlayerInputHandler.AttackActionCost))
+        public override void OnSelectAbilityInput(InputAction.CallbackContext context)
+        {
+            if (_selectedUnit == null || !_selectedUnit.IsAlive) return;
+            if (_selectedUnit.knownAbilities == null || _selectedUnit.knownAbilities.Count == 0) { DebugHelper.Log($"{_selectedUnit.unitName} has no abilities to select.", _inputHandler); return; }
+            AbilitySO abilityToUse = _selectedUnit.knownAbilities[0]; 
+            if (abilityToUse == null) { DebugHelper.LogWarning($"{_selectedUnit.unitName}'s first ability is null.", _inputHandler); return; }
+
+            // MODIFIED: Pass true to CanAffordAbility to enable logging on failure
+            if (_selectedUnit.CanAffordAbility(abilityToUse, true))
             {
-                _inputHandler.ChangeState(new PIH_SelectingAttackTargetState());
+                _inputHandler.SelectedAbility = abilityToUse;
+                DebugHelper.Log($"{_selectedUnit.unitName} selected ability: {abilityToUse.abilityName}. Transitioning to target selection.", _inputHandler);
+                _inputHandler.ChangeState(new PIH_SelectingAbilityTargetState());
             }
             else
             {
-                DebugHelper.LogWarning($"{_selectedUnit.unitName} cannot afford ATTACK (cost: {PlayerInputHandler.AttackActionCost}). Has {_selectedUnit.currentActionPoints} AP. Cannot enter attack mode.", _inputHandler);
+                // Log from CanAffordAbility is now the primary source of the warning. This log is now supplemental.
+                DebugHelper.Log($"{_selectedUnit.unitName} could not select '{abilityToUse.abilityName}'. Reason logged by CanAffordAbility.", _inputHandler);
             }
         }
 
         public override void OnWaitInput(InputAction.CallbackContext context)
         {
             if (_selectedUnit == null || !_selectedUnit.IsAlive) return;
-
-            if (_selectedUnit.CanAffordAction(PlayerInputHandler.WaitActionCost))
+            if (_selectedUnit.CanAffordAPForAction(PlayerInputHandler.WaitActionCost))
             {
-                _selectedUnit.SpendActionPoints(PlayerInputHandler.WaitActionCost);
+                _selectedUnit.SpendAPForAction(PlayerInputHandler.WaitActionCost);
                 DebugHelper.Log($"{_selectedUnit.unitName} performs WAIT action. AP remaining: {_selectedUnit.currentActionPoints}", _inputHandler);
-                
-                _inputHandler.ClearAllHighlights();
-                if (TurnManager.Instance != null) TurnManager.Instance.EndUnitTurn(_selectedUnit);
+                _inputHandler.ClearAllHighlights(); 
+                _inputHandler.CheckAndHandleEndOfTurnActionsPIH(); 
             }
-            else
-            {
-                DebugHelper.LogWarning($"{_selectedUnit.unitName} cannot afford WAIT action (Cost: {PlayerInputHandler.WaitActionCost}). AP: {_selectedUnit.currentActionPoints}", _inputHandler);
-            }
+            else { DebugHelper.LogWarning($"{_selectedUnit.unitName} cannot afford WAIT action (Cost: {PlayerInputHandler.WaitActionCost}). AP: {_selectedUnit.currentActionPoints}", _inputHandler); }
         }
 
         public override void OnEndTurnInput(InputAction.CallbackContext context)
         {
              if (_selectedUnit == null || !_selectedUnit.IsAlive) return;
-
             DebugHelper.Log($"{_selectedUnit.unitName} explicitly ends turn (from UnitActionPhase). AP remaining: {_selectedUnit.currentActionPoints}", _inputHandler);
             _inputHandler.ClearAllHighlights();
             if (TurnManager.Instance != null) TurnManager.Instance.EndUnitTurn(_selectedUnit);
@@ -117,23 +103,14 @@ namespace MythTactics.Combat
         
         public override void UpdateState()
         {
-            if (_selectedUnit == null || !_selectedUnit.IsAlive || 
-                (_inputHandler.CombatActive && TurnManager.Instance.ActiveUnit != _selectedUnit) )
-            {
-                // DebugHelper.Log("PIH_UnitActionPhaseState: Conditions met to transition to WaitingForTurn.", _inputHandler);
-                _inputHandler.ChangeState(new PIH_WaitingForTurnState());
-                return;
-            }
+            if (_selectedUnit == null || !_selectedUnit.IsAlive || (_inputHandler.CombatActive && TurnManager.Instance.ActiveUnit != _selectedUnit) )
+            { _inputHandler.ChangeState(new PIH_WaitingForTurnState()); return; }
+            _inputHandler.ClearAllHighlights(); 
             _inputHandler.AttemptToShowMoveRangeForSelectedUnit(); 
+            if (_selectedUnit.CurrentTile != null) _selectedUnit.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit);
             _inputHandler.CheckAndHandleEndOfTurnActionsPIH(); 
         }
 
-        public override void ExitState()
-        {
-            // Clearing reachable highlights here ensures that if we transition to, say, attack targeting,
-            // the move highlights don't persist.
-            _inputHandler.ClearReachableHighlight(true); 
-            base.ExitState();
-        }
+        public override void ExitState() { base.ExitState(); }
     }
 }

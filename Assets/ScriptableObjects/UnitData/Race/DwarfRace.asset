@@ -17,3 +17,5 @@ MonoBehaviour:
     though not known for their fleetness of foot.'
   baseMovementContribution: -1
   raceSpeedBonus: 40
+  baseMPContribution: 0
+  baseSPContribution: 10

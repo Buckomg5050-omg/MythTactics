@@ -712,12 +712,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0de570b6b12247c40977b2147424c337, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  gridManager: {fileID: 1868929814}
   turnManager: {fileID: 900138082}
   playerUnitPrefab: {fileID: 9173187324434785590, guid: 5dde4b674721dd44ea975d894aa79d4e, type: 3}
   playerStartPos: {x: 1, y: 1}
-  dummyUnitPrefab: {fileID: 9173187324434785590, guid: a3536daaa7bdb1e40b504c45005c1d54, type: 3}
+  dummyUnitPrefab1: {fileID: 9173187324434785590, guid: a3536daaa7bdb1e40b504c45005c1d54, type: 3}
   blockingUnit1Pos: {x: 4, y: 1}
+  dummyUnitPrefab2: {fileID: 9173187324434785590, guid: 9597f6130a2d2a940911cdc2c1ed0062, type: 3}
   blockingUnit2Pos: {x: 6, y: 2}
   logPathTestStart: {x: 10, y: 10}
   logPathTestEnd: {x: 20, y: 20}

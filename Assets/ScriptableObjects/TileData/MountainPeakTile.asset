@@ -16,4 +16,4 @@ MonoBehaviour:
   displayName: MountainPeak
   tileSprite: {fileID: 21300000, guid: 62f21a6c23084f04a9970a6f82ea65ca, type: 3}
   movementCost: 255
-  evasionBonus: 0
+  evasionBonus: 2
