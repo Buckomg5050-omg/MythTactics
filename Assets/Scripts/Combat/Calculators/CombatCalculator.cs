@@ -35,7 +35,10 @@ namespace MythTactics.Combat
         Fire,
         Cold,
         // Ice, // "Ice" is often synonymous with "Cold"; GDD lists "Cold/Ice". Let's stick to "Cold" for simplicity unless distinct mechanics are planned.
-        Lightning
+        Lightning,
+
+        Poison      
+        
     }
 
     public static class CombatCalculator

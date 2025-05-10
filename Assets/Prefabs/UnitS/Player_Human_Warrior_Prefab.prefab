@@ -117,7 +117,7 @@ MonoBehaviour:
   unitName: Player Hero
   level: 1
   knownAbilities:
-  - {fileID: 11400000, guid: 722cecde233d2c242a83628b06721cef, type: 2}
+  - {fileID: 11400000, guid: 3c15a59f5c7edf1498ccf72fc486c07c, type: 2}
   equippedWeapon: {fileID: 11400000, guid: 32db0ab0bf4643243ab12e8e06f6b725, type: 2}
   equippedBodyArmor: {fileID: 11400000, guid: b463ce178bb8cb446a058aba0b6b2990, type: 2}
   moveSpeed: 5
@@ -149,7 +149,7 @@ MonoBehaviour:
   _baseMaxVitalityPoints: 0
   currentVitalityPoints: 0
   baseVitalityRegenRate: 0
-  _baseMaxManaPoints: 0
+  _baseMaxManaPoints: 20
   currentManaPoints: 0
   baseManaRegenRate: 1
   _baseMaxStaminaPoints: 0

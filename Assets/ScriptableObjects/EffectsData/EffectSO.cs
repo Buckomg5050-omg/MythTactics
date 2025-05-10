@@ -1,6 +1,7 @@
 // EffectSO.cs
 using UnityEngine;
-using System.Collections.Generic; // For List<StatModifier> and List<EffectTypeTag>
+using System.Collections.Generic;
+using MythTactics.Combat; // <<<<<<< ADD THIS LINE
 
 public enum EffectDurationType
 {
@@ -16,6 +17,13 @@ public enum EffectStackingBehavior
     IncreaseStacks,
 }
 
+public enum EffectTickActionType
+{
+    None,
+    Damage,
+    Heal
+}
+
 [CreateAssetMenu(fileName = "NewEffect", menuName = "MythTactics/Effect")]
 public class EffectSO : ScriptableObject
 {
@@ -27,7 +35,6 @@ public class EffectSO : ScriptableObject
     public Sprite icon;
 
     [Header("Duration & Stacking")]
-    // CORRECTED LINE:
     public EffectDurationType durationType = EffectDurationType.Rounds;
     [Tooltip("Number of rounds/turns the effect lasts. Not used if durationType is Permanent.")]
     public int duration = 3;
@@ -39,6 +46,16 @@ public class EffectSO : ScriptableObject
     [Tooltip("Modifiers to primary or derived stats.")]
     public List<StatModifier> statModifiers;
 
-    [Tooltip("Tags to categorize the effect (e.g., Buff, Debuff, Poison, Magic, Physical). Used for immunities, cleansing, interactions.")]
+    [Tooltip("Tags to categorize the effect (e.g., Buff, Debuff, Poison, Magic, Physical).")]
     public List<string> effectTypeTags;
+
+    [Header("Tick Action (DoT/HoT)")]
+    [Tooltip("Action to perform each time the effect ticks (usually at start/end of affected unit's turn).")]
+    public EffectTickActionType tickActionType = EffectTickActionType.None;
+
+    [Tooltip("Base power for the tick action (e.g., damage amount or heal amount per tick).")]
+    public int tickActionBasePower = 0;
+
+    [Tooltip("DamageType for tick action, if tickActionType is Damage.")]
+    public DamageType tickActionDamageType = DamageType.True;
 }
