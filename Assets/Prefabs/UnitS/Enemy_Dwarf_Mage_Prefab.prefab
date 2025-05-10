@@ -13,6 +13,10 @@ GameObject:
   - component: {fileID: 6908189616136713099}
   - component: {fileID: -6695904852252191918}
   - component: {fileID: 1568386280519729019}
+  - component: {fileID: 6043540816100653047}
+  - component: {fileID: 4589334875929836765}
+  - component: {fileID: 388531307580686513}
+  - component: {fileID: 4811907382212882586}
   m_Layer: 0
   m_Name: Enemy_Dwarf_Mage_Prefab
   m_TagString: Untagged
@@ -124,7 +128,6 @@ MonoBehaviour:
   maxActionPoints: 2
   currentActionPoints: 0
   actionCounter: 0
-  aiHandler: {fileID: -6695904852252191918}
 --- !u!114 &-6695904852252191918
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -156,13 +159,66 @@ MonoBehaviour:
     Spark: 5
     Glimmer: 5
     Aura: 5
-  _maxVitalityPoints: 0
+  _maxVitalityPoints: 10
   currentVitalityPoints: 0
-  _maxManaPoints: 0
+  _maxManaPoints: 10
   currentManaPoints: 0
-  _maxStaminaPoints: 0
+  _maxStaminaPoints: 10
   currentStaminaPoints: 0
-  _maxFocusPoints: 0
+  _maxFocusPoints: 10
   currentFocusPoints: 0
-  _maxInfluencePoints: 0
+  _maxInfluencePoints: 10
   currentInfluencePoints: 0
+--- !u!114 &6043540816100653047
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9173187324434785590}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d34f27edcf481ba4c8f6e6eab5155d06, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &4589334875929836765
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9173187324434785590}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e1ba1217e6693014790e6ac09df35a30, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _moveSpeed: 5
+--- !u!114 &388531307580686513
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9173187324434785590}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c3c2637d2718e0a4ba596e18105e296f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _attackAnimDuration: 0.5
+  _hurtAnimDuration: 0.3
+  _deathAnimDuration: 1
+--- !u!114 &4811907382212882586
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9173187324434785590}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d2feb03234225124bb0aec7d81fcc9ca, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  aiHandlerLogic: {fileID: 0}

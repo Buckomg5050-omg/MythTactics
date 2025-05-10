@@ -6,7 +6,9 @@ using MythTactics.Combat;
 
 [RequireComponent(typeof(UnitStats))]
 [RequireComponent(typeof(UnitCombat))]
-[RequireComponent(typeof(UnitMovement))] // Ensure UnitMovement is present
+[RequireComponent(typeof(UnitMovement))] 
+[RequireComponent(typeof(UnitAnimation))] 
+[RequireComponent(typeof(UnitAI))] 
 public class Unit : MonoBehaviour
 {
     [Header("Core Unit Data")]
@@ -18,7 +20,9 @@ public class Unit : MonoBehaviour
     [Header("Components")]
     public UnitStats Stats { get; private set; }
     public UnitCombat Combat { get; private set; }
-    public UnitMovement Movement { get; private set; } // NEW: UnitMovement component
+    public UnitMovement Movement { get; private set; } 
+    public UnitAnimation Animation { get; private set; } 
+    public UnitAI AI { get; private set; } 
 
     [Header("Basic Info")]
     public string unitName = "Unit";
@@ -31,12 +35,8 @@ public class Unit : MonoBehaviour
     public WeaponSO equippedWeapon;
     public ArmorSO equippedBodyArmor;
 
-    // MODIFIED: moveSpeed is now primarily managed by UnitMovement, but Unit can still expose it if needed for Inspector setup.
     [Header("Movement & Animation Timings")] 
-    [Tooltip("Base movement speed for visual lerping. Initial value set for UnitMovement component.")]
     public float moveSpeed = 5f; 
-
-    // Animation timings might move to UnitAnimation or be referenced by it
     public float attackAnimDuration = 0.5f;
     public float hurtAnimDuration = 0.3f;
     public float deathAnimDuration = 1.0f;
@@ -48,18 +48,17 @@ public class Unit : MonoBehaviour
     [Header("Turn Order")]
     public int actionCounter = 0;
 
-    [Header("AI")]
-    [SerializeField] private BasicAIHandler aiHandler;
-
-    // REMOVED: _currentTile, _isMoving, _moveCoroutine (now in UnitMovement)
-    // Public accessors for these now go through UnitMovement
     public Tile CurrentTile => (Movement != null) ? Movement.CurrentTile : null;
     public bool IsMoving => (Movement != null) ? Movement.IsMoving : false;
-
     public bool IsAlive => (Stats != null) ? Stats.IsAlive : false;
+
+    private SpriteRenderer _mainSpriteRenderer;
 
     void Awake()
     {
+        _mainSpriteRenderer = GetComponent<SpriteRenderer>(); 
+        if (_mainSpriteRenderer == null && transform.childCount > 0) _mainSpriteRenderer = GetComponentInChildren<SpriteRenderer>();
+
         Stats = GetComponent<UnitStats>();
         if (Stats == null) Stats = gameObject.AddComponent<UnitStats>();
         Stats.Initialize(this, raceData, classData, initialPrimaryAttributes);
@@ -68,42 +67,28 @@ public class Unit : MonoBehaviour
         if (Combat == null) Combat = gameObject.AddComponent<UnitCombat>();
         Combat.Initialize(this);
 
-        // NEW: Initialize UnitMovement
         Movement = GetComponent<UnitMovement>();
         if (Movement == null) Movement = gameObject.AddComponent<UnitMovement>();
         Movement.Initialize(this);
-        Movement.MoveSpeed = this.moveSpeed; // Pass the inspector value to UnitMovement
-    }
+        Movement.MoveSpeed = this.moveSpeed;
 
-    // --- Animation Placeholders (to be moved to UnitAnimation) ---
-    public IEnumerator PerformAttackAnimation() { yield return new WaitForSeconds(attackAnimDuration); }
-    public IEnumerator PerformHurtAnimation() { if (!IsAlive) yield break; yield return new WaitForSeconds(hurtAnimDuration); }
-    public IEnumerator PerformDeathAnimation()
-    {
-        SpriteRenderer sr = GetComponent<SpriteRenderer>();
-        if (sr != null) sr.color = Color.red;
-        yield return new WaitForSeconds(deathAnimDuration);
-        if (sr != null && this != null && gameObject != null && gameObject.activeInHierarchy) sr.color = Color.black;
+        Animation = GetComponent<UnitAnimation>();
+        if (Animation == null) Animation = gameObject.AddComponent<UnitAnimation>();
+        Animation.Initialize(this, _mainSpriteRenderer); 
+        Animation.SetAttackAnimDuration(this.attackAnimDuration);
+        Animation.SetHurtAnimDuration(this.hurtAnimDuration);
+        Animation.SetDeathAnimDuration(this.deathAnimDuration);
+
+        AI = GetComponent<UnitAI>();
+        if (AI == null) AI = gameObject.AddComponent<UnitAI>();
+        AI.Initialize(this);
     }
     
-    // --- Methods that UnitCombat might call on Unit (related to movement consequences of dying) ---
-    public void StopMovementCoroutines() // Called by UnitCombat.Die
-    {
-        Movement?.StopMovementCoroutines();
-    }
-    public void ClearCurrentTileReference() // Called by UnitCombat.Die
-    {
-        Movement?.ClearCurrentTileReferenceForDeath();
-    }
+    public void StopMovementCoroutines() { Movement?.StopMovementCoroutines(); }
+    public void ClearCurrentTileReference() { Movement?.ClearCurrentTileReferenceForDeath(); }
 
-
-    // --- AP Management (still on Unit) ---
     public void ResetActionPoints() { if (!IsAlive) { currentActionPoints = 0; return; } currentActionPoints = maxActionPoints; }
-    public bool CanAffordAPForAction(int apCost)
-    {
-        if (!IsAlive) return false;
-        return currentActionPoints >= apCost;
-    }
+    public bool CanAffordAPForAction(int apCost) { if (!IsAlive) return false; return currentActionPoints >= apCost; }
     public void SpendAPForAction(int apCost)
     {
         if (!IsAlive) return;
@@ -112,26 +97,9 @@ public class Unit : MonoBehaviour
         else DebugHelper.LogWarning($"{unitName} FAILED to spend AP cost {apCost}. Has {currentActionPoints}/{maxActionPoints}.", this);
     }
     
-    // --- AI (to be moved to UnitAI) ---
-    public IEnumerator ProcessAITurn() 
-    {
-        if (!IsAlive) { if (TurnManager.Instance != null && TurnManager.Instance.ActiveUnit == this) TurnManager.Instance.EndUnitTurn(this); yield break; }
-        if (CompareTag("Player")) { if (TurnManager.Instance != null && TurnManager.Instance.ActiveUnit == this) TurnManager.Instance.EndUnitTurn(this); yield break; }
-        if (aiHandler == null)
-        {
-            if (CanAffordAPForAction(PlayerInputHandler.WaitActionCost)) SpendAPForAction(PlayerInputHandler.WaitActionCost);
-            if (TurnManager.Instance != null && TurnManager.Instance.ActiveUnit == this) TurnManager.Instance.EndUnitTurn(this);
-            yield break;
-        }
-        yield return StartCoroutine(aiHandler.ExecuteTurn(this)); 
-        if (TurnManager.Instance != null && TurnManager.Instance.ActiveUnit == this) TurnManager.Instance.EndUnitTurn(this);
-    }
-
-    // --- Other Derived Stats (some might move to relevant components if they don't need Unit's direct Race/Class SOs) ---
-    // CalculatedMoveRange is now in UnitMovement
     public int CalculatedAttackRange 
     {
-        get
+        get 
         {
             if (!IsAlive) return 0;
             int classRange = (classData != null ? Mathf.Max(0, classData.baseAttackRange) : 0);
@@ -141,21 +109,36 @@ public class Unit : MonoBehaviour
             return 1;
         }
     }
-    public int RawCalculatedBaseUnitSpeed
+
+    public int RawCalculatedBaseUnitSpeed 
     {
         get
         {
-            if (!IsAlive) return 1;
+            if (!IsAlive) return 1; 
+            
             int raceBonus = (raceData != null) ? raceData.raceSpeedBonus : 0;
             int classBonus = (classData != null) ? classData.classSpeedBonus : 0;
-            int echoFactor = (Stats != null && Stats.currentAttributes != null) ? Stats.currentAttributes.Echo * 2 : 0;
-            int glimmerFactor = (Stats != null && Stats.currentAttributes != null) ? Stats.currentAttributes.Glimmer * 1 : 0;
-            return raceBonus + classBonus + echoFactor + glimmerFactor;
+
+            int echoVal = 0;
+            int glimmerVal = 0;
+            // bool attributesValid = (Stats != null && Stats.currentAttributes != null); // Keep for clarity if desired
+
+            if (Stats != null && Stats.currentAttributes != null)
+            {
+                echoVal = Stats.currentAttributes.Echo;
+                glimmerVal = Stats.currentAttributes.Glimmer;
+            }
+            
+            int echoFactor = echoVal * 2;
+            int glimmerFactor = glimmerVal * 1;
+            
+            int totalRawSpeed = raceBonus + classBonus + echoFactor + glimmerFactor;
+
+            // REMOVED DEBUG LOG FROM HERE
+                            
+            return totalRawSpeed;
         }
     }
     public int FinalCalculatedBaseUnitSpeed => IsAlive ? Mathf.Max(1, RawCalculatedBaseUnitSpeed) : 1;
     public int EffectiveSpeed => IsAlive ? (FinalCalculatedBaseUnitSpeed) : 1;
-
-    // REMOVED: PlaceOnTile, SetCurrentTile, MoveOnPath, PerformMovement, CalculatedMoveRange
-    // (They are now in UnitMovement and accessed via unit.Movement.*)
 }
