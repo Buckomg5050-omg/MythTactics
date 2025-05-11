@@ -7,11 +7,13 @@ namespace MythTactics.Combat
     public abstract class PlayerInputStateBase
     {
         protected PlayerInputHandler _inputHandler; 
+
+        // RESTORED: Convenient properties for derived classes
         protected Unit _selectedUnit => _inputHandler.SelectedUnit; 
         protected Pathfinder _pathfinder => _inputHandler.Pathfinder; 
         protected PlayerControls _playerControls => _inputHandler.PlayerControls; 
-        protected Camera _mainCamera => _inputHandler.MainCamera; 
-
+        protected Camera _mainCamera => _inputHandler.MainCamera;
+        // You can add more for other frequently accessed PlayerInputHandler members if needed
 
         public virtual void EnterState(PlayerInputHandler inputHandler)
         {
@@ -20,16 +22,13 @@ namespace MythTactics.Combat
 
         public abstract void OnClickInput(InputAction.CallbackContext context, Tile clickedTile);
         public abstract void OnToggleAttackModeInput(InputAction.CallbackContext context);
-        public abstract void OnWaitInput(InputAction.CallbackContext context);
+        public virtual void OnWaitInput(InputAction.CallbackContext context) { } 
         public abstract void OnEndTurnInput(InputAction.CallbackContext context);
-
-        // NEW: Called for select ability input
         public virtual void OnSelectAbilityInput(InputAction.CallbackContext context) { }
+        public virtual void OnToggleActionMenuInput(InputAction.CallbackContext context) { }
 
         public virtual void UpdateState() { }
         
-        public virtual void ExitState()
-        {
-        }
+        public virtual void ExitState() { }
     }
 }

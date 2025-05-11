@@ -58,19 +58,18 @@ public class SkillSlotUI // Helper class for managing individual skill slot inst
             skillCostText.text = costString;
         }
         
-        // Example for AbilitySO having an 'icon' field of type Sprite
-        // if (skillIconImage != null)
-        // {
-        //     if (ability.icon != null) 
-        //     {
-        //         skillIconImage.sprite = ability.icon;
-        //         skillIconImage.enabled = true;
-        //     }
-        //     else
-        //     {
-        //          skillIconImage.enabled = false; // Hide if no icon provided
-        //     }
-        // }
+        if (skillIconImage != null)
+        {
+            if (ability.abilityIcon != null) // MODIFIED: Was ability.icon
+            {
+                skillIconImage.sprite = ability.abilityIcon; // MODIFIED: Was ability.icon
+                skillIconImage.enabled = true;
+            }
+            else
+            {
+                 skillIconImage.enabled = false; // Hide if no icon provided
+            }
+        }
     }
 }
 

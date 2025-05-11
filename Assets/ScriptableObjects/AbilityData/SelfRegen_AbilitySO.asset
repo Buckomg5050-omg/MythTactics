@@ -15,6 +15,7 @@ MonoBehaviour:
   abilityName: Self Regeneration
   description: The user focuses inward, gaining a minor healing effect over several
     turns.
+  abilityIcon: {fileID: 21300000, guid: f97874e2b452420479ecbd8c76da63eb, type: 3}
   apCost: 1
   mpCost: 8
   spCost: 0

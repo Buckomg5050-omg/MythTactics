@@ -10,8 +10,10 @@ public class PlayerInputHandler : MonoBehaviour
     [Header("UI References")]
     public ActionMenuUI actionMenuUI;
     public GameObject skillSelectionPanelPrefab;
+    public GameObject unitInfoPanelPrefab; 
 
     private SkillSelectionUI _skillSelectionPanelInstance; 
+    private UnitInfoPanelUI _unitInfoPanelInstance; 
 
     [Header("Action Costs")] 
     public static int MoveActionCost = 1;
@@ -41,6 +43,7 @@ public class PlayerInputHandler : MonoBehaviour
     public IReadOnlyList<Tile> HighlightedAbilityRangeTiles => _highlightedAbilityRangeTiles.AsReadOnly();
     public bool CombatActive => TurnManager.Instance != null && TurnManager.Instance.IsCombatActive;
     public AbilitySO SelectedAbility { get; set; }
+    public UnitInfoPanelUI UnitInfoPanelInstance => _unitInfoPanelInstance; 
 
     void Awake()
     {
@@ -51,13 +54,33 @@ public class PlayerInputHandler : MonoBehaviour
         if (TurnManager.Instance == null) { DebugHelper.LogError("PIH: TurnManager.Instance is missing!", this); enabled = false; return; }
         if (actionMenuUI == null) { DebugHelper.LogError("PIH: ActionMenuUI reference is not set in the Inspector!", this); enabled = false; return; }
         if (skillSelectionPanelPrefab == null) { DebugHelper.LogError("PIH: SkillSelectionPanelPrefab not assigned in Inspector!", this); enabled = false; return; }
+        if (unitInfoPanelPrefab == null) { DebugHelper.LogWarning("PIH: UnitInfoPanelPrefab not assigned in Inspector. Info panel functionality will be limited.", this); } 
 
         _pathfinder = GridManager.Instance.PathfinderInstance;
         if (_pathfinder == null) DebugHelper.LogError("PIH: PathfinderInstance from GridManager is null! Pathfinding will not work.", this);
 
-        // Ensure ActionMenuUI starts hidden and its internal state is clean
-        if(actionMenuUI != null) actionMenuUI.HideMenu();
-
+        if (unitInfoPanelPrefab != null) 
+        {
+            Canvas mainCanvas = FindFirstObjectByType<Canvas>();
+            if (mainCanvas != null)
+            {
+                GameObject panelGO = Instantiate(unitInfoPanelPrefab, mainCanvas.transform);
+                _unitInfoPanelInstance = panelGO.GetComponent<UnitInfoPanelUI>();
+                if (_unitInfoPanelInstance == null)
+                {
+                    Debug.LogError("PIH: UnitInfoPanelPrefab is missing the UnitInfoPanelUI script!", panelGO);
+                    Destroy(panelGO);
+                }
+                else
+                {
+                    _unitInfoPanelInstance.HidePanel(); 
+                }
+            }
+            else
+            {
+                Debug.LogError("PIH: No Canvas found in scene to instantiate UnitInfoPanel!", this);
+            }
+        }
 
         ChangeState(new PIH_WaitingForTurnState());
     }
@@ -76,10 +99,19 @@ public class PlayerInputHandler : MonoBehaviour
             {
                 _selectedUnit = currentTurnManagerActiveUnit;
                 if (_selectedUnit.Stats == null) { DebugHelper.LogWarning($"PIH Update: Player unit {_selectedUnit.unitName} selected, but Stats component is null.", this); }
-                if (!(_currentStateObject is PIH_SelectingMoveTargetState) && !(_currentStateObject is PIH_UnitMovingState) && !(_currentStateObject is PIH_SelectingAbilityTargetState) && !(_currentStateObject is PIH_SelectingAttackTargetState) ) 
+                if (!(_currentStateObject is PIH_SelectingMoveTargetState) && 
+                    !(_currentStateObject is PIH_UnitMovingState) && 
+                    !(_currentStateObject is PIH_SelectingAbilityTargetState) && 
+                    !(_currentStateObject is PIH_SelectingAttackTargetState) &&
+                    !(_currentStateObject is PIH_ViewingUnitInfoState)) 
                 { ChangeState(new PIH_UnitActionPhaseState()); }
             }
-            else if (!(_currentStateObject is PIH_UnitActionPhaseState || _currentStateObject is PIH_SelectingAttackTargetState || _currentStateObject is PIH_SelectingMoveTargetState || _currentStateObject is PIH_UnitMovingState || _currentStateObject is PIH_SelectingAbilityTargetState )) 
+            else if (!(_currentStateObject is PIH_UnitActionPhaseState || 
+                       _currentStateObject is PIH_SelectingAttackTargetState || 
+                       _currentStateObject is PIH_SelectingMoveTargetState || 
+                       _currentStateObject is PIH_UnitMovingState || 
+                       _currentStateObject is PIH_SelectingAbilityTargetState ||
+                       _currentStateObject is PIH_ViewingUnitInfoState )) 
             { ChangeState(new PIH_UnitActionPhaseState()); }
         }
         else { if (_selectedUnit != null || !(_currentStateObject is PIH_WaitingForTurnState)) { _selectedUnit = null; SelectedAbility = null; ChangeState(new PIH_WaitingForTurnState()); } }
@@ -118,6 +150,11 @@ public class PlayerInputHandler : MonoBehaviour
         {
             _skillSelectionPanelInstance?.HidePanel();
         }
+
+        if (!(_currentStateObject is PIH_ViewingUnitInfoState))
+        {
+            _unitInfoPanelInstance?.HidePanel();
+        }
         
         _currentStateObject.EnterState(this); 
         DebugHelper.Log($"PIH changed to state (finalized): {newState.GetType().Name}", this);
@@ -135,6 +172,7 @@ public class PlayerInputHandler : MonoBehaviour
         
         ActionMenuUI.OnActionSelected += HandleActionMenuSelection; 
         SkillSelectionUI.OnSkillAbilitySelected += HandleSkillSelectedFromPanel; 
+        UnitInfoPanelUI.OnInfoPanelClosedByButton += HandleInfoPanelClosedByButton; // ADDED subscription
     }
 
     private void OnDisable()
@@ -148,21 +186,69 @@ public class PlayerInputHandler : MonoBehaviour
 
         ActionMenuUI.OnActionSelected -= HandleActionMenuSelection; 
         SkillSelectionUI.OnSkillAbilitySelected -= HandleSkillSelectedFromPanel; 
+        UnitInfoPanelUI.OnInfoPanelClosedByButton -= HandleInfoPanelClosedByButton; // ADDED unsubscription
 
         if (_playerControls.Gameplay.enabled) _playerControls.Gameplay.Disable();
+    }
+
+    // ADDED method to handle the event from UnitInfoPanelUI
+    private void HandleInfoPanelClosedByButton()
+    {
+        if (_currentStateObject is PIH_ViewingUnitInfoState)
+        {
+            DebugHelper.Log("PIH: InfoPanelCloseButton event received. Transitioning to UnitActionPhaseState.", this);
+            ChangeState(new PIH_UnitActionPhaseState());
+        }
     }
 
     private void OnClickPerformedHandler(InputAction.CallbackContext context) { _currentStateObject?.OnClickInput(context, GetClickedTileFromMouse()); }
     private void OnToggleAttackModeInputHandler(InputAction.CallbackContext context) { _currentStateObject?.OnToggleAttackModeInput(context); }
     private void OnSelectAbilityInputHandler(InputAction.CallbackContext context) { _currentStateObject?.OnSelectAbilityInput(context); }
     private void OnEndTurnInputHandler(InputAction.CallbackContext context) { _currentStateObject?.OnEndTurnInput(context); }
-
+    // MODIFIED: Added call to state's OnToggleActionMenuInput
     private void OnToggleActionMenuPerformedHandler(InputAction.CallbackContext context)
     {
+        // Allow the state to handle it first if it wants to (e.g., PIH_ViewingUnitInfoState)
+        if (_currentStateObject != null)
+        {
+            _currentStateObject.OnToggleActionMenuInput(context);
+            // If the state changed as a result (e.g., from ViewingInfo to UnitActionPhase),
+            // the subsequent logic might not be needed or might act on the new state.
+            // For PIH_ViewingUnitInfoState, it changes state, so the rest of this method might not be relevant in that specific case.
+            // Let's check if the state is still the same. This is a bit tricky if the state changes state itself.
+            // A simpler way is that PIH_ViewingUnitInfoState.OnToggleActionMenuInput does its job, and if it's NOT that state, the old logic runs.
+
+            // If current state is ViewingUnitInfo, its OnToggleActionMenuInput would have already handled it and changed state.
+            // So we can return if we were in that state.
+            // However, PIH_ViewingUnitInfoState might NOT be the only state that wants to handle this.
+            // The current implementation of OnToggleActionMenuInput in PIH_ViewingUnitInfoState already changes state.
+            // So this handler in PIH might run *after* the state has already changed.
+
+            // Let's refine: if the state has a specific handler, let it run.
+            // If not, or if it doesn't "consume" the input, PIH does its default.
+            // The current PlayerInputStateBase.OnToggleActionMenuInput is virtual.
+            // PIH_ViewingUnitInfoState overrides it. Other states might use the base (empty) or override.
+            
+            // The current logic in PIH_ViewingUnitInfoState.OnToggleActionMenuInput is to change state.
+            // So, if we are in PIH_ViewingUnitInfoState, it will handle it.
+            if (_currentStateObject is PIH_ViewingUnitInfoState)
+            {
+                // Already handled by the state's OnToggleActionMenuInput, which changed the state.
+                return; 
+            }
+        }
+
+
+        // If not handled by a specific state override (or if we are not in PIH_ViewingUnitInfoState), run default toggle logic:
         if (_selectedUnit == null || !CombatActive || !_selectedUnit.CompareTag("Player") || TurnManager.Instance.ActiveUnit != _selectedUnit)
         {
-            actionMenuUI?.HideMenu(); _skillSelectionPanelInstance?.HidePanel(); return;
+            actionMenuUI?.HideMenu(); 
+            _skillSelectionPanelInstance?.HidePanel();
+            // _unitInfoPanelInstance?.HidePanel(); // Already handled by state changes or PIH_ViewingUnitInfoState.OnToggleActionMenuInput
+            return;
         }
+
+        // This part is for when NOT in PIH_ViewingUnitInfoState
         if (_skillSelectionPanelInstance != null && _skillSelectionPanelInstance.IsVisible())
         {
             _skillSelectionPanelInstance.HidePanel();
@@ -177,6 +263,8 @@ public class PlayerInputHandler : MonoBehaviour
         }
         else
         {
+            // If no other panel is open and action menu is hidden, show action menu
+            // (or change to action phase which will show it)
             if (_currentStateObject is PIH_UnitActionPhaseState) { ShowActionMenuForSelectedUnitPublic(); }
             else { ChangeState(new PIH_UnitActionPhaseState()); }
         }
@@ -188,6 +276,7 @@ public class PlayerInputHandler : MonoBehaviour
             TurnManager.Instance != null && TurnManager.Instance.ActiveUnit == _selectedUnit) 
         {
             _skillSelectionPanelInstance?.HidePanel();
+            _unitInfoPanelInstance?.HidePanel(); 
             
             Vector2 screenPos = _mainCamera.WorldToScreenPoint(_selectedUnit.transform.position);
             DebugHelper.Log($"PIH ShowActionMenuForSelectedUnitPublic: Attempting to show menu for '{_selectedUnit.unitName}' via actionMenuUI.ShowMenu(). ScreenPos: {screenPos}", this);
@@ -227,6 +316,7 @@ public class PlayerInputHandler : MonoBehaviour
         Debug.Log($"PIH: Hotkey Action: '{actionName}' for unit '{_selectedUnit.unitName}'.", this);
         actionMenuUI?.HideMenu(); 
         _skillSelectionPanelInstance?.HidePanel();
+        _unitInfoPanelInstance?.HidePanel(); 
         ProcessActionSelection(actionName); 
     }
     
@@ -235,10 +325,11 @@ public class PlayerInputHandler : MonoBehaviour
         if (unit != _selectedUnit || _selectedUnit == null) { Debug.LogWarning($"PIH: ActionMenuSelection: Action '{actionName}' for unit '{unit?.unitName}', but selected is '{_selectedUnit?.unitName}'. Ignoring.", this); return; }
         Debug.Log($"PIH: ActionMenuSelection: '{actionName}' for unit '{unit.unitName}'.", this);
         _skillSelectionPanelInstance?.HidePanel(); 
+        _unitInfoPanelInstance?.HidePanel(); 
         ProcessActionSelection(actionName);
     }
 
-    private void ProcessActionSelection(string actionName)
+     private void ProcessActionSelection(string actionName)
     {
         bool actionPotentiallyEndsTurnOrRequiresApCheck = false;
         switch (actionName)
@@ -258,8 +349,21 @@ public class PlayerInputHandler : MonoBehaviour
                 else { Debug.LogWarning($"PIH: {_selectedUnit.unitName} cannot afford 'Wait'.", this); ChangeState(new PIH_UnitActionPhaseState()); }
                 break;
             case "Skills":
+                // Assuming SkillsActionCost is cost to open menu, actual skill costs handled later
                 if (_selectedUnit.CanAffordAPForAction(SkillsActionCost)) { ShowSkillSelectionPanel(); } 
                 else { Debug.LogWarning($"PIH: {_selectedUnit.unitName} cannot afford 'Skills' menu.", this); ChangeState(new PIH_UnitActionPhaseState()); }
+                break;
+            case "Info": 
+                // MODIFIED: Removed AP check for Info action
+                if (_unitInfoPanelInstance != null)
+                {
+                    ChangeState(new PIH_ViewingUnitInfoState());
+                }
+                else 
+                { 
+                    Debug.LogWarning("PIH: UnitInfoPanelInstance is null. Cannot show info.", this); 
+                    ChangeState(new PIH_UnitActionPhaseState());
+                }
                 break;
             default: 
                 Debug.Log($"PIH: Action '{actionName}' for {_selectedUnit.unitName} - default processing (revert to action phase).", this);
@@ -280,9 +384,10 @@ public class PlayerInputHandler : MonoBehaviour
             _skillSelectionPanelInstance = panelGO.GetComponent<SkillSelectionUI>();
             if (_skillSelectionPanelInstance == null) { Debug.LogError("PIH: SkillSelectionPanelPrefab missing SkillSelectionUI!", panelGO); Destroy(panelGO); return; }
         }
-        Vector2 panelPosition = (Vector2)_mainCamera.WorldToScreenPoint(_selectedUnit.transform.position) + new Vector2(0, 250); 
+        Vector2 panelPosition = (Vector2)_mainCamera.WorldToScreenPoint(_selectedUnit.transform.position) + new Vector2(150, 0); 
         _skillSelectionPanelInstance.ShowPanel(_selectedUnit, panelPosition, _selectedUnit.knownAbilities);
         actionMenuUI?.HideMenu(); 
+        _unitInfoPanelInstance?.HidePanel(); 
     }
 
     private void HandleSkillSelectedFromPanel(Unit caster, AbilitySO selectedAbility)
@@ -313,15 +418,15 @@ public class PlayerInputHandler : MonoBehaviour
         if (_selectedUnit?.Movement?.CurrentTile != null)
         {
             bool isSelectedUnitsTurn = TurnManager.Instance?.ActiveUnit == _selectedUnit;
-            bool isActionPhaseAndMenuShouldBeComing = _currentStateObject is PIH_UnitActionPhaseState && isSelectedUnitsTurn;
+            bool isActionPhaseOrInfoViewAndMenuShouldBeComing = (_currentStateObject is PIH_UnitActionPhaseState || _currentStateObject is PIH_ViewingUnitInfoState) && isSelectedUnitsTurn;
 
-            if (!isActionPhaseAndMenuShouldBeComing) 
+            if (!isActionPhaseOrInfoViewAndMenuShouldBeComing) 
             {
                  if (_selectedUnit.Movement.CurrentTile.CurrentHighlightState == TileHighlightState.SelectedUnit || 
                     _selectedUnit.Movement.CurrentTile.CurrentHighlightState == TileHighlightState.ActiveTurnUnit)
                 {
                     if(!isSelectedUnitsTurn || 
-                       !(_currentStateObject is PIH_WaitingForTurnState || _currentStateObject is PIH_UnitActionPhaseState)) // Keep highlight if in action phase or waiting for turn (where unit might still be "focused")
+                       !(_currentStateObject is PIH_WaitingForTurnState || _currentStateObject is PIH_UnitActionPhaseState || _currentStateObject is PIH_ViewingUnitInfoState))
                          _selectedUnit.Movement.CurrentTile.SetHighlight(TileHighlightState.None);
                 }
             }
@@ -379,7 +484,9 @@ public class PlayerInputHandler : MonoBehaviour
         bool canTakeAnyOneAPAction = _selectedUnit.CurrentActionPoints >= 1; 
         if (!canTakeAnyOneAPAction) 
         {
-            actionMenuUI?.HideMenu(); _skillSelectionPanelInstance?.HidePanel(); 
+            actionMenuUI?.HideMenu(); 
+            _skillSelectionPanelInstance?.HidePanel(); 
+            _unitInfoPanelInstance?.HidePanel(); 
             if (_selectedUnit.Movement.CurrentTile != null) _selectedUnit.Movement.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit); 
             DebugHelper.Log($"PIH: {_selectedUnit.unitName} has no AP left. Ending turn.", _selectedUnit);
             TurnManager.Instance.EndUnitTurn(_selectedUnit);

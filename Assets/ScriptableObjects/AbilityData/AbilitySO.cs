@@ -17,7 +17,7 @@ public class AbilitySO : ScriptableObject
     [TextArea(3, 5)]
     public string description = "Ability Description.";
 
-    // public Sprite abilityIcon;
+    public Sprite abilityIcon;
 
     [Header("Costs")]
     [Tooltip("Action Points (AP) required to use this ability.")]
