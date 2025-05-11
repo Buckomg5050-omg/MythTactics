@@ -707,15 +707,13 @@ MonoBehaviour:
   radialActionButtonPrefab: {fileID: 2243105095909431339, guid: 74d2bc0b05e29784e8b68cdba2f749dd, type: 3}
   menuRadius: 100
   menuCenterOffset: {x: 0, y: 0}
-  angularSpreadDegrees: 360
-  startAngleOffsetDegrees: 0
-  availableActionNames:
-  - Move
-  - Attack
-  - Skills
-  - Items
-  - Info
-  - Wait
+  configurableActions:
+  - actionName: Skills
+  - actionName: Items
+  - actionName: Move
+  - actionName: Attack
+  - actionName: Info
+  - actionName: Wait
 --- !u!1 &900138081
 GameObject:
   m_ObjectHideFlags: 0
@@ -1174,6 +1172,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   actionMenuUI: {fileID: 833739196}
   skillSelectionPanelPrefab: {fileID: 4970908606545411280, guid: 60749c5fc3f7b074b9505f29f8e7eba0, type: 3}
+  unitInfoPanelPrefab: {fileID: 1843257699491961977, guid: d51c5bd744f2db5448e3afacf4b36f25, type: 3}
 --- !u!4 &1791791679
 Transform:
   m_ObjectHideFlags: 0

@@ -119,7 +119,7 @@ MonoBehaviour:
   knownAbilities:
   - {fileID: 11400000, guid: 3c15a59f5c7edf1498ccf72fc486c07c, type: 2}
   - {fileID: 11400000, guid: 722cecde233d2c242a83628b06721cef, type: 2}
-  - {fileID: 11400000, guid: 5c2dd0a3dcc879840bc6092691517138, type: 2}
+  - {fileID: 11400000, guid: 6b03aa241c84e444fa20f5e1bc51dd19, type: 2}
   equippedWeapon: {fileID: 11400000, guid: 32db0ab0bf4643243ab12e8e06f6b725, type: 2}
   equippedBodyArmor: {fileID: 11400000, guid: b463ce178bb8cb446a058aba0b6b2990, type: 2}
   moveSpeed: 5
@@ -143,24 +143,24 @@ MonoBehaviour:
     Core: 5
     Echo: 5
     Pulse: 5
-    Spark: 10
+    Spark: 5
     Glimmer: 5
     Aura: 5
-  _baseMaxActionPoints: 2
+  _baseMaxActionPoints: 5
   currentActionPoints: 0
-  _baseMaxVitalityPoints: 0
+  _baseMaxVitalityPoints: 5
   currentVitalityPoints: 0
   baseVitalityRegenRate: 0
   _baseMaxManaPoints: 20
   currentManaPoints: 0
   baseManaRegenRate: 1
-  _baseMaxStaminaPoints: 0
+  _baseMaxStaminaPoints: 5
   currentStaminaPoints: 0
   baseStaminaRegenRate: 1
-  _baseMaxFocusPoints: 0
+  _baseMaxFocusPoints: 5
   currentFocusPoints: 0
   baseFocusRegenRate: 1
-  _baseMaxInfluencePoints: 0
+  _baseMaxInfluencePoints: 5
   currentInfluencePoints: 0
   baseInfluenceRegenRate: 1
 --- !u!114 &6043540816100653047

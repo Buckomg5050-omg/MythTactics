@@ -1,19 +1,18 @@
 using UnityEngine;
-using UnityEngine.UI;
+using UnityEngine.UI; 
 using TMPro;
 using System;
-using System.Text; 
+using System.Text;
+using System.Collections.Generic; 
+using System.Collections; 
 
 public class UnitInfoPanelUI : MonoBehaviour
 {
     [Header("UI References - General")]
-    [Tooltip("The main panel GameObject that will be shown/hidden.")]
     public GameObject mainPanel;
-    [Tooltip("Button to close the panel.")]
     public Button closeButton;
 
     [Header("UI References - Unit Info")]
-    [Tooltip("Text element to display the unit's name.")]
     public TextMeshProUGUI unitNameText;
 
     [Header("Primary Attributes Texts")]
@@ -25,13 +24,19 @@ public class UnitInfoPanelUI : MonoBehaviour
     public TextMeshProUGUI auraText;
 
     [Header("Derived Stats Texts")]
-    public TextMeshProUGUI vitalityPointsText; 
-    public TextMeshProUGUI manaPointsText;     
-    public TextMeshProUGUI actionPointsText;   
+    public TextMeshProUGUI vitalityPointsText;
+    public TextMeshProUGUI manaPointsText;
+    public TextMeshProUGUI actionPointsText;
     public TextMeshProUGUI movementRangeText;
 
+    [Header("Status Effects UI")]
+    public GameObject statusEffectsListPanel; 
+    public GameObject statusEffectEntryPrefab;
+
     private Unit _currentUnit;
-    private StringBuilder _sb = new StringBuilder(); 
+    private StringBuilder _sb = new StringBuilder();
+    private List<GameObject> _activeStatusEffectEntries = new List<GameObject>(); 
+    private Coroutine _activateLayoutCoroutine = null; 
 
     public static event Action OnInfoPanelClosedByButton;
 
@@ -45,7 +50,7 @@ public class UnitInfoPanelUI : MonoBehaviour
 
         if (mainPanel == null)
         {
-            Debug.LogError("UnitInfoPanelUI.Awake: mainPanel is NULL even after attempting to default. The panel cannot be controlled. Disabling script.", this);
+            Debug.LogError("UnitInfoPanelUI.Awake: mainPanel is NULL. Disabling script.", this);
             enabled = false;
             return;
         }
@@ -53,6 +58,20 @@ public class UnitInfoPanelUI : MonoBehaviour
         if (closeButton != null)
         {
             closeButton.onClick.AddListener(HandleCloseButtonPressed);
+        }
+
+        if (statusEffectsListPanel == null)
+        {
+            Debug.LogWarning("UnitInfoPanelUI.Awake: StatusEffectsListPanel not assigned. Status effects will not be displayed.", this);
+        }
+        if (statusEffectEntryPrefab == null)
+        {
+            Debug.LogWarning("UnitInfoPanelUI.Awake: StatusEffectEntryPrefab not assigned. Status effects will not be displayed.", this);
+        }
+
+        if (statusEffectsListPanel != null && statusEffectsListPanel.activeSelf)
+        {
+            statusEffectsListPanel.SetActive(false);
         }
     }
 
@@ -72,21 +91,17 @@ public class UnitInfoPanelUI : MonoBehaviour
         if (_currentUnit == null)
         {
             Debug.LogError("UnitInfoPanelUI.ShowPanel: unitToShowInfoFor is null. Hiding panel.", this);
-            HidePanelInternally();
+            HidePanelInternally(); 
             return;
         }
 
-        PopulatePanelData();
-
+        // MODIFIED: Activate mainPanel BEFORE populating data
         if (!mainPanel.activeSelf)
         {
             mainPanel.SetActive(true);
         }
-        
-        if (!mainPanel.activeSelf) 
-        {
-            Debug.LogError($"UnitInfoPanelUI: TRIED TO SETACTIVE(TRUE) ON '{mainPanel.name}' BUT IT IS STILL NOT ACTIVE! Check parent GameObjects' active state and other scripts.", this);
-        }
+
+        PopulatePanelData(); // Now PopulateStatusEffects can start a coroutine
     }
 
     public void HidePanel()
@@ -96,12 +111,23 @@ public class UnitInfoPanelUI : MonoBehaviour
 
     private void HidePanelInternally()
     {
+        if (_activateLayoutCoroutine != null) 
+        {
+            StopCoroutine(_activateLayoutCoroutine);
+            _activateLayoutCoroutine = null;
+        }
+
         if (mainPanel == null) return;
 
         if (mainPanel.activeSelf)
         {
             mainPanel.SetActive(false);
         }
+        if (statusEffectsListPanel != null && statusEffectsListPanel.activeSelf)
+        {
+            statusEffectsListPanel.SetActive(false);
+        }
+        ClearStatusEffectEntries(); 
         _currentUnit = null;
     }
 
@@ -113,25 +139,36 @@ public class UnitInfoPanelUI : MonoBehaviour
 
     private void PopulatePanelData()
     {
-        if (_currentUnit == null)
+        if (!mainPanel.activeInHierarchy)
         {
-            Debug.LogError("UnitInfoPanelUI.PopulatePanelData: _currentUnit is null.", this);
-            return;
+            // This can happen if ShowPanel was called while the panel itself was globally inactive.
+            // The StartCoroutine in PopulateStatusEffects would fail.
+            // ShowPanel now activates it first, so this path should be less likely for the coroutine issue.
+            Debug.LogWarning("UnitInfoPanelUI.PopulatePanelData: Called while mainPanel is not active in hierarchy. Some UI updates (like coroutines for layout) might not initiate.", this);
         }
-        if (_currentUnit.Stats == null)
+        
+        if (_currentUnit == null || _currentUnit.Stats == null)
         {
-            Debug.LogError($"UnitInfoPanelUI.PopulatePanelData: _currentUnit '{_currentUnit.unitName}' has no Stats component.", this);
+            if (unitNameText != null) unitNameText.text = "N/A";
+            if (coreText != null) coreText.text = "Core: N/A";
+            if (echoText != null) echoText.text = "Echo: N/A";
+            if (pulseText != null) pulseText.text = "Pulse: N/A";
+            if (sparkText != null) sparkText.text = "Spark: N/A";
+            if (glimmerText != null) glimmerText.text = "Glimmer: N/A";
+            if (auraText != null) auraText.text = "Aura: N/A";
+            if (vitalityPointsText != null) vitalityPointsText.text = "VP: N/A";
+            if (manaPointsText != null) manaPointsText.text = "MP: N/A";
+            if (actionPointsText != null) actionPointsText.text = "AP: N/A";
+            if (movementRangeText != null) movementRangeText.text = "Move: N/A";
+            
+            if (statusEffectsListPanel != null) statusEffectsListPanel.SetActive(false);
+            ClearStatusEffectEntries();
             return;
         }
 
-        // --- Unit Name ---
-        if (unitNameText != null)
-        {
-            unitNameText.text = _currentUnit.unitName;
-        }
+        if (unitNameText != null) unitNameText.text = _currentUnit.unitName;
 
-        // --- Primary Attributes ---
-        UnitPrimaryAttributes baseAttributes = _currentUnit.Stats.currentAttributes; 
+        UnitPrimaryAttributes baseAttributes = _currentUnit.Stats.currentAttributes;
         UnitPrimaryAttributes effectiveAttributes = _currentUnit.Stats.EffectiveAttributes;
 
         if (coreText != null) coreText.text = $"Core: {effectiveAttributes.Core} ({baseAttributes.Core})";
@@ -141,50 +178,144 @@ public class UnitInfoPanelUI : MonoBehaviour
         if (glimmerText != null) glimmerText.text = $"Glimmer: {effectiveAttributes.Glimmer} ({baseAttributes.Glimmer})";
         if (auraText != null) auraText.text = $"Aura: {effectiveAttributes.Aura} ({baseAttributes.Aura})";
 
-        // --- Derived Stats ---
         _sb.Clear();
         if (vitalityPointsText != null)
         {
             _sb.Append("VP: ").Append(_currentUnit.Stats.currentVitalityPoints).Append(" / ").Append(_currentUnit.Stats.MaxVitalityPoints);
-            vitalityPointsText.text = _sb.ToString();
-            _sb.Clear();
+            vitalityPointsText.text = _sb.ToString(); _sb.Clear();
         }
-
         if (manaPointsText != null)
         {
             _sb.Append("MP: ").Append(_currentUnit.Stats.currentManaPoints).Append(" / ").Append(_currentUnit.Stats.MaxManaPoints);
-            manaPointsText.text = _sb.ToString();
-            _sb.Clear();
+            manaPointsText.text = _sb.ToString(); _sb.Clear();
         }
-        
         if (actionPointsText != null)
         {
             _sb.Append("AP: ").Append(_currentUnit.CurrentActionPoints).Append(" / ").Append(_currentUnit.MaxActionPoints);
-            actionPointsText.text = _sb.ToString();
-            _sb.Clear();
+            actionPointsText.text = _sb.ToString(); _sb.Clear();
         }
-
         if (movementRangeText != null)
         {
             if (_currentUnit.Movement != null)
             {
-                // CORRECTED: Use the existing CalculatedMoveRange property from UnitMovement
                 _sb.Append("Move: ").Append(_currentUnit.Movement.CalculatedMoveRange);
-                movementRangeText.text = _sb.ToString();
-                _sb.Clear();
+                movementRangeText.text = _sb.ToString(); _sb.Clear();
+            }
+            else { movementRangeText.text = "Move: N/A"; }
+        }
+
+        PopulateStatusEffects();
+    }
+
+    private void ClearStatusEffectEntries()
+    {
+        foreach (GameObject entryGO in _activeStatusEffectEntries)
+        {
+            if (entryGO != null) Destroy(entryGO);
+        }
+        _activeStatusEffectEntries.Clear();
+    }
+
+    private void PopulateStatusEffects()
+    {
+        ClearStatusEffectEntries(); 
+
+        if (statusEffectsListPanel == null || statusEffectEntryPrefab == null || _currentUnit == null || _currentUnit.Stats == null)
+        {
+            if (statusEffectsListPanel != null) statusEffectsListPanel.SetActive(false);
+            return;
+        }
+
+        IReadOnlyList<ActiveStatusEffect> effects = _currentUnit.Stats.ActiveEffects;
+
+        statusEffectsListPanel.SetActive(false); // Keep panel inactive while initially populating
+
+        if (effects.Count > 0)
+        {
+            foreach (ActiveStatusEffect effect in effects)
+            {
+                if (effect == null || effect.BaseEffect == null) continue;
+
+                GameObject entryInstance = Instantiate(statusEffectEntryPrefab);
+                if (statusEffectsListPanel.transform != null)
+                {
+                    entryInstance.transform.SetParent(statusEffectsListPanel.transform, false); 
+                }
+                else
+                {
+                     Debug.LogError("PopulateStatusEffects: statusEffectsListPanel.transform is null! Cannot parent status effect entry.", statusEffectsListPanel);
+                     Destroy(entryInstance); 
+                     continue;
+                }
+                entryInstance.transform.localScale = Vector3.one;
+
+                StatusEffectEntryUI entryUI = entryInstance.GetComponent<StatusEffectEntryUI>();
+                if (entryUI != null)
+                {
+                    entryUI.Populate(effect);
+                }
+                else
+                {
+                    Debug.LogError("PopulateStatusEffects: StatusEffectEntryPrefab is missing StatusEffectEntryUI script.", statusEffectEntryPrefab);
+                    Destroy(entryInstance); 
+                }
+                _activeStatusEffectEntries.Add(entryInstance);
+            }
+
+            if (_activateLayoutCoroutine != null)
+            {
+                StopCoroutine(_activateLayoutCoroutine);
+            }
+            // Ensure this MonoBehaviour's GameObject is active before starting a coroutine on it
+            if(gameObject.activeInHierarchy) 
+            {
+                _activateLayoutCoroutine = StartCoroutine(ActivateAndRebuildLayout(statusEffectsListPanel));
+            }
+            else 
+            {
+                // Fallback if the main panel itself is not active, just activate the status panel directly
+                // though this might not give layout enough time.
+                Debug.LogWarning("UnitInfoPanelUI.PopulateStatusEffects: Main panel (this.gameObject) is inactive. Activating status panel directly without coroutine delay.", this);
+                statusEffectsListPanel.SetActive(true);
+                RectTransform panelRectTransform = statusEffectsListPanel.GetComponent<RectTransform>();
+                if (panelRectTransform != null)
+                {
+                    LayoutRebuilder.ForceRebuildLayoutImmediate(panelRectTransform);
+                }
+            }
+        }
+        // If no effects, panel remains inactive (already set above or by default logic)
+    }
+
+    private IEnumerator ActivateAndRebuildLayout(GameObject panelToActivate)
+    {
+        yield return null; 
+
+        if (panelToActivate != null && _currentUnit != null && _currentUnit.Stats != null && _currentUnit.Stats.ActiveEffects.Count > 0)
+        {
+            panelToActivate.SetActive(true);
+            RectTransform panelRectTransform = panelToActivate.GetComponent<RectTransform>();
+            if (panelRectTransform != null)
+            {
+                LayoutRebuilder.ForceRebuildLayoutImmediate(panelRectTransform);
             }
             else
             {
-                movementRangeText.text = "Move: N/A";
+                Debug.LogError("ActivateAndRebuildLayout: panelToActivate does not have a RectTransform.", panelToActivate);
             }
         }
+        else if (panelToActivate != null) 
+        {
+            panelToActivate.SetActive(false); 
+        }
+        _activateLayoutCoroutine = null; 
     }
 
     public void RefreshData()
     {
         if (IsVisible() && _currentUnit != null)
         {
-            PopulatePanelData();
+            PopulatePanelData(); 
         }
     }
 }
