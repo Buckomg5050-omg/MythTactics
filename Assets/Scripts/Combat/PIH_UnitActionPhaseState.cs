@@ -18,99 +18,87 @@ namespace MythTactics.Combat
                 return;
             }
             _inputHandler.SelectedAbility = null;
-            _inputHandler.ClearAllHighlights();
-            _inputHandler.AttemptToShowMoveRangeForSelectedUnit();
-            if (_selectedUnit.CurrentTile != null) _selectedUnit.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit);
+            
+            // ClearAllHighlights is called by PlayerInputHandler.ChangeState before this state's EnterState.
+            // So, we just need to ensure the selected unit's tile is highlighted if the menu is shown.
+            // The menu itself is shown by PlayerInputHandler.ChangeState if conditions are met.
+            if (_inputHandler.actionMenuUI != null && _inputHandler.actionMenuUI.IsVisible())
+            {
+                if (_selectedUnit.CurrentTile != null) 
+                    _selectedUnit.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit);
+            }
+            DebugHelper.Log($"PIH_UnitActionPhaseState: Entered for {_selectedUnit.unitName}. AP: {_selectedUnit.CurrentActionPoints}", _inputHandler);
         }
 
         public override void OnClickInput(InputAction.CallbackContext context, Tile clickedTile)
         {
-            if (_selectedUnit == null || !_selectedUnit.IsAlive || clickedTile == null || _pathfinder == null)
+            if (_selectedUnit == null || !_selectedUnit.IsAlive || clickedTile == null )
             {
-                if(_pathfinder == null) DebugHelper.LogWarning("PIH_UnitActionPhaseState: Pathfinder is null, cannot process move.", _inputHandler);
                 return;
             }
 
+            // If clicking on the currently selected unit's tile:
             if (clickedTile == _selectedUnit.CurrentTile)
             {
-                DebugHelper.Log("PIH_UnitActionPhaseState: Clicked selected unit's tile. No action.", _inputHandler);
-                return;
-            }
-
-            if (_inputHandler.HighlightedReachableTiles.Contains(clickedTile) && !clickedTile.IsOccupied)
-            {
-                if (!_selectedUnit.CanAffordAPForAction(PlayerInputHandler.MoveActionCost))
+                // If the action menu is NOT visible, show it.
+                if (_inputHandler.actionMenuUI != null && !_inputHandler.actionMenuUI.IsVisible())
                 {
-                    // Corrected: _selectedUnit.CurrentActionPoints
-                    DebugHelper.LogWarning($"{_selectedUnit.unitName} cannot afford MOVE. Has {_selectedUnit.CurrentActionPoints} AP.", _inputHandler);
-                    return;
-                }
-                // AP spending is now handled by UnitMovement.MoveOnPath
-                // _selectedUnit.SpendAPForAction(PlayerInputHandler.MoveActionCost);
-
-                List<Tile> path = _pathfinder.FindPath(_selectedUnit.CurrentTile.gridPosition, clickedTile.gridPosition, _selectedUnit);
-
-                if (path != null && path.Count > 0)
-                {
-                    _inputHandler.ClearReachableHighlight(false);
-                    _inputHandler.ShowPathHighlight(path);
-                    _inputHandler.ChangeState(new PIH_UnitMovingState(path));
+                    DebugHelper.Log("PIH_UnitActionPhaseState: Clicked selected unit's tile. Action menu was hidden. Showing menu.", _inputHandler);
+                    // Call the public helper method in PlayerInputHandler to show the menu
+                    _inputHandler.ShowActionMenuForSelectedUnitPublic(); // We will make this public
                 }
                 else
                 {
-                    // No AP was spent yet if MoveOnPath handles it, so no refund needed here.
-                    // If MoveOnPath itself fails after spending AP, it should handle refund or log.
-                    DebugHelper.LogError($"PIH: Pathing failed for {_selectedUnit.unitName} to {clickedTile.gridPosition}. No move initiated.", _inputHandler);
-                    _inputHandler.ClearPathHighlight();
-                    _inputHandler.AttemptToShowMoveRangeForSelectedUnit();
+                    // If menu is already visible, clicking the unit might do nothing or cycle info (future).
+                    DebugHelper.Log("PIH_UnitActionPhaseState: Clicked selected unit's tile. Menu already visible or other condition. No specific action.", _inputHandler);
                 }
+                return; // Consumed the click
             }
-            else if (clickedTile.IsOccupied && clickedTile.occupyingUnit != _selectedUnit)
-            { DebugHelper.Log($"PIH: Clicked occupied tile {clickedTile.gridPosition} ({clickedTile.occupyingUnit.unitName}). No move.", _inputHandler); }
-            else { DebugHelper.Log($"PIH: Clicked tile {clickedTile.gridPosition} is not valid move target.", _inputHandler); }
+
+            // If the action menu is visible, and click is NOT on a UI element,
+            // a common behavior is to hide the menu.
+            if (_inputHandler.actionMenuUI != null && _inputHandler.actionMenuUI.IsVisible() && 
+                (UnityEngine.EventSystems.EventSystem.current != null && !UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject()))
+            {
+                 DebugHelper.Log("PIH_UnitActionPhaseState: Clicked on map while action menu was visible. Hiding menu.", _inputHandler);
+                 _inputHandler.actionMenuUI.HideMenu();
+                 // Ensure unit remains selected visually
+                 if (_selectedUnit.CurrentTile != null) 
+                    _selectedUnit.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit);
+                 return; 
+            }
+
+            // If menu is NOT visible and clicked elsewhere, it's not a direct action from this state.
+            // Other states (like PIH_SelectingMoveTargetState) would handle clicks on their respective highlighted tiles.
+            // This state, when menu is hidden, primarily waits for an action menu trigger (space or click self).
+            DebugHelper.Log($"PIH_UnitActionPhaseState: Clicked tile {clickedTile.gridPosition}. Menu is hidden. No direct action from this state for this tile.", _inputHandler);
         }
 
         public override void OnToggleAttackModeInput(InputAction.CallbackContext context)
         {
             if (_selectedUnit == null || !_selectedUnit.IsAlive) return;
             if (_selectedUnit.CanAffordAPForAction(PlayerInputHandler.AttackActionCost))
+            {
+                // PlayerInputHandler.ChangeState will hide the action menu
+                _inputHandler.ShowAttackRange(_selectedUnit); 
                 _inputHandler.ChangeState(new PIH_SelectingAttackTargetState());
+            }
             else
-                // Corrected: _selectedUnit.CurrentActionPoints
                 DebugHelper.LogWarning($"{_selectedUnit.unitName} cannot afford ATTACK. Has {_selectedUnit.CurrentActionPoints} AP.", _inputHandler);
         }
 
         public override void OnSelectAbilityInput(InputAction.CallbackContext context)
         {
-            if (_selectedUnit == null || !_selectedUnit.IsAlive || _selectedUnit.Combat == null)
-            {
-                DebugHelper.LogWarning("PIH_UnitActionPhaseState: Cannot select ability. Selected unit, its Combat component, or IsAlive is invalid.", _inputHandler);
-                return;
-            }
-
+            if (_selectedUnit == null || !_selectedUnit.IsAlive || _selectedUnit.Combat == null) return;
             if (_selectedUnit.knownAbilities == null || _selectedUnit.knownAbilities.Count == 0)
             {
                 DebugHelper.Log($"{_selectedUnit.unitName} has no abilities to select.", _inputHandler);
                 return;
             }
-            AbilitySO abilityToUse = _selectedUnit.knownAbilities[0];
-            if (abilityToUse == null)
-            {
-                DebugHelper.LogWarning($"{_selectedUnit.unitName}'s first ability is null.", _inputHandler);
-                return;
-            }
+            // This is just a placeholder for a proper ability selection mechanism (e.g. number keys)
+            // For now, assume it tries to use the "Skills" button logic from Action Menu
+            _inputHandler.HandleActionFromHotKey("Skills");
 
-            if (_selectedUnit.Combat.CanAffordAbility(abilityToUse, true))
-            {
-                _inputHandler.SelectedAbility = abilityToUse;
-                DebugHelper.Log($"{_selectedUnit.unitName} selected ability: {abilityToUse.abilityName}. Transitioning.", _inputHandler);
-                _inputHandler.ChangeState(new PIH_SelectingAbilityTargetState());
-            }
-            else
-            {
-                // CanAffordAbility already logs details.
-                // DebugHelper.Log($"{_selectedUnit.unitName} could not select '{abilityToUse.abilityName}'. See previous logs for reason.", _inputHandler);
-            }
         }
 
         public override void OnWaitInput(InputAction.CallbackContext context)
@@ -118,26 +106,21 @@ namespace MythTactics.Combat
             if (_selectedUnit == null || !_selectedUnit.IsAlive) return;
             if (_selectedUnit.CanAffordAPForAction(PlayerInputHandler.WaitActionCost))
             {
-                _selectedUnit.SpendAPForAction(PlayerInputHandler.WaitActionCost);
-                // Corrected: _selectedUnit.CurrentActionPoints
-                DebugHelper.Log($"{_selectedUnit.unitName} performs WAIT. AP: {_selectedUnit.CurrentActionPoints}", _inputHandler);
-                _inputHandler.ClearAllHighlights();
-                _inputHandler.CheckAndHandleEndOfTurnActionsPIH();
+                _inputHandler.HandleActionFromHotKey("Wait"); // Delegate to a common handler
             }
             else
             {
-                // Corrected: _selectedUnit.CurrentActionPoints
                 DebugHelper.LogWarning($"{_selectedUnit.unitName} cannot afford WAIT. AP: {_selectedUnit.CurrentActionPoints}", _inputHandler);
             }
         }
 
         public override void OnEndTurnInput(InputAction.CallbackContext context)
         {
-             if (_selectedUnit == null || !_selectedUnit.IsAlive) return;
-            // Corrected: _selectedUnit.CurrentActionPoints
-            DebugHelper.Log($"{_selectedUnit.unitName} explicitly ends turn. AP: {_selectedUnit.CurrentActionPoints}", _inputHandler);
-            _inputHandler.ClearAllHighlights();
+            if (_selectedUnit == null || !_selectedUnit.IsAlive) return;
+            DebugHelper.Log($"{_selectedUnit.unitName} explicitly ends turn via hotkey. AP: {_selectedUnit.CurrentActionPoints}", _inputHandler);
+            // PlayerInputHandler.ChangeState will hide the action menu
             if (TurnManager.Instance != null) TurnManager.Instance.EndUnitTurn(_selectedUnit);
+            // The ChangeState to WaitingForTurn will happen via PlayerInputHandler.Update detecting ActiveUnit is no longer _selectedUnit
         }
 
         public override void UpdateState()
@@ -148,15 +131,26 @@ namespace MythTactics.Combat
                 _inputHandler.ChangeState(new PIH_WaitingForTurnState());
                 return;
             }
-
-            _inputHandler.ClearAllHighlights();
-            _inputHandler.AttemptToShowMoveRangeForSelectedUnit();
-            if (_selectedUnit.CurrentTile != null) _selectedUnit.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit);
-            _inputHandler.CheckAndHandleEndOfTurnActionsPIH();
+            // If menu is hidden AND no ranges are shown, ensure selected unit tile is highlighted.
+            // This handles cases where menu was closed by spacebar or clicking away.
+            if (_inputHandler.actionMenuUI != null && !_inputHandler.actionMenuUI.IsVisible() &&
+                !_inputHandler.HighlightedReachableTiles.Any() &&
+                !_inputHandler.HighlightedAttackRangeTiles.Any() &&
+                !_inputHandler.HighlightedAbilityRangeTiles.Any())
+            {
+                if (_selectedUnit.CurrentTile != null && _selectedUnit.CurrentTile.CurrentHighlightState != TileHighlightState.SelectedUnit)
+                {
+                     _selectedUnit.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit);
+                }
+            }
+            _inputHandler.CheckAndHandleEndOfTurnActionsPIH(); 
         }
 
         public override void ExitState()
         {
+            // Action menu hiding is handled by PlayerInputHandler.ChangeState generally
+            // or by specific actions leading to other states.
+            // No need to explicitly hide it here unless there's a specific case.
             base.ExitState();
         }
     }

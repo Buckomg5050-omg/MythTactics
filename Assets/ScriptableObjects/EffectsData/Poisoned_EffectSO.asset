@@ -28,3 +28,6 @@ MonoBehaviour:
   tickActionType: 1
   tickActionBasePower: 5
   tickActionDamageType: 2
+  tickActionScalesWithCasterStat: 1
+  tickScalingStat: 3
+  tickScalingFactor: 0.25

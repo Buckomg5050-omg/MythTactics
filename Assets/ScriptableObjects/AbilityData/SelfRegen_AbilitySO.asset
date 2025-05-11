@@ -23,8 +23,8 @@ MonoBehaviour:
   targetType: 0
   range: 0
   baseAccuracy: 100
-  effectType: 1
-  basePower: 10
+  effectType: 0
+  basePower: 0
   damageType: 1
   dealsTrueDamage: 0
   effectsToApplyOnHit:

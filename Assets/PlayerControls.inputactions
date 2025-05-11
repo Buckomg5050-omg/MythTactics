@@ -139,6 +139,15 @@
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": false
+                },
+                {
+                    "name": "ToggleActionMenu",
+                    "type": "Button",
+                    "id": "dfeb8bf3-8372-40d0-9e0b-9054b69956d9",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
                 }
             ],
             "bindings": [
@@ -541,7 +550,7 @@
                 {
                     "name": "",
                     "id": "532f3e9b-ad19-456e-bac3-f8bb30f44bcb",
-                    "path": "<Keyboard>/space",
+                    "path": "<Keyboard>/w",
                     "interactions": "",
                     "processors": "",
                     "groups": "",
@@ -579,6 +588,17 @@
                     "processors": "",
                     "groups": "",
                     "action": "SelectAbility",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "69931e3e-0f1f-4488-9dc9-43347bb4232e",
+                    "path": "<Keyboard>/space",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Gamepad",
+                    "action": "ToggleActionMenu",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }
