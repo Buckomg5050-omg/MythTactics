@@ -3,6 +3,7 @@ using UnityEngine;
 using System.Text;
 using System.Collections.Generic;
 using System.Linq;
+using MythTactics.Combat; // Assuming StatType, ModifierType, ActiveStatusEffect, EffectSO are here or accessible
 
 public class UnitStats : MonoBehaviour
 {
@@ -28,7 +29,6 @@ public class UnitStats : MonoBehaviour
                 Aura = currentAttributes.Aura
             };
 
-            // Apply flat modifiers (value is stack-multiplied in GetAllStatModifiersFromEffects)
             foreach (StatModifier mod in GetAllStatModifiersFromEffects(ModifierType.Flat))
             {
                 switch (mod.stat)
@@ -42,7 +42,6 @@ public class UnitStats : MonoBehaviour
                 }
             }
 
-            // Store values after flat mods to be base for PercentAdd
             float baseForPercentAddCore = effective.Core;
             float baseForPercentAddEcho = effective.Echo;
             float baseForPercentAddPulse = effective.Pulse;
@@ -50,8 +49,6 @@ public class UnitStats : MonoBehaviour
             float baseForPercentAddGlimmer = effective.Glimmer;
             float baseForPercentAddAura = effective.Aura;
 
-            // Apply PercentAdd modifiers (value is stack-multiplied in GetAllStatModifiersFromEffects)
-            // PercentAdd applies to the value *after* flat mods for primary attributes here.
             foreach (StatModifier mod in GetAllStatModifiersFromEffects(ModifierType.PercentAdd))
             {
                 switch (mod.stat)
@@ -65,10 +62,9 @@ public class UnitStats : MonoBehaviour
                 }
             }
             
-            // Apply PercentMult modifiers (value is stack-multiplied in GetAllStatModifiersFromEffects)
             foreach (StatModifier mod in GetAllStatModifiersFromEffects(ModifierType.PercentMult))
             {
-                 switch (mod.stat) // mod.value here is the percentage, e.g., 0.1 for +10%
+                 switch (mod.stat) 
                 {
                     case StatType.Core: effective.Core = Mathf.RoundToInt(effective.Core * (1f + mod.value)); break;
                     case StatType.Echo: effective.Echo = Mathf.RoundToInt(effective.Echo * (1f + mod.value)); break;
@@ -148,8 +144,6 @@ public class UnitStats : MonoBehaviour
         _raceData = raceData;
         _classData = classData;
 
-        // currentAttributes is initialized by its field declaration "new UnitPrimaryAttributes()"
-        // If attributes are provided, copy their values into currentAttributes.
         if (attributes != null)
         {
             currentAttributes.Core = attributes.Core;
@@ -161,31 +155,27 @@ public class UnitStats : MonoBehaviour
         }
         else
         {
-            // No attributes provided, currentAttributes will use its default initialized values (likely all 0s or what you set in UnitPrimaryAttributes constructor)
-            DebugHelper.LogWarning($"UnitStats for {_unit.unitName} received null initial attributes, using defaults (Core: {currentAttributes.Core}, etc.).", _unit);
+            DebugHelper.LogWarning($"UnitStats for {_unit.unitName} received null initial attributes, using defaults.", _unit);
         }
         _activeEffects.Clear();
-        InitializeDerivedAttributesAndResources(); // This also calls RecalculateAffectedStats
+        InitializeDerivedAttributesAndResources(); 
     }
 
     private void InitializeDerivedAttributesAndResources()
     {
         if (_raceData == null || _classData == null || currentAttributes == null || _unit == null)
         {
-            DebugHelper.LogError($"UnitStats on {_unit?.unitName ?? "Unknown Unit"} cannot initialize resources. Missing RaceData, ClassData, Attributes, or Unit reference.", this);
+            DebugHelper.LogError($"UnitStats on {_unit?.unitName ?? "Unknown Unit"} cannot initialize resources. Missing critical data.", this);
             _isAlive = false;
             return;
         }
 
-        // Initialize _baseMax... fields. These use EffectiveAttributes which in turn use currentAttributes (base)
-        // So, at this very first initialization, EffectiveAttributes will be the same as currentAttributes.
         _baseMaxVitalityPoints = CalculatedMaxVP_Base;
         _baseMaxManaPoints = CalculatedMaxMP_Base;
         _baseMaxStaminaPoints = CalculatedMaxSP_Base;
         _baseMaxFocusPoints = CalculatedMaxFP_Base;
         _baseMaxInfluencePoints = CalculatedMaxIP_Base;
 
-        // Now that _baseMax... are set, Max... properties will use them plus any (currently none) effects.
         currentVitalityPoints = MaxVitalityPoints;
         currentManaPoints = MaxManaPoints;
         currentStaminaPoints = MaxStaminaPoints;
@@ -197,7 +187,7 @@ public class UnitStats : MonoBehaviour
 
         if (_isAlive)
         {
-            if (MaxVitalityPoints <= 0) { _baseMaxVitalityPoints = 1; currentVitalityPoints = MaxVitalityPoints; } // Adjust base if necessary
+            if (MaxVitalityPoints <= 0) { _baseMaxVitalityPoints = 1; currentVitalityPoints = MaxVitalityPoints; } 
             if (currentVitalityPoints <= 0 && MaxVitalityPoints > 0) currentVitalityPoints = MaxVitalityPoints;
             
             if (MaxManaPoints < 0) _baseMaxManaPoints = 0; currentManaPoints = Mathf.Clamp(currentManaPoints, 0, MaxManaPoints);
@@ -210,8 +200,6 @@ public class UnitStats : MonoBehaviour
             currentVitalityPoints = 0; currentManaPoints = 0; currentStaminaPoints = 0;
             currentFocusPoints = 0; currentInfluencePoints = 0; currentActionPoints = 0;
         }
-        // RecalculateAffectedStats will be called effectively by the above setters to Max... properties
-        // But call it explicitly here to ensure the detailed log runs once after full init.
         RecalculateAffectedStats(); 
     }
 
@@ -223,20 +211,37 @@ public class UnitStats : MonoBehaviour
 
     public void ModifyVitality(int amount)
     {
-        if (!_isAlive && amount < 0) return;
+        if (!_isAlive && amount < 0) return; // Don't damage dead units further
+        if (!_isAlive && amount > 0 && currentVitalityPoints <=0) { _isAlive = true; } // Revive if healing from 0 or less while marked dead
+
+        int oldVP = currentVitalityPoints;
         currentVitalityPoints += amount;
         currentVitalityPoints = Mathf.Clamp(currentVitalityPoints, 0, MaxVitalityPoints);
-        if (currentVitalityPoints <= 0) { SetAliveStatus(false); }
-        else if (currentVitalityPoints > 0 && !_isAlive) { _isAlive = true; }
+
+        if (currentVitalityPoints <= 0 && _isAlive) // Only trigger death if was alive
+        { 
+            SetAliveStatus(false); 
+        }
+        // else if (currentVitalityPoints > 0 && !_isAlive) // Handled above
+        // { 
+        //     _isAlive = true; 
+        // }
     }
 
     public void SetAliveStatus(bool alive)
     {
+        bool oldStatus = _isAlive;
         _isAlive = alive;
         if (!_isAlive)
         {
             currentVitalityPoints = 0;
             currentActionPoints = 0;
+            // Consider clearing effects or other death-related logic here or in UnitCombat.Die
+        }
+        if (oldStatus && !_isAlive)
+        {
+            // Unit just died
+            // CombatLogger.LogEvent($"{_unit.unitName} has been defeated!", Color.magenta); // Moved to UnitCombat.TakeDamage
         }
     }
 
@@ -246,7 +251,8 @@ public class UnitStats : MonoBehaviour
         if (currentActionPoints >= amount)
         {
             currentActionPoints -= amount;
-            DebugHelper.Log($"{_unit.unitName} spent {amount} AP. Remaining: {currentActionPoints}/{MaxActionPoints}", _unit);
+            // DebugHelper.Log($"{_unit.unitName} spent {amount} AP. Remaining: {currentActionPoints}/{MaxActionPoints}", _unit);
+            CombatLogger.LogEvent($"{_unit.unitName} spent {amount} AP (Now: {currentActionPoints}/{MaxActionPoints}).", new Color(0.8f, 0.8f, 0.3f)); // Yellowish for AP
             return true;
         }
         DebugHelper.LogWarning($"{_unit.unitName} failed to spend {amount} AP. Has: {currentActionPoints}/{MaxActionPoints}", _unit);
@@ -257,7 +263,7 @@ public class UnitStats : MonoBehaviour
     {
         if (!_isAlive) { currentActionPoints = 0; return; }
         currentActionPoints = MaxActionPoints;
-        DebugHelper.Log($"{_unit.unitName} AP regenerated to {currentActionPoints}/{MaxActionPoints} at turn start.", _unit);
+        // DebugHelper.Log($"{_unit.unitName} AP regenerated to {currentActionPoints}/{MaxActionPoints} at turn start.", _unit); // Logged by TurnManager
     }
 
     public void SpendMana(int amount) { if (amount <= 0) return; currentManaPoints -= amount; currentManaPoints = Mathf.Max(0, currentManaPoints); }
@@ -269,64 +275,77 @@ public class UnitStats : MonoBehaviour
     {
         if (!_isAlive || _unit == null) return;
         StringBuilder regenLogBuilder = new StringBuilder();
-        regenLogBuilder.Append($"REGEN LOG for {_unit.unitName}: ");
+        regenLogBuilder.Append($"{_unit.unitName} regenerates: ");
         bool hasRegeneratedAnything = false;
+        int oldVal;
 
-        if (VitalityRegenRate > 0 && currentVitalityPoints < MaxVitalityPoints && currentVitalityPoints > 0)
+        if (VitalityRegenRate != 0 && currentVitalityPoints > 0) // Allow negative regen (damage) too
         {
-            int oldVP = currentVitalityPoints; currentVitalityPoints = Mathf.Min(currentVitalityPoints + VitalityRegenRate, MaxVitalityPoints);
-            if (currentVitalityPoints != oldVP) { regenLogBuilder.Append($"VP +{currentVitalityPoints - oldVP} ({currentVitalityPoints}/{MaxVitalityPoints}). "); hasRegeneratedAnything = true; }
+            oldVal = currentVitalityPoints; 
+            ModifyVitality(VitalityRegenRate); // Use ModifyVitality to handle death checks
+            if (currentVitalityPoints != oldVal) { regenLogBuilder.Append($"VP {currentVitalityPoints-oldVal:+#;-#;0} ({currentVitalityPoints}/{MaxVitalityPoints}). "); hasRegeneratedAnything = true; }
         }
-        if (ManaRegenRate > 0 && currentManaPoints < MaxManaPoints)
+        if (ManaRegenRate != 0)
         {
-            int oldMP = currentManaPoints; currentManaPoints = Mathf.Min(currentManaPoints + ManaRegenRate, MaxManaPoints);
-            if (currentManaPoints != oldMP) { regenLogBuilder.Append($"MP +{currentManaPoints - oldMP} ({currentManaPoints}/{MaxManaPoints}). "); hasRegeneratedAnything = true; }
+            oldVal = currentManaPoints; currentManaPoints = Mathf.Clamp(currentManaPoints + ManaRegenRate, 0, MaxManaPoints);
+            if (currentManaPoints != oldVal) { regenLogBuilder.Append($"MP {currentManaPoints-oldVal:+#;-#;0} ({currentManaPoints}/{MaxManaPoints}). "); hasRegeneratedAnything = true; }
         }
-        // ... (SP, FP, IP regen code remains the same) ...
-        if (StaminaRegenRate > 0 && currentStaminaPoints < MaxStaminaPoints)
+        if (StaminaRegenRate != 0)
         {
-            int oldSP = currentStaminaPoints; currentStaminaPoints = Mathf.Min(currentStaminaPoints + StaminaRegenRate, MaxStaminaPoints);
-            if (currentStaminaPoints != oldSP) { regenLogBuilder.Append($"SP +{currentStaminaPoints - oldSP} ({currentStaminaPoints}/{MaxStaminaPoints}). "); hasRegeneratedAnything = true; }
+            oldVal = currentStaminaPoints; currentStaminaPoints = Mathf.Clamp(currentStaminaPoints + StaminaRegenRate, 0, MaxStaminaPoints);
+            if (currentStaminaPoints != oldVal) { regenLogBuilder.Append($"SP {currentStaminaPoints-oldVal:+#;-#;0} ({currentStaminaPoints}/{MaxStaminaPoints}). "); hasRegeneratedAnything = true; }
         }
-        if (FocusRegenRate > 0 && currentFocusPoints < MaxFocusPoints)
+        if (FocusRegenRate != 0)
         {
-            int oldFP = currentFocusPoints; currentFocusPoints = Mathf.Min(currentFocusPoints + FocusRegenRate, MaxFocusPoints);
-            if (currentFocusPoints != oldFP) { regenLogBuilder.Append($"FP +{currentFocusPoints - oldFP} ({currentFocusPoints}/{MaxFocusPoints}). "); hasRegeneratedAnything = true; }
+            oldVal = currentFocusPoints; currentFocusPoints = Mathf.Clamp(currentFocusPoints + FocusRegenRate, 0, MaxFocusPoints);
+            if (currentFocusPoints != oldVal) { regenLogBuilder.Append($"FP {currentFocusPoints-oldVal:+#;-#;0} ({currentFocusPoints}/{MaxFocusPoints}). "); hasRegeneratedAnything = true; }
         }
-        if (InfluenceRegenRate > 0 && currentInfluencePoints < MaxInfluencePoints)
+        if (InfluenceRegenRate != 0)
         {
-            int oldIP = currentInfluencePoints; currentInfluencePoints = Mathf.Min(currentInfluencePoints + InfluenceRegenRate, MaxInfluencePoints);
-            if (currentInfluencePoints != oldIP) { regenLogBuilder.Append($"IP +{currentInfluencePoints - oldIP} ({currentInfluencePoints}/{MaxInfluencePoints}). "); hasRegeneratedAnything = true; }
+            oldVal = currentInfluencePoints; currentInfluencePoints = Mathf.Clamp(currentInfluencePoints + InfluenceRegenRate, 0, MaxInfluencePoints);
+            if (currentInfluencePoints != oldVal) { regenLogBuilder.Append($"IP {currentInfluencePoints-oldVal:+#;-#;0} ({currentInfluencePoints}/{MaxInfluencePoints}). "); hasRegeneratedAnything = true; }
         }
 
-        if (hasRegeneratedAnything) DebugHelper.Log(regenLogBuilder.ToString().TrimEnd(), _unit);
+        if (hasRegeneratedAnything) CombatLogger.LogEvent(regenLogBuilder.ToString().TrimEnd(), Color.blue);
     }
 
     public void AddEffect(ActiveStatusEffect newEffect)
     {
+        if (newEffect == null || newEffect.BaseEffect == null) return; 
+
         _activeEffects.Add(newEffect);
-        RecalculateAffectedStats(); // This will log the new effective stats
-        DebugHelper.Log($"{_unit.unitName} received effect: {newEffect.BaseEffect.effectName} (Duration: {newEffect.RemainingDuration}, Stacks: {newEffect.CurrentStacks})", _unit);
+        
+        // MODIFIED: Use CombatLogger
+        CombatLogger.LogStatusApplied(_unit, newEffect.BaseEffect.effectName, newEffect.Caster);
+        // DebugHelper.Log($"{_unit.unitName} received effect: {newEffect.BaseEffect.effectName} (Duration: {newEffect.RemainingDuration}, Stacks: {newEffect.CurrentStacks})", _unit);
+        
+        RecalculateAffectedStats(); 
     }
 
     public void RemoveEffect(ActiveStatusEffect effectToRemove)
     {
+        if (effectToRemove == null || effectToRemove.BaseEffect == null) return; 
+
         if (_activeEffects.Remove(effectToRemove))
         {
-            RecalculateAffectedStats(); // This will log the new effective stats
-            DebugHelper.Log($"{_unit.unitName} lost effect: {effectToRemove.BaseEffect.effectName}", _unit);
+            // MODIFIED: Use CombatLogger
+            CombatLogger.LogEvent($"{_unit.unitName} loses effect: {effectToRemove.BaseEffect.effectName}.", Color.gray);
+            // DebugHelper.Log($"{_unit.unitName} lost effect: {effectToRemove.BaseEffect.effectName}", _unit);
+            RecalculateAffectedStats();
         }
     }
     
     public void RemoveAllEffectsFromSource(Unit caster)
     {
-        // ToList() creates a copy, so we can modify _activeEffects while iterating.
         List<ActiveStatusEffect> toRemove = _activeEffects.Where(e => e.Caster == caster).ToList();
         if (toRemove.Count > 0)
         {
-            foreach(var effect in toRemove) { _activeEffects.Remove(effect); }
-            RecalculateAffectedStats();
-            DebugHelper.Log($"{_unit.unitName} lost {toRemove.Count} effects from source: {caster.unitName}", _unit);
+            foreach(var effect in toRemove) 
+            {
+                // RemoveEffect will log individual removals
+                RemoveEffect(effect); 
+            }
+            // CombatLogger.LogEvent($"{_unit.unitName} lost {toRemove.Count} effects from source: {caster.unitName}", Color.gray); // Optional summary
         }
     }
 
@@ -334,20 +353,42 @@ public class UnitStats : MonoBehaviour
     {
         if (_activeEffects.Count > 0)
         {
-            _activeEffects.Clear();
-            RecalculateAffectedStats();
-            DebugHelper.Log($"{_unit.unitName} had all effects cleared.", _unit);
+            // Create a copy to iterate over, as RemoveEffect modifies the original list
+            List<ActiveStatusEffect> effectsToClear = new List<ActiveStatusEffect>(_activeEffects);
+            foreach(var effect in effectsToClear)
+            {
+                RemoveEffect(effect); // This will log each removal
+            }
+            // _activeEffects.Clear(); // RemoveEffect handles removal from list
+            // RecalculateAffectedStats(); // Called by RemoveEffect
+            CombatLogger.LogEvent($"{_unit.unitName} had all effects cleared.", Color.gray); // Summary log
         }
     }
 
     public void RecalculateAffectedStats()
     {
+        // Clamp current resources to their (potentially new) maximums
+        // Order matters: Max must be calculated before clamping current
+        int oldMaxVP = MaxVitalityPoints; // Cache old max for comparison if needed for currentVP adjustment
         currentVitalityPoints = Mathf.Clamp(currentVitalityPoints, 0, MaxVitalityPoints);
+        // If MaxVP decreased below currentVP, currentVP is clamped. If MaxVP increased, currentVP stays.
+        // If unit was at full health and MaxVP increases, they remain at the new full health (unless specific game rule says otherwise)
+        // This is implicitly handled if currentVP was already MaxVP, and MaxVP changes.
+        // However, if MaxVP increases, currentVP might not automatically go to the new MaxVP unless explicitly set.
+        // For now, clamping is the primary concern after effects change.
+
         currentManaPoints = Mathf.Clamp(currentManaPoints, 0, MaxManaPoints);
         currentStaminaPoints = Mathf.Clamp(currentStaminaPoints, 0, MaxStaminaPoints);
         currentFocusPoints = Mathf.Clamp(currentFocusPoints, 0, MaxFocusPoints);
         currentInfluencePoints = Mathf.Clamp(currentInfluencePoints, 0, MaxInfluencePoints);
         currentActionPoints = Mathf.Clamp(currentActionPoints, 0, MaxActionPoints);
+
+        if (_isAlive && currentVitalityPoints <= 0) // If effects kill the unit
+        {
+            SetAliveStatus(false);
+            CombatLogger.LogEvent($"{_unit.unitName} succumbs to effects!", Color.red);
+        }
+
 
         if (_unit != null)
         {
@@ -373,7 +414,7 @@ public class UnitStats : MonoBehaviour
             sb.AppendLine($"    VP: {currentVitalityPoints}/{MaxVitalityPoints}");
             sb.AppendLine($"    MP: {currentManaPoints}/{MaxManaPoints}");
             sb.AppendLine($"    AP: {currentActionPoints}/{MaxActionPoints}");
-            DebugHelper.Log(sb.ToString().TrimEnd(), _unit);
+            // DebugHelper.Log(sb.ToString().TrimEnd(), _unit); // This can be very spammy, consider when to log it.
         }
         else
         {
@@ -392,6 +433,7 @@ public class UnitStats : MonoBehaviour
                 {
                     if (mod.type == modType)
                     {
+                        // Apply stack multiplication to the modifier's value
                         StatModifier stackedMod = new StatModifier(mod.stat, mod.type, mod.value * effect.CurrentStacks);
                         modifiers.Add(stackedMod);
                     }
@@ -404,34 +446,30 @@ public class UnitStats : MonoBehaviour
     public int CalculateModifiedStat(int baseValueParam, StatType targetStat)
     {
         float currentValue = baseValueParam;
-        float valueAfterFlat = currentValue; // Initialize for PercentAdd base
+        float valueAfterFlat = currentValue; 
 
-        // 1. Apply Flat modifiers
-        // Using GetAllStatModifiersFromEffects directly now handles stack multiplication
         foreach (StatModifier mod in GetAllStatModifiersFromEffects(ModifierType.Flat))
         {
             if (mod.stat == targetStat)
             {
-                currentValue += mod.value; // mod.value is already stack-multiplied
+                currentValue += mod.value; 
             }
         }
-        valueAfterFlat = currentValue; // Update base for PercentAdd after flat mods
+        valueAfterFlat = currentValue; 
 
-        // 2. Apply PercentAdd modifiers
         float totalPercentAdd = 0;
         foreach (StatModifier mod in GetAllStatModifiersFromEffects(ModifierType.PercentAdd))
         {
             if (mod.stat == targetStat)
             {
-                totalPercentAdd += mod.value; // mod.value is already stack-multiplied
+                totalPercentAdd += mod.value; 
             }
         }
         currentValue += valueAfterFlat * totalPercentAdd;
 
-        // 3. Apply PercentMult modifiers
         foreach (StatModifier mod in GetAllStatModifiersFromEffects(ModifierType.PercentMult))
         {
-            if (mod.stat == targetStat) // mod.value is already stack-multiplied percentage (e.g. 0.1 * stacks)
+            if (mod.stat == targetStat) 
             {
                 currentValue *= (1f + mod.value); 
             }

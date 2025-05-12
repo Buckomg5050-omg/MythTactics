@@ -2,7 +2,7 @@
 using UnityEngine;
 using System.Collections.Generic;
 using System.Linq;
-using MythTactics.Combat;
+using MythTactics.Combat; // For Unit, EffectSO, ActiveStatusEffect, DamageType etc.
 
 public class EffectSystem : MonoBehaviour
 {
@@ -25,42 +25,44 @@ public class EffectSystem : MonoBehaviour
     {
         if (targetUnit == null || !targetUnit.IsAlive || effectToApply == null || targetUnit.Stats == null)
         {
-            DebugHelper.LogWarning($"EffectSystem.ApplyEffect: Invalid target, effect, or target missing Stats. Target: {targetUnit?.unitName}, Effect: {effectToApply?.effectName}", targetUnit);
+            // DebugHelper.LogWarning($"EffectSystem.ApplyEffect: Invalid target, effect, or target missing Stats. Target: {targetUnit?.unitName}, Effect: {effectToApply?.effectName}", targetUnit);
             return;
         }
 
         ActiveStatusEffect existingEffect = targetUnit.Stats.ActiveEffects.FirstOrDefault(ae => ae.BaseEffect == effectToApply);
+        string casterName = caster != null ? caster.unitName : "Unknown Source";
 
         if (existingEffect != null)
         {
             switch (effectToApply.stackingBehavior)
             {
                 case EffectStackingBehavior.None:
-                    DebugHelper.Log($"Effect '{effectToApply.effectName}' (Stacking: None) already on {targetUnit.unitName}. No change.", targetUnit);
+                    // CombatLogger.LogEvent($"Effect '{effectToApply.effectName}' (Stacking: None) already on {targetUnit.unitName}. No change.", Color.gray); // Optional, can be noisy
                     return;
 
                 case EffectStackingBehavior.RefreshDuration:
                     existingEffect.RefreshDuration();
-                    DebugHelper.Log($"Effect '{effectToApply.effectName}' on {targetUnit.unitName} duration refreshed to {existingEffect.RemainingDuration}.", targetUnit);
+                    CombatLogger.LogStatusApplied(targetUnit, $"{effectToApply.effectName} duration refreshed", caster); // MODIFIED
                     targetUnit.Stats.RecalculateAffectedStats();
                     break;
 
                 case EffectStackingBehavior.IncreaseStacks:
-                    if (existingEffect.AddStack()) // AddStack handles refreshing duration
+                    bool stacked = existingEffect.AddStack(); // AddStack handles refreshing duration
+                    if (stacked)
                     {
-                        DebugHelper.Log($"Effect '{effectToApply.effectName}' on {targetUnit.unitName} stacked to {existingEffect.CurrentStacks}. Duration refreshed.", targetUnit);
+                        CombatLogger.LogStatusApplied(targetUnit, $"{effectToApply.effectName} stacked to {existingEffect.CurrentStacks}", caster); // MODIFIED
                     }
                     else 
                     {
-                        // Already at max stacks, but AddStack still refreshed duration if applicable.
-                        DebugHelper.Log($"Effect '{effectToApply.effectName}' on {targetUnit.unitName} at max stacks ({existingEffect.CurrentStacks}). Duration refreshed.", targetUnit);
+                        CombatLogger.LogStatusApplied(targetUnit, $"{effectToApply.effectName} (at max stacks) duration refreshed", caster); // MODIFIED
                     }
                     targetUnit.Stats.RecalculateAffectedStats(); 
                     break;
 
                 case EffectStackingBehavior.AddNewInstance:
                     ActiveStatusEffect newSeparateInstance = new ActiveStatusEffect(effectToApply, caster);
-                    targetUnit.Stats.AddEffect(newSeparateInstance);
+                    targetUnit.Stats.AddEffect(newSeparateInstance); 
+                    // UnitStats.AddEffect will call CombatLogger.LogStatusApplied for the new instance
                     break;
 
                 default:
@@ -68,16 +70,18 @@ public class EffectSystem : MonoBehaviour
                     return;
             }
         }
-        else
+        else // No existing effect, add new instance
         {
             ActiveStatusEffect newEffectInstance = new ActiveStatusEffect(effectToApply, caster);
             targetUnit.Stats.AddEffect(newEffectInstance);
+            // UnitStats.AddEffect should call CombatLogger.LogStatusApplied
         }
     }
 
     public void RemoveEffectInstance(Unit targetUnit, ActiveStatusEffect effectInstance)
     {
         if (targetUnit == null || effectInstance == null || targetUnit.Stats == null) return;
+        // Logging for removal will be handled in UnitStats.RemoveEffect
         targetUnit.Stats.RemoveEffect(effectInstance);
     }
 
@@ -91,9 +95,9 @@ public class EffectSystem : MonoBehaviour
         {
             foreach (var activeEffect in effectsToRemove)
             {
-                targetUnit.Stats.RemoveEffect(activeEffect);
+                targetUnit.Stats.RemoveEffect(activeEffect); // This will log individual removals if UnitStats.RemoveEffect does
             }
-            DebugHelper.Log($"All stacks of '{effectSOToRemove.effectName}' removed from {targetUnit.unitName}.", targetUnit);
+            // CombatLogger.LogEvent($"All stacks of '{effectSOToRemove.effectName}' removed from {targetUnit.unitName}.", Color.gray); // Optional summary
         }
     }
 
@@ -103,6 +107,7 @@ public class EffectSystem : MonoBehaviour
 
         List<ActiveStatusEffect> effectsToExpire = new List<ActiveStatusEffect>();
         
+        // Iterate on a copy in case effects are removed during iteration (e.g., by expiring themselves or other effects)
         foreach (ActiveStatusEffect effect in unit.Stats.ActiveEffects.ToList()) 
         {
             if (!unit.IsAlive) break; 
@@ -110,51 +115,38 @@ public class EffectSystem : MonoBehaviour
             EffectSO baseEffect = effect.BaseEffect;
             if (baseEffect == null) continue;
 
-            // --- Process Tick Action (DoT/HoT) ---
             if (baseEffect.tickActionType != EffectTickActionType.None)
             {
-                int tickPower = baseEffect.tickActionBasePower; // Start with base power
-
-                // --- NEW: Apply scaling if enabled ---
+                int tickPower = baseEffect.tickActionBasePower; 
                 if (baseEffect.tickActionScalesWithCasterStat)
                 {
                     int snapshottedStatValue = effect.GetSnapshottedCasterScalingStatValue();
                     int bonusFromStat = Mathf.FloorToInt(snapshottedStatValue * baseEffect.tickScalingFactor);
                     tickPower += bonusFromStat;
-                    // Log the scaling contribution for clarity during testing
-                    // DebugHelper.Log($"Effect '{baseEffect.effectName}' on {unit.unitName}: BaseTickPower={baseEffect.tickActionBasePower}, CasterStat({baseEffect.tickScalingStat})={snapshottedStatValue}, Bonus={bonusFromStat}, Pre-StackPower={tickPower}", unit);
                 }
-                // --- End of NEW scaling ---
+                int totalTickPower = tickPower * effect.CurrentStacks; 
+                totalTickPower = Mathf.Max(0, totalTickPower); 
 
-                int totalTickPower = tickPower * effect.CurrentStacks; // Apply stacks to the (potentially scaled) power
-                totalTickPower = Mathf.Max(0, totalTickPower); // Ensure power isn't negative
-
-                if (totalTickPower > 0) // Only proceed if there's actual power
+                if (totalTickPower > 0) 
                 {
+                    string casterName = effect.Caster != null ? effect.Caster.unitName : "Unknown Source";
                     if (baseEffect.tickActionType == EffectTickActionType.Damage)
                     {
-                        DebugHelper.Log($"{unit.unitName} takes {totalTickPower} {baseEffect.tickActionDamageType} damage from '{baseEffect.effectName}' tick. (Base: {baseEffect.tickActionBasePower}, ScaledTickPower: {tickPower}, Stacks: {effect.CurrentStacks})", unit);
-                        // For now, direct vitality modification for True/Poison
-                        if (baseEffect.tickActionDamageType == DamageType.True || baseEffect.tickActionDamageType == DamageType.Poison)
+                        // CombatLogger.LogDamage(effect.Caster, unit, totalTickPower, baseEffect.tickActionDamageType, false); // False for isCritical
+                        // The above LogDamage is good, but might be too verbose if the "takes damage" is also logged.
+                        // Let's use a more specific tick log.
+                        CombatLogger.LogEvent($"{unit.unitName} takes {totalTickPower} {baseEffect.tickActionDamageType} damage from '{baseEffect.effectName}' (tick from {casterName}).", Color.magenta); // ADDED
+                        
+                        unit.Stats.ModifyVitality(-totalTickPower); 
+                        if (!unit.IsAlive)
                         {
-                            unit.Stats.ModifyVitality(-totalTickPower); 
-                            if (!unit.IsAlive)
-                            {
-                                DebugHelper.Log($"{unit.unitName} defeated by tick damage from '{baseEffect.effectName}'.", unit);
-                            }
-                        }
-                        else
-                        {
-                            DebugHelper.LogWarning($"Tick damage type {baseEffect.tickActionDamageType} for '{baseEffect.effectName}' not fully handled with mitigation yet. Applying as unmitigated for now.", unit);
-                            unit.Stats.ModifyVitality(-totalTickPower);
+                            CombatLogger.LogEvent($"{unit.unitName} defeated by '{baseEffect.effectName}' from {casterName}!", Color.red); // ADDED
                         }
                     }
                     else if (baseEffect.tickActionType == EffectTickActionType.Heal)
                     {
-                        DebugHelper.Log($"{unit.unitName} VP before HoT tick: {unit.Stats.currentVitalityPoints}/{unit.Stats.MaxVitalityPoints}", unit);
-                        DebugHelper.Log($"{unit.unitName} heals {totalTickPower} VP from '{baseEffect.effectName}' tick. (Base: {baseEffect.tickActionBasePower}, ScaledTickPower: {tickPower}, Stacks: {effect.CurrentStacks})", unit);
+                        CombatLogger.LogEvent($"{unit.unitName} heals {totalTickPower} VP from '{baseEffect.effectName}' (tick from {casterName}).", Color.green); // ADDED
                         unit.Stats.ModifyVitality(totalTickPower);
-                        DebugHelper.Log($"{unit.unitName} VP after HoT tick: {unit.Stats.currentVitalityPoints}/{unit.Stats.MaxVitalityPoints}", unit);
                     }
                 }
             }
@@ -169,6 +161,7 @@ public class EffectSystem : MonoBehaviour
         {
             foreach (ActiveStatusEffect expiredEffect in effectsToExpire)
             {
+                // Logging of effect expiration will be handled by UnitStats.RemoveEffect
                 unit.Stats.RemoveEffect(expiredEffect);
             }
         }
