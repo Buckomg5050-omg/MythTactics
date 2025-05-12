@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: fa0ef6ef1d9e92546a390104c681bf26
+guid: 67a1203d90bbfe14db305a3a5f89a975
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -2980267132570993725
-    second: Turn_order_display_background_0
+      213: 3772323705919896535
+    second: banner_modern_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -37,7 +37,7 @@ TextureImporter:
   maxTextureSize: 2048
   textureSettings:
     serializedVersion: 2
-    filterMode: 1
+    filterMode: 0
     aniso: 1
     mipBias: 0
     wrapU: 1
@@ -51,8 +51,8 @@ TextureImporter:
   spriteMeshType: 1
   alignment: 0
   spritePivot: {x: 0.5, y: 0.5}
-  spritePixelsToUnits: 100
-  spriteBorder: {x: 0, y: 0, z: 0, w: 0}
+  spritePixelsToUnits: 64
+  spriteBorder: {x: 64, y: 16, z: 64, w: 16}
   spriteGenerateFallbackPhysicsShape: 1
   alphaUsage: 1
   alphaIsTransparency: 1
@@ -113,23 +113,23 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: Turn_order_display_background_0
+      name: banner_modern_0
       rect:
         serializedVersion: 2
-        x: 11
+        x: 0
         y: 0
-        width: 1516
-        height: 1024
+        width: 256
+        height: 48
       alignment: 0
-      pivot: {x: 0, y: 0}
+      pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 3cb755345d6f3a6d0800000000000000
-      internalID: -2980267132570993725
+      spriteID: 7dbf3258c6cf95430800000000000000
+      internalID: 3772323705919896535
       vertices: []
       indices: 
       edges: []
@@ -139,7 +139,7 @@ TextureImporter:
     physicsShape: []
     bones: []
     spriteID: 5e97eb03825dee720800000000000000
-    internalID: 0
+    internalID: 1537655665
     vertices: []
     indices: 
     edges: []
@@ -148,7 +148,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      Turn_order_display_background_0: -2980267132570993725
+      banner_modern_0: 3772323705919896535
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

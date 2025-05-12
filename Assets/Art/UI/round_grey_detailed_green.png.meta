@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: bf301ccea5d29784cb0e0023950a5acc
+guid: d5ef79daf9eefce4ab55e887b8c2f06c
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: 3082990926737499265
-    second: round_button_background_0
+      213: 8545472047251342573
+    second: round_grey_detailed_green_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -51,7 +51,7 @@ TextureImporter:
   spriteMeshType: 1
   alignment: 0
   spritePivot: {x: 0.5, y: 0.5}
-  spritePixelsToUnits: 128
+  spritePixelsToUnits: 64
   spriteBorder: {x: 0, y: 0, z: 0, w: 0}
   spriteGenerateFallbackPhysicsShape: 1
   alphaUsage: 1
@@ -113,23 +113,23 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: round_button_background_0
+      name: round_grey_detailed_green_0
       rect:
         serializedVersion: 2
-        x: 131
-        y: 120
-        width: 762
-        height: 780
+        x: 0
+        y: 0
+        width: 64
+        height: 64
       alignment: 0
-      pivot: {x: 0.5, y: 0.5}
+      pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 184e0f9d9ebf8ca20800000000000000
-      internalID: 3082990926737499265
+      spriteID: de442761d8d979670800000000000000
+      internalID: 8545472047251342573
       vertices: []
       indices: 
       edges: []
@@ -139,7 +139,7 @@ TextureImporter:
     physicsShape: []
     bones: []
     spriteID: 5e97eb03825dee720800000000000000
-    internalID: 1537655665
+    internalID: 0
     vertices: []
     indices: 
     edges: []
@@ -148,7 +148,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      round_button_background_0: 3082990926737499265
+      round_grey_detailed_green_0: 8545472047251342573
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

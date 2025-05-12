@@ -14,16 +14,19 @@ public class ActionButtonSetup
 public class ActionMenuUI : MonoBehaviour
 {
     [Header("Prefab & Settings")]
-    [Tooltip("The prefab for a single action button in the radial menu.")]
     public GameObject radialActionButtonPrefab; 
-    [Tooltip("The radius of the circle on which buttons will be placed.")]
     public float menuRadius = 100f; 
-    [Tooltip("Offset from the unit's position to the center of the radial menu.")]
     public Vector2 menuCenterOffset = new Vector2(0, 50f); 
 
     [Header("Configurable Actions")]
-    [Tooltip("Define the actions that can appear on the menu. Order matters for display.")]
     public List<ActionButtonSetup> configurableActions = new List<ActionButtonSetup>(); 
+
+    // MODIFIED: Defined new colors for better contrast
+    [Header("Button Text Colors")]
+    [Tooltip("Color for text on affordable/interactable action buttons.")]
+    public Color affordableTextColor = Color.black; 
+    [Tooltip("Color for text on unaffordable/non-interactable action buttons.")]
+    public Color unaffordableTextColor = new Color(0.4f, 0.4f, 0.4f, 1f); // Darker grey (R:102, G:102, B:102)
 
     private List<GameObject> _activeButtons = new List<GameObject>();
     private Unit _currentUnitInternal; 
@@ -37,7 +40,7 @@ public class ActionMenuUI : MonoBehaviour
     {
         public string name;
         public string displayName; 
-        public bool canAfford; // This will determine interactability
+        public bool canAfford;
 
         public ActionDefinition(string name, string displayName, bool canAfford)
         {
@@ -61,9 +64,9 @@ public class ActionMenuUI : MonoBehaviour
         {
             case "Move": return PlayerInputHandler.MoveActionCost;
             case "Attack": return PlayerInputHandler.AttackActionCost;
-            case "Skills": return PlayerInputHandler.SkillsActionCost; // Cost to open menu, not skill itself
-            case "Items": return PlayerInputHandler.ItemsActionCost;   // Cost to open menu
-            case "Info": return PlayerInputHandler.InfoActionCost;     // Should be 0
+            case "Skills": return PlayerInputHandler.SkillsActionCost; 
+            case "Items": return PlayerInputHandler.ItemsActionCost;   
+            case "Info": return PlayerInputHandler.InfoActionCost;     
             case "Wait": return PlayerInputHandler.WaitActionCost;
             default:
                 Debug.LogWarning($"ActionMenuUI: Unknown action name '{actionName}' for AP cost lookup. Assuming 0 AP.");
@@ -80,15 +83,13 @@ public class ActionMenuUI : MonoBehaviour
         {
             if (string.IsNullOrEmpty(actionSetup.actionName)) continue;
 
-            // Special handling for "Skills" button visibility
             if (actionSetup.actionName == "Skills")
             {
                 bool hasSkills = unit.knownAbilities != null && unit.knownAbilities.Count > 0;
-                if (!hasSkills) { continue; } // Don't even add the "Skills" button if no skills
+                if (!hasSkills) { continue; } 
             }
             
             bool canAffordAction;
-            // MODIFIED: Special case for "Info" to always be affordable/interactable
             if (actionSetup.actionName == "Info")
             {
                 canAffordAction = true; 
@@ -104,20 +105,16 @@ public class ActionMenuUI : MonoBehaviour
 
     public void ShowMenu(Unit unitToShowMenuFor, Vector2 unitScreenPosition) 
     {
-        string passedUnitName = unitToShowMenuFor != null ? unitToShowMenuFor.unitName : "null_passed_in";
-        // DebugHelper.Log($"ActionMenuUI.ShowMenu START: Called for unit '{passedUnitName}'. Prefab assigned: {(radialActionButtonPrefab != null)}. Current GO active state: {gameObject.activeSelf}", this.gameObject);
-
+        // ... (existing ShowMenu setup logic) ...
         if (!gameObject.activeSelf)
         {
             gameObject.SetActive(true);
-            // DebugHelper.Log("ActionMenuUI.ShowMenu: Set controller GameObject active.", this.gameObject);
         }
         
         foreach (GameObject button in _activeButtons) { if (button != null) Destroy(button); }
         _activeButtons.Clear();
         
         this._currentUnitInternal = unitToShowMenuFor;
-        // DebugHelper.Log($"ActionMenuUI.ShowMenu MID: _currentUnitInternal is '{this._currentUnitInternal?.unitName}'. Passed unit was '{unitToShowMenuFor?.unitName}'. Prefab null? {(radialActionButtonPrefab == null)}", this.gameObject);
 
         if (this._currentUnitInternal == null || radialActionButtonPrefab == null) 
         {
@@ -131,7 +128,6 @@ public class ActionMenuUI : MonoBehaviour
         int numActions = _runtimeAvailableActions.Count;
         if (numActions == 0) 
         {
-            // DebugHelper.LogWarning("ActionMenuUI.ShowMenu: No available actions for unit after filtering. Hiding menu.", this.gameObject);
             HideMenu();
             return;
         }
@@ -154,10 +150,37 @@ public class ActionMenuUI : MonoBehaviour
         if (desiredMenuCenter.y + minY < 0) adjustment.y = -(desiredMenuCenter.y + minY);
         if (desiredMenuCenter.y + maxY > Screen.height) adjustment.y = Screen.height - (desiredMenuCenter.y + maxY);
         Vector2 finalMenuCenter = desiredMenuCenter + adjustment;
-        // DebugHelper.Log($"ActionMenuUI.ShowMenu: Instantiating {numActions} buttons around final center {finalMenuCenter}", this.gameObject);
-        for (int i = 0; i < numActions; i++) { GameObject buttonInstance = Instantiate(radialActionButtonPrefab, this.transform); RectTransform buttonRect = buttonInstance.GetComponent<RectTransform>(); if (buttonRect != null) { buttonRect.anchorMin = Vector2.zero; buttonRect.anchorMax = Vector2.zero; buttonRect.pivot = new Vector2(0.5f, 0.5f); } buttonInstance.transform.position = finalMenuCenter + buttonLocalPositions[i]; ActionDefinition currentActionDef = _runtimeAvailableActions[i]; TextMeshProUGUI buttonText = buttonInstance.GetComponentInChildren<TextMeshProUGUI>(); if (buttonText != null) { buttonText.text = currentActionDef.displayName; buttonText.color = currentActionDef.canAfford ? Color.white : Color.gray; } Button buttonComponent = buttonInstance.GetComponent<Button>(); if (buttonComponent != null) { buttonComponent.interactable = currentActionDef.canAfford; string capturedActionName = currentActionDef.name; buttonComponent.onClick.AddListener(() => OnActionButtonClicked(capturedActionName)); } buttonInstance.name = $"ActionButton_{currentActionDef.name}"; buttonInstance.SetActive(true); _activeButtons.Add(buttonInstance); }
 
-        // DebugHelper.Log($"ActionMenuUI.ShowMenu END: Successfully processed for unit '{this._currentUnitInternal?.unitName}'. Menu GO active: {gameObject.activeSelf}, Button count: {_activeButtons.Count}", this.gameObject);
+        for (int i = 0; i < numActions; i++) 
+        { 
+            GameObject buttonInstance = Instantiate(radialActionButtonPrefab, this.transform); 
+            RectTransform buttonRect = buttonInstance.GetComponent<RectTransform>(); 
+            if (buttonRect != null) 
+            { 
+                buttonRect.anchorMin = Vector2.zero; 
+                buttonRect.anchorMax = Vector2.zero; 
+                buttonRect.pivot = new Vector2(0.5f, 0.5f); 
+            } 
+            buttonInstance.transform.position = finalMenuCenter + buttonLocalPositions[i]; 
+            ActionDefinition currentActionDef = _runtimeAvailableActions[i]; 
+            TextMeshProUGUI buttonText = buttonInstance.GetComponentInChildren<TextMeshProUGUI>(); 
+            if (buttonText != null) 
+            { 
+                buttonText.text = currentActionDef.displayName; 
+                // MODIFIED: Use Inspector-configurable colors
+                buttonText.color = currentActionDef.canAfford ? affordableTextColor : unaffordableTextColor; 
+            } 
+            Button buttonComponent = buttonInstance.GetComponent<Button>(); 
+            if (buttonComponent != null) 
+            { 
+                buttonComponent.interactable = currentActionDef.canAfford; 
+                string capturedActionName = currentActionDef.name; 
+                buttonComponent.onClick.AddListener(() => OnActionButtonClicked(capturedActionName)); 
+            } 
+            buttonInstance.name = $"ActionButton_{currentActionDef.name}"; 
+            buttonInstance.SetActive(true); 
+            _activeButtons.Add(buttonInstance); 
+        }
     }
 
     public void HideMenu()

@@ -5,28 +5,27 @@ using TMPro;
 using System;
 using System.Collections.Generic;
 
-public class SkillSlotUI // Helper class for managing individual skill slot instances
+// SkillSlotUI class remains the same...
+public class SkillSlotUI 
 {
     public GameObject slotGameObjectInstance;
     public TextMeshProUGUI skillNameText;
     public TextMeshProUGUI skillCostText;
-    public Image skillIconImage; // Optional
+    public Image skillIconImage; 
     public Button skillButton;
     public AbilitySO boundAbility;
 
     public SkillSlotUI(GameObject instance, Action<AbilitySO> onSkillSelectedCallback)
     {
         slotGameObjectInstance = instance;
-        // Adjust these names if your SkillSlot_Prefab child elements are named differently
         skillNameText = instance.transform.Find("SkillName_Text")?.GetComponent<TextMeshProUGUI>(); 
         skillCostText = instance.transform.Find("SkillCost_Text")?.GetComponent<TextMeshProUGUI>(); 
         skillIconImage = instance.transform.Find("SkillIcon_Image")?.GetComponent<Image>();     
         skillButton = instance.GetComponent<Button>();
 
-        if (skillNameText == null) Debug.LogError("SkillSlotUI: SkillName_Text not found on instance. Check prefab child naming.", instance);
-        if (skillCostText == null) Debug.LogError("SkillSlotUI: SkillCost_Text not found on instance. Check prefab child naming.", instance);
-        // Icon is optional
-        if (skillIconImage == null && instance.transform.Find("SkillIcon_Image") != null) Debug.LogWarning("SkillSlotUI: SkillIcon_Image GameObject found but Image component is missing or name is incorrect.", instance); 
+        if (skillNameText == null) Debug.LogError("SkillSlotUI: SkillName_Text not found on instance.", instance);
+        if (skillCostText == null) Debug.LogError("SkillSlotUI: SkillCost_Text not found on instance.", instance);
+        if (skillIconImage == null && instance.transform.Find("SkillIcon_Image") != null) Debug.LogWarning("SkillSlotUI: SkillIcon_Image GameObject found but Image component is missing.", instance); 
         if (skillButton == null) Debug.LogError("SkillSlotUI: Button component not found on root of instance.", instance);
 
         skillButton?.onClick.AddListener(() => {
@@ -60,58 +59,64 @@ public class SkillSlotUI // Helper class for managing individual skill slot inst
         
         if (skillIconImage != null)
         {
-            if (ability.abilityIcon != null) // MODIFIED: Was ability.icon
+            if (ability.abilityIcon != null) 
             {
-                skillIconImage.sprite = ability.abilityIcon; // MODIFIED: Was ability.icon
+                skillIconImage.sprite = ability.abilityIcon; 
                 skillIconImage.enabled = true;
             }
             else
             {
-                 skillIconImage.enabled = false; // Hide if no icon provided
+                 skillIconImage.enabled = false; 
             }
         }
     }
 }
 
+
 public class SkillSelectionUI : MonoBehaviour
 {
     [Header("Prefabs")]
-    [Tooltip("The prefab for a single skill slot UI element.")]
     public GameObject skillSlotPrefab;
 
     [Header("Panel References")]
-    [Tooltip("The parent transform where skill slots will be instantiated (likely the panel itself or a child Content object).")]
     public Transform skillSlotsContainer; 
-    [Tooltip("Optional: Assign the 'Close' or 'Back' button for this panel.")] // Description added
-    public Button closeButton; // UNCOMMENTED
+    public Button closeButton; 
 
     private List<SkillSlotUI> _currentSkillSlots = new List<SkillSlotUI>();
     private Unit _caster;
 
     public static event Action<Unit, AbilitySO> OnSkillAbilitySelected;
+    public static event Action OnSkillPanelClosedByButton; // ADDED EVENT
 
     void Awake()
     {
         if (skillSlotPrefab == null) Debug.LogError("SkillSelectionUI: SkillSlot_Prefab not assigned!", this);
         if (skillSlotsContainer == null) 
         {
-            Debug.LogWarning("SkillSelectionUI: SkillSlotsContainer not assigned. Attempting to use this.transform (panel root).", this);
+            Debug.LogWarning("SkillSelectionUI: SkillSlotsContainer not assigned. Attempting to use this.transform.", this);
             skillSlotsContainer = this.transform; 
         }
 
-        if (closeButton != null) // UNCOMMENTED
+        if (closeButton != null) 
         {
-            closeButton.onClick.AddListener(HidePanel); // UNCOMMENTED
+            // MODIFIED: Listener now calls a method that invokes the event
+            closeButton.onClick.AddListener(HandleCloseButtonPressed); 
         }
         else 
         {
-            // Only log warning if a button named "CloseButton" exists but wasn't assigned,
-            // otherwise it's truly optional.
-            if (transform.Find("CloseButton") != null) // Example common name for a close button
-                 Debug.LogWarning("SkillSelectionUI: CloseButton UI element found in prefab, but not assigned in the Inspector.", this);
+            if (transform.Find("CloseButton") != null) 
+                 Debug.LogWarning("SkillSelectionUI: CloseButton UI element found, but not assigned in Inspector.", this);
         }
 
         gameObject.SetActive(false); 
+    }
+
+    // ADDED: Method to handle close button press
+    private void HandleCloseButtonPressed()
+    {
+        Debug.Log("SkillSelectionUI: Close button pressed. Invoking OnSkillPanelClosedByButton event.", this);
+        OnSkillPanelClosedByButton?.Invoke();
+        // HidePanel(); // PIH will now handle hiding the panel when it changes state.
     }
 
     public void ShowPanel(Unit caster, Vector2 positionToShowAt, List<AbilitySO> abilities)
@@ -119,13 +124,13 @@ public class SkillSelectionUI : MonoBehaviour
         _caster = caster;
         if (_caster == null || abilities == null)
         {
-            HidePanel();
+            HidePanel(); // Still hide if called with invalid data
             return;
         }
 
         foreach (SkillSlotUI slot in _currentSkillSlots)
         {
-            if (slot != null && slot.slotGameObjectInstance != null) // Add null check for robustness
+            if (slot != null && slot.slotGameObjectInstance != null) 
                 Destroy(slot.slotGameObjectInstance);
         }
         _currentSkillSlots.Clear();
@@ -133,17 +138,13 @@ public class SkillSelectionUI : MonoBehaviour
         if (abilities.Count == 0)
         {
             Debug.LogWarning($"{caster.unitName} has no abilities to display in SkillSelectionUI.", caster);
-            // TODO: Optionally show a "No Skills Available" message within the panel
-            // For now, just make sure it shows if it's supposed to be empty but visible.
-            // HidePanel(); // Decided by caller whether an empty panel is an error or valid state
         }
 
         foreach (AbilitySO ability in abilities)
         {
             if (ability == null) continue;
-            if (skillSlotPrefab == null) { Debug.LogError("SkillSelectionUI: skillSlotPrefab is null in ShowPanel!", this); break;}
-            if (skillSlotsContainer == null) { Debug.LogError("SkillSelectionUI: skillSlotsContainer is null in ShowPanel!", this); break;}
-
+            if (skillSlotPrefab == null) { Debug.LogError("SkillSelectionUI: skillSlotPrefab is null!", this); break;}
+            if (skillSlotsContainer == null) { Debug.LogError("SkillSelectionUI: skillSlotsContainer is null!", this); break;}
 
             GameObject slotInstance = Instantiate(skillSlotPrefab, skillSlotsContainer);
             SkillSlotUI newSlotUI = new SkillSlotUI(slotInstance, HandleSkillSlotClicked);
@@ -155,10 +156,6 @@ public class SkillSelectionUI : MonoBehaviour
         if (rectTransform != null)
         {
             rectTransform.position = positionToShowAt; 
-            // TODO: Implement screen clamping for this panel.
-            // Consider pivot point of the panel when positioning. If pivot is center, positionToShowAt is its center.
-            // If pivot is top-left, positionToShowAt becomes its top-left corner.
-            // For "near the button" positioning, you might want to offset based on button size and panel size/pivot.
         }
 
         gameObject.SetActive(true);
@@ -171,15 +168,17 @@ public class SkillSelectionUI : MonoBehaviour
 
         Debug.Log($"SkillSelectionUI: Skill '{selectedAbility.abilityName}' selected by {_caster.unitName}.", this);
         OnSkillAbilitySelected?.Invoke(_caster, selectedAbility);
-        HidePanel();
+        HidePanel(); // When a skill is selected, we still hide immediately and PIH handles state change.
     }
 
     public void HidePanel()
     {
-        gameObject.SetActive(false);
-        // _caster = null; // Keep caster info until explicitly cleared or new one is set by ShowPanel
-        // Don't clear _currentSkillSlots here, ShowPanel does it to prevent issues if HidePanel is called mid-population or multiple times
-        Debug.Log("SkillSelectionUI: Panel hidden.", this);
+        // This method is now primarily called by PlayerInputHandler or when a skill is selected.
+        if (gameObject.activeSelf) // Only log if it was actually visible
+        {
+            gameObject.SetActive(false);
+            Debug.Log("SkillSelectionUI: Panel hidden.", this);
+        }
     }
 
     public bool IsVisible()

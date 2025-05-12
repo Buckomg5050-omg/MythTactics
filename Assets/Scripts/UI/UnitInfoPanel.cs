@@ -44,7 +44,7 @@ public class UnitInfoPanelUI : MonoBehaviour
     {
         if (mainPanel == null)
         {
-            Debug.LogWarning("UnitInfoPanelUI.Awake: MainPanel reference is not set in Inspector. Attempting to use this.gameObject.", this);
+            // Debug.LogWarning("UnitInfoPanelUI.Awake: MainPanel reference is not set in Inspector. Attempting to use this.gameObject.", this);
             mainPanel = this.gameObject;
         }
 
@@ -90,18 +90,17 @@ public class UnitInfoPanelUI : MonoBehaviour
         _currentUnit = unitToShowInfoFor;
         if (_currentUnit == null)
         {
-            Debug.LogError("UnitInfoPanelUI.ShowPanel: unitToShowInfoFor is null. Hiding panel.", this);
+            // Debug.LogError("UnitInfoPanelUI.ShowPanel: unitToShowInfoFor is null. Hiding panel.", this);
             HidePanelInternally(); 
             return;
         }
 
-        // MODIFIED: Activate mainPanel BEFORE populating data
         if (!mainPanel.activeSelf)
         {
             mainPanel.SetActive(true);
         }
 
-        PopulatePanelData(); // Now PopulateStatusEffects can start a coroutine
+        PopulatePanelData(); 
     }
 
     public void HidePanel()
@@ -139,12 +138,9 @@ public class UnitInfoPanelUI : MonoBehaviour
 
     private void PopulatePanelData()
     {
-        if (!mainPanel.activeInHierarchy)
+        if (!mainPanel.activeInHierarchy && gameObject.activeInHierarchy) // Check if this script's GO is active
         {
-            // This can happen if ShowPanel was called while the panel itself was globally inactive.
-            // The StartCoroutine in PopulateStatusEffects would fail.
-            // ShowPanel now activates it first, so this path should be less likely for the coroutine issue.
-            Debug.LogWarning("UnitInfoPanelUI.PopulatePanelData: Called while mainPanel is not active in hierarchy. Some UI updates (like coroutines for layout) might not initiate.", this);
+            // Debug.LogWarning("UnitInfoPanelUI.PopulatePanelData: Called while mainPanel is not active in hierarchy but this GO is. Some UI updates (like coroutines for layout) might not initiate if mainPanel is this.gameObject and it was just activated.", this);
         }
         
         if (_currentUnit == null || _currentUnit.Stats == null)
@@ -228,7 +224,7 @@ public class UnitInfoPanelUI : MonoBehaviour
 
         IReadOnlyList<ActiveStatusEffect> effects = _currentUnit.Stats.ActiveEffects;
 
-        statusEffectsListPanel.SetActive(false); // Keep panel inactive while initially populating
+        statusEffectsListPanel.SetActive(false); 
 
         if (effects.Count > 0)
         {
@@ -266,16 +262,13 @@ public class UnitInfoPanelUI : MonoBehaviour
             {
                 StopCoroutine(_activateLayoutCoroutine);
             }
-            // Ensure this MonoBehaviour's GameObject is active before starting a coroutine on it
             if(gameObject.activeInHierarchy) 
             {
                 _activateLayoutCoroutine = StartCoroutine(ActivateAndRebuildLayout(statusEffectsListPanel));
             }
             else 
             {
-                // Fallback if the main panel itself is not active, just activate the status panel directly
-                // though this might not give layout enough time.
-                Debug.LogWarning("UnitInfoPanelUI.PopulateStatusEffects: Main panel (this.gameObject) is inactive. Activating status panel directly without coroutine delay.", this);
+                // Debug.LogWarning("UnitInfoPanelUI.PopulateStatusEffects: Main panel (this.gameObject) is inactive. Activating status panel directly without coroutine delay.", this);
                 statusEffectsListPanel.SetActive(true);
                 RectTransform panelRectTransform = statusEffectsListPanel.GetComponent<RectTransform>();
                 if (panelRectTransform != null)
@@ -284,7 +277,6 @@ public class UnitInfoPanelUI : MonoBehaviour
                 }
             }
         }
-        // If no effects, panel remains inactive (already set above or by default logic)
     }
 
     private IEnumerator ActivateAndRebuildLayout(GameObject panelToActivate)

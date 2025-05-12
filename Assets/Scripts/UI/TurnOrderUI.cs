@@ -1,10 +1,10 @@
-// TurnOrderUI.cs
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
-using System.Collections; // Required for Coroutines
+using System.Collections;
 using System.Collections.Generic;
 
+// UnitTurnSlotUI class definition
 public class UnitTurnSlotUI
 {
     public GameObject slotGameObject;
@@ -12,11 +12,9 @@ public class UnitTurnSlotUI
     public Image slotBackgroundImage;
     private LayoutElement _layoutElement;
 
-    // CanvasGroups for fading
     private CanvasGroup _unitSpriteCanvasGroup;
     private CanvasGroup _slotBackgroundCanvasGroup;
 
-    // Sprites, scales, and dimensions
     private Sprite _activeDiamondSprite;
     private Sprite _upcomingDiamondSprite;
     private Vector2 _activeSpriteScale;
@@ -26,13 +24,12 @@ public class UnitTurnSlotUI
     private Vector2 _activeSlotBackgroundImageActualSize;
     private Vector2 _upcomingSlotBackgroundImageActualSize;
 
-    // Coroutine management
-    private MonoBehaviour _coroutineRunner; // To run coroutines from this non-MB class
+    private MonoBehaviour _coroutineRunner;
     private Coroutine _transitionCoroutine;
     private Coroutine _backgroundFadeCoroutine;
     private Coroutine _spriteScaleCoroutine;
     private Coroutine _slotSizeCoroutine;
-
+    private Coroutine _unitSpriteFadeCoroutine;
 
     public UnitTurnSlotUI(GameObject slotInstance, MonoBehaviour coroutineRunner,
                           Sprite activeDiamond, Sprite upcomingDiamond,
@@ -41,7 +38,7 @@ public class UnitTurnSlotUI
                           Vector2 activeBgImgSize, Vector2 upcomingBgImgSize)
     {
         slotGameObject = slotInstance;
-        _coroutineRunner = coroutineRunner; // Store the MonoBehaviour instance
+        _coroutineRunner = coroutineRunner;
 
         _activeDiamondSprite = activeDiamond;
         _upcomingDiamondSprite = upcomingDiamond;
@@ -60,9 +57,9 @@ public class UnitTurnSlotUI
 
         if (_layoutElement == null) Debug.LogError("UnitTurnSlotUI: Slot instance is missing LayoutElement.", slotInstance);
         if (unitSpriteImage == null) Debug.LogError("UnitTurnSlotUI: Could not find Unit_Sprite_Image.", slotInstance);
-        if (_unitSpriteCanvasGroup == null) Debug.LogError("UnitTurnSlotUI: Unit_Sprite_Image is missing CanvasGroup.", slotInstance);
+        if (_unitSpriteCanvasGroup == null && unitSpriteImage != null) Debug.LogError("UnitTurnSlotUI: Unit_Sprite_Image is missing CanvasGroup.", slotInstance);
         if (slotBackgroundImage == null) Debug.LogError("UnitTurnSlotUI: Could not find Slot_Background_Image.", slotInstance);
-        if (_slotBackgroundCanvasGroup == null) Debug.LogError("UnitTurnSlotUI: Slot_Background_Image is missing CanvasGroup.", slotInstance);
+        if (_slotBackgroundCanvasGroup == null && slotBackgroundImage != null) Debug.LogError("UnitTurnSlotUI: Slot_Background_Image is missing CanvasGroup.", slotInstance);
     }
 
     public void TransitionToState(Unit unit, bool isActiveUnit, float duration)
@@ -73,102 +70,156 @@ public class UnitTurnSlotUI
 
     private IEnumerator PerformTransition(Unit unit, bool isActiveUnit, float duration)
     {
+        // Debug.Log($"SLOT {slotGameObject.name}: PerformTransition START for Unit: {unit?.unitName}, IsActive: {isActiveUnit}, CurrentBG: {slotBackgroundImage?.sprite?.name}", _coroutineRunner);
+
         if (unit != null && slotGameObject != null)
         {
-            slotGameObject.SetActive(true);
+            if (!slotGameObject.activeSelf) slotGameObject.SetActive(true);
 
-            // --- Determine target values ---
             Sprite targetDiamondSprite = isActiveUnit ? _activeDiamondSprite : _upcomingDiamondSprite;
             Vector2 targetSpriteScale = isActiveUnit ? _activeSpriteScale : _normalSpriteScale;
             Vector2 targetSlotDimensions = isActiveUnit ? _activeSlotDimensions : _upcomingSlotDimensions;
             Vector2 targetBgImgActualSize = isActiveUnit ? _activeSlotBackgroundImageActualSize : _upcomingSlotBackgroundImageActualSize;
-            Sprite unitDisplaySprite = unit.GetComponentInChildren<SpriteRenderer>()?.sprite;
-
-            // --- Start individual animations ---
-            // Background Sprite and Size (Fade out old, swap, fade in new)
-            if (slotBackgroundImage.sprite != targetDiamondSprite || slotBackgroundImage.rectTransform.sizeDelta != targetBgImgActualSize)
+            Sprite unitDisplaySprite = null;
+            if (unit.TryGetComponent<SpriteRenderer>(out var sr))
             {
-                if (_backgroundFadeCoroutine != null) _coroutineRunner.StopCoroutine(_backgroundFadeCoroutine);
-                _backgroundFadeCoroutine = _coroutineRunner.StartCoroutine(
-                    AnimateImageChange(_slotBackgroundCanvasGroup, slotBackgroundImage, targetDiamondSprite, targetBgImgActualSize, duration)
-                );
-            } else { // Ensure it's visible if no sprite change but was hidden
-                 if (_slotBackgroundCanvasGroup != null) _slotBackgroundCanvasGroup.alpha = 1f;
-                 if (slotBackgroundImage != null) slotBackgroundImage.enabled = true;
+                unitDisplaySprite = sr.sprite;
+            }
+            else if (unit.transform.childCount > 0 && unit.transform.GetChild(0).TryGetComponent<SpriteRenderer>(out var childSr))
+            {
+                unitDisplaySprite = childSr.sprite;
             }
 
-
-            // Unit Sprite (if different or visibility changes)
-            if (unitSpriteImage.sprite != unitDisplaySprite || !unitSpriteImage.enabled) {
-                 if (unitDisplaySprite != null) {
-                    // Simple fade for sprite change for now, could be more complex (fade out, change, fade in)
-                    if (_unitSpriteCanvasGroup != null) _unitSpriteCanvasGroup.alpha = 0f; // Instant hide before pop
-                    unitSpriteImage.sprite = unitDisplaySprite;
-                    unitSpriteImage.enabled = true;
-                    if (_unitSpriteCanvasGroup != null) _coroutineRunner.StartCoroutine(FadeCanvasGroup(_unitSpriteCanvasGroup, 1f, duration / 2f)); // Fade in
-                 } else {
-                    if (_unitSpriteCanvasGroup != null) _coroutineRunner.StartCoroutine(FadeCanvasGroup(_unitSpriteCanvasGroup, 0f, duration / 2f, () => unitSpriteImage.enabled = false ));
-                 }
-            } else {
-                 if (_unitSpriteCanvasGroup != null) _unitSpriteCanvasGroup.alpha = 1f; // Ensure visible
+            if (slotBackgroundImage != null && _slotBackgroundCanvasGroup != null)
+            {
+                if (slotBackgroundImage.sprite != targetDiamondSprite || slotBackgroundImage.rectTransform.sizeDelta != targetBgImgActualSize)
+                {
+                    if (_backgroundFadeCoroutine != null) _coroutineRunner.StopCoroutine(_backgroundFadeCoroutine);
+                    _backgroundFadeCoroutine = _coroutineRunner.StartCoroutine(
+                        AnimateImageChange(_slotBackgroundCanvasGroup, slotBackgroundImage, targetDiamondSprite, targetBgImgActualSize, duration, "BG_ImageChange")
+                    );
+                }
+                else
+                {
+                    if (targetDiamondSprite != null && _slotBackgroundCanvasGroup.alpha < 1f) {
+                         if (_backgroundFadeCoroutine != null) _coroutineRunner.StopCoroutine(_backgroundFadeCoroutine);
+                        _backgroundFadeCoroutine = _coroutineRunner.StartCoroutine(FadeCanvasGroup(_slotBackgroundCanvasGroup, 1f, duration, "BG_EnsureVisible"));
+                    } else if (targetDiamondSprite == null && _slotBackgroundCanvasGroup.alpha > 0f) {
+                         if (_backgroundFadeCoroutine != null) _coroutineRunner.StopCoroutine(_backgroundFadeCoroutine);
+                        _backgroundFadeCoroutine = _coroutineRunner.StartCoroutine(FadeCanvasGroup(_slotBackgroundCanvasGroup, 0f, duration, "BG_EnsureHidden"));
+                    }
+                    if (slotBackgroundImage != null) slotBackgroundImage.enabled = (targetDiamondSprite != null);
+                }
             }
 
+            if (unitSpriteImage != null && _unitSpriteCanvasGroup != null)
+            {
+                if (_unitSpriteFadeCoroutine != null) _coroutineRunner.StopCoroutine(_unitSpriteFadeCoroutine);
 
-            // Unit Sprite Scale
-            if (unitSpriteImage.rectTransform.localScale != (Vector3)targetSpriteScale)
+                if (unitDisplaySprite != null) {
+                    bool needsNewSprite = unitSpriteImage.sprite != unitDisplaySprite;
+                    bool needsFadeIn = !_unitSpriteCanvasGroup.gameObject.activeSelf || _unitSpriteCanvasGroup.alpha < 0.99f;
+
+                    if (needsNewSprite) {
+                        if (unitSpriteImage.sprite != null && _unitSpriteCanvasGroup.alpha > 0.01f) {
+                             _unitSpriteFadeCoroutine = _coroutineRunner.StartCoroutine(FadeCanvasGroup(_unitSpriteCanvasGroup, 0f, duration / 2f, () => {
+                                unitSpriteImage.sprite = unitDisplaySprite;
+                                unitSpriteImage.enabled = true;
+                                _unitSpriteFadeCoroutine = _coroutineRunner.StartCoroutine(FadeCanvasGroup(_unitSpriteCanvasGroup, 1f, duration / 2f, "UnitSprite_FadeInAfterSwap"));
+                            }, "UnitSprite_FadeOutOld"));
+                        } else { 
+                            unitSpriteImage.sprite = unitDisplaySprite;
+                            unitSpriteImage.enabled = true;
+                            _unitSpriteFadeCoroutine = _coroutineRunner.StartCoroutine(FadeCanvasGroup(_unitSpriteCanvasGroup, 1f, duration, "UnitSprite_DirectFadeIn"));
+                        }
+                    } else if (needsFadeIn) { 
+                        unitSpriteImage.enabled = true; 
+                         _unitSpriteFadeCoroutine = _coroutineRunner.StartCoroutine(FadeCanvasGroup(_unitSpriteCanvasGroup, 1f, duration, "UnitSprite_FadeInSameSprite"));
+                    }
+                } else { 
+                    _unitSpriteFadeCoroutine = _coroutineRunner.StartCoroutine(FadeCanvasGroup(_unitSpriteCanvasGroup, 0f, duration, () => { if(unitSpriteImage != null) unitSpriteImage.enabled = false; }, "UnitSprite_FadeOutEmpty"));
+                }
+            }
+
+            if (unitSpriteImage != null && unitSpriteImage.rectTransform.localScale != (Vector3)targetSpriteScale)
             {
                 if (_spriteScaleCoroutine != null) _coroutineRunner.StopCoroutine(_spriteScaleCoroutine);
                 _spriteScaleCoroutine = _coroutineRunner.StartCoroutine(AnimateScale(unitSpriteImage.rectTransform, targetSpriteScale, duration));
             }
 
-            // Overall Slot Dimensions
-            if (_layoutElement.preferredWidth != targetSlotDimensions.x || _layoutElement.preferredHeight != targetSlotDimensions.y)
+            if (_layoutElement != null && (_layoutElement.preferredWidth != targetSlotDimensions.x || _layoutElement.preferredHeight != targetSlotDimensions.y))
             {
                 if (_slotSizeCoroutine != null) _coroutineRunner.StopCoroutine(_slotSizeCoroutine);
                 _slotSizeCoroutine = _coroutineRunner.StartCoroutine(AnimateLayoutElementSize(_layoutElement, targetSlotDimensions, duration));
             }
-
-            // Wait for the longest relevant part of the transition if needed, or let them run concurrently.
-            // For now, we let them run concurrently.
-            yield return null; // Or yield return new WaitForSeconds(duration); if you want to block this main coroutine
         }
-        else // No unit for this slot
+        else
         {
-            // Fade out the whole slot if it's becoming inactive
             if (slotGameObject.activeSelf) {
-                // This needs a CanvasGroup on the slotGameObject's root itself to fade everything.
-                // For now, direct hide. To improve: add CanvasGroup to prefab root, fade that.
-                if (_unitSpriteCanvasGroup != null) _unitSpriteCanvasGroup.alpha = 0;
-                if (_slotBackgroundCanvasGroup != null) _slotBackgroundCanvasGroup.alpha = 0;
-                slotGameObject.SetActive(false);
+                CanvasGroup rootCG = slotGameObject.GetComponent<CanvasGroup>();
+                if (rootCG != null)
+                {
+                    if (_backgroundFadeCoroutine != null) _coroutineRunner.StopCoroutine(_backgroundFadeCoroutine);
+                    if (_unitSpriteFadeCoroutine != null) _coroutineRunner.StopCoroutine(_unitSpriteFadeCoroutine);
+                    _coroutineRunner.StartCoroutine(FadeCanvasGroup(rootCG, 0f, duration, () => slotGameObject.SetActive(false), "Slot_RootFadeOut"));
+                }
+                else
+                {
+                    if (_unitSpriteCanvasGroup != null) _unitSpriteCanvasGroup.alpha = 0;
+                    if (unitSpriteImage != null) unitSpriteImage.enabled = false;
+                    if (_slotBackgroundCanvasGroup != null) _slotBackgroundCanvasGroup.alpha = 0;
+                    if (slotBackgroundImage != null) slotBackgroundImage.enabled = false;
+                    slotGameObject.SetActive(false);
+                }
             }
         }
+        // Debug.Log($"SLOT {slotGameObject.name}: PerformTransition has LAUNCHED SUB-TASKS for Unit: {unit?.unitName}", _coroutineRunner);
+        _transitionCoroutine = null;
+        yield return null;
     }
-    
-    private IEnumerator AnimateImageChange(CanvasGroup cg, Image image, Sprite newSprite, Vector2 newSize, float duration)
+
+    private IEnumerator AnimateImageChange(CanvasGroup cg, Image image, Sprite newSprite, Vector2 newSize, float duration, string debugID = "")
     {
-        if (cg == null || image == null) yield break;
+        if (cg == null || image == null) { /* Debug.LogWarning($"SLOT {debugID} AnimateImageChange ABORTED: cg or image is null for slot {slotGameObject.name}", _coroutineRunner); */ yield break; }
 
-        float halfDuration = duration * 0.5f; // Fade out, then fade in
+        bool spriteIsChanging = (image.sprite != newSprite);
+        bool sizeIsChanging = (image.rectTransform.sizeDelta != newSize);
+        
+        // Debug.Log($"SLOT {image.transform.parent.name}: AnimateImageChange START ({debugID}) for {image.gameObject.name}. TargetSprite: {newSprite?.name}, CurrentSprite: {image.sprite?.name}, SizeChanging: {sizeIsChanging}", _coroutineRunner);
 
-        // Fade out
-        yield return _coroutineRunner.StartCoroutine(FadeCanvasGroup(cg, 0f, halfDuration));
-
-        // Change content
-        image.sprite = newSprite;
+        if (spriteIsChanging) {
+            image.sprite = newSprite; 
+            // Debug.Log($"SLOT {image.transform.parent.name}: AnimateImageChange - INSTANT SWAP sprite for {image.gameObject.name} to {newSprite?.name} ({debugID})", _coroutineRunner);
+        }
+        
+        image.enabled = (newSprite != null);
         image.rectTransform.sizeDelta = newSize;
 
-        // Fade in
-        yield return _coroutineRunner.StartCoroutine(FadeCanvasGroup(cg, 1f, halfDuration));
-        _backgroundFadeCoroutine = null;
+        float targetAlpha = (newSprite != null) ? 1f : 0f;
+
+        if (duration <= 0 || (Mathf.Approximately(cg.alpha, targetAlpha) && !spriteIsChanging && image.enabled == (newSprite != null) )) {
+            cg.alpha = targetAlpha;
+            // Debug.Log($"SLOT {image.transform.parent.name}: AnimateImageChange INSTANT/NO-OP ({debugID}) for {image.gameObject.name}. TargetAlpha: {targetAlpha}", _coroutineRunner);
+            if (debugID == "BG_ImageChange") _backgroundFadeCoroutine = null;
+            yield break;
+        }
+        
+        // Debug.Log($"SLOT {image.transform.parent.name}: AnimateImageChange - Fading alpha for {image.gameObject.name} from {cg.alpha} to {targetAlpha} ({debugID})", _coroutineRunner);
+        yield return _coroutineRunner.StartCoroutine(FadeCanvasGroup(cg, targetAlpha, duration, "AnimateImageChange_FadeToTarget"));
+        
+        if (debugID == "BG_ImageChange") _backgroundFadeCoroutine = null; 
+        // Debug.Log($"SLOT {image.transform.parent.name}: AnimateImageChange END ({debugID}) for {image.gameObject.name}", _coroutineRunner);
     }
 
     private IEnumerator AnimateScale(RectTransform targetTransform, Vector2 targetScale, float duration)
     {
         if (targetTransform == null) yield break;
+        // Debug.Log($"SLOT {targetTransform.parent.name}: AnimateScale START for {targetTransform.gameObject.name}", _coroutineRunner);
         Vector3 startScale = targetTransform.localScale;
-        Vector3 endScale = new Vector3(targetScale.x, targetScale.y, startScale.z); // Preserve Z
+        Vector3 endScale = new Vector3(targetScale.x, targetScale.y, startScale.z); 
         float timer = 0f;
+
+        if (duration <= 0) { targetTransform.localScale = endScale; _spriteScaleCoroutine = null; /* Debug.Log($"SLOT {targetTransform.parent.name}: AnimateScale INSTANT for {targetTransform.gameObject.name}", _coroutineRunner); */ yield break; }
 
         while (timer < duration)
         {
@@ -178,13 +229,17 @@ public class UnitTurnSlotUI
         }
         targetTransform.localScale = endScale;
         _spriteScaleCoroutine = null;
+        // Debug.Log($"SLOT {targetTransform.parent.name}: AnimateScale END for {targetTransform.gameObject.name}", _coroutineRunner);
     }
 
     private IEnumerator AnimateLayoutElementSize(LayoutElement le, Vector2 targetSize, float duration)
     {
         if (le == null) yield break;
+        // Debug.Log($"SLOT {le.gameObject.name}: AnimateLayoutElementSize START", _coroutineRunner);
         Vector2 startSize = new Vector2(le.preferredWidth, le.preferredHeight);
         float timer = 0f;
+
+        if (duration <= 0) { le.preferredWidth = targetSize.x; le.preferredHeight = targetSize.y; _slotSizeCoroutine = null; /* Debug.Log($"SLOT {le.gameObject.name}: AnimateLayoutElementSize INSTANT", _coroutineRunner); */ yield break; }
 
         while (timer < duration)
         {
@@ -196,15 +251,38 @@ public class UnitTurnSlotUI
         le.preferredWidth = targetSize.x;
         le.preferredHeight = targetSize.y;
         _slotSizeCoroutine = null;
+        // Debug.Log($"SLOT {le.gameObject.name}: AnimateLayoutElementSize END", _coroutineRunner);
     }
 
-    public static IEnumerator FadeCanvasGroup(CanvasGroup cg, float targetAlpha, float duration, System.Action onComplete = null)
+    public static IEnumerator FadeCanvasGroup(CanvasGroup cg, float targetAlpha, float duration, string debugID = "") 
     {
-        if (cg == null) { onComplete?.Invoke(); yield break; }
+        if (cg == null) { /* Debug.LogWarning($"FadeCanvasGroup ABORTED ({debugID}): cg is null"); */ yield break; }
         float startAlpha = cg.alpha;
         float timer = 0f;
 
-        if (duration <= 0) // Instant if duration is zero or negative
+        if (duration <= 0) 
+        {
+            cg.alpha = targetAlpha;
+            yield break;
+        }
+        
+        while (timer < duration)
+        {
+            if (cg == null) yield break; 
+            cg.alpha = Mathf.Lerp(startAlpha, targetAlpha, timer / duration);
+            timer += Time.deltaTime;
+            yield return null;
+        }
+        if (cg != null) cg.alpha = targetAlpha;
+    }
+     
+    public static IEnumerator FadeCanvasGroup(CanvasGroup cg, float targetAlpha, float duration, System.Action onComplete, string debugID = "")
+    {
+        if (cg == null) { /* Debug.LogWarning($"FadeCanvasGroup (with onComplete) ABORTED ({debugID}): cg is null"); */ onComplete?.Invoke(); yield break; }
+        float startAlpha = cg.alpha;
+        float timer = 0f;
+
+        if (duration <= 0) 
         {
             cg.alpha = targetAlpha;
             onComplete?.Invoke();
@@ -213,28 +291,27 @@ public class UnitTurnSlotUI
         
         while (timer < duration)
         {
+            if (cg == null) { onComplete?.Invoke(); yield break; } 
             cg.alpha = Mathf.Lerp(startAlpha, targetAlpha, timer / duration);
             timer += Time.deltaTime;
             yield return null;
         }
-        cg.alpha = targetAlpha;
+        if (cg != null) cg.alpha = targetAlpha;
         onComplete?.Invoke();
     }
 }
 
 
-public class TurnOrderUI : MonoBehaviour // This IS a MonoBehaviour
+public class TurnOrderUI : MonoBehaviour 
 {
     [Header("UI Prefabs & References")]
     public GameObject unitTurnSlotPrefab;
     public TextMeshProUGUI activeUnitNameTextDisplay;
-    private CanvasGroup _activeUnitNameCanvasGroup; // For fading the name
+    private CanvasGroup _activeUnitNameCanvasGroup; 
 
     [Header("Transition Settings")]
-    [Tooltip("Duration for UI transitions (fades, scales) in seconds.")]
     public float transitionDuration = 0.3f;
 
-    // ... (other existing fields like diamond sprites, scales, dimensions) ...
     [Header("Slot Visuals - Sprites & Scale")]
     public Sprite activeUnitDiamondSprite;
     public Sprite upcomingUnitDiamondSprite;
@@ -258,14 +335,13 @@ public class TurnOrderUI : MonoBehaviour // This IS a MonoBehaviour
 
     void Awake()
     {
-        _slotsContainer = this.transform;
+        _slotsContainer = this.transform; 
         if (unitTurnSlotPrefab == null) { Debug.LogError("TurnOrderUI: UnitTurnSlot Prefab not assigned!", this); this.enabled = false; return; }
         if (activeUnitNameTextDisplay == null) { Debug.LogError("TurnOrderUI: Active Unit Name Text Display not assigned!", this); this.enabled = false; return; }
         
         _activeUnitNameCanvasGroup = activeUnitNameTextDisplay.GetComponent<CanvasGroup>();
         if (_activeUnitNameCanvasGroup == null) { Debug.LogError("TurnOrderUI: ActiveUnitName_Text_Display is MISSING a CanvasGroup component. Please add one.", this); this.enabled = false; return; }
 
-        // ... (other null checks from before) ...
         LayoutElement prefabRootLayoutElement = unitTurnSlotPrefab.GetComponent<LayoutElement>();
         if (prefabRootLayoutElement == null) { Debug.LogError("TurnOrderUI: UnitTurnSlot_Prefab root is MISSING LayoutElement. Disabling.", this); this.enabled = false; return; }
         
@@ -275,8 +351,8 @@ public class TurnOrderUI : MonoBehaviour // This IS a MonoBehaviour
         if (unitSpriteInPrefab == null || unitSpriteInPrefab.GetComponent<CanvasGroup>() == null) { Debug.LogError("TurnOrderUI: Prefab's Unit_Sprite_Image or its CanvasGroup not found/set up.", this); this.enabled = false; return; }
 
 
-        if (_activeUnitNameCanvasGroup != null) _activeUnitNameCanvasGroup.alpha = 0f; // Start hidden
-        activeUnitNameTextDisplay.gameObject.SetActive(true); // Keep GO active, control via alpha
+        if (_activeUnitNameCanvasGroup != null) _activeUnitNameCanvasGroup.alpha = 0f; 
+        activeUnitNameTextDisplay.gameObject.SetActive(true); 
 
         InitializeDisplay();
     }
@@ -290,29 +366,35 @@ public class TurnOrderUI : MonoBehaviour // This IS a MonoBehaviour
         {
             GameObject slotInstance = Instantiate(unitTurnSlotPrefab, _slotsContainer);
             slotInstance.name = $"UnitTurnSlot_{i}";
-            // Pass 'this' (TurnOrderUI instance) as the coroutine runner
             UnitTurnSlotUI slotUI = new UnitTurnSlotUI(slotInstance, this,
                                                        activeUnitDiamondSprite, upcomingUnitDiamondSprite,
                                                        activeUnitSpriteScale, normalUnitSpriteScale,
                                                        activeSlotDimensions, upcomingSlotDimensions,
                                                        activeSlotBackgroundImageSize, upcomingSlotBackgroundImageSize);
             _uiSlots.Add(slotUI);
-            // Set initial state without animation, or animate in if desired
-             CanvasGroup slotRootCG = slotInstance.GetComponent<CanvasGroup>(); // If you add one to root for full slot fade
-             if(slotRootCG != null) slotRootCG.alpha = 0; // Start slots invisible
-             else slotInstance.SetActive(false); // Fallback
+            slotInstance.SetActive(false);
         }
     }
 
     public void UpdateTurnOrderDisplay(List<Unit> upcomingUnits, Unit activeUnit)
     {
+        if (_uiSlots.Count > 0 && _uiSlots[0] != null && _uiSlots[0].slotBackgroundImage != null)
+        {
+            // This log can be very spammy, consider removing or reducing its frequency if everything works
+            // Debug.Log($"<<<<< TurnOrderUI.UpdateTurnOrderDisplay ENTRY: Slot 0 Current BG: {_uiSlots[0].slotBackgroundImage.sprite?.name}, ActiveUnit Param: {activeUnit?.unitName} >>>>>", this);
+        }
+
         if (upcomingUnits == null)
         {
-            for (int i = 0; i < _uiSlots.Count; i++) { _uiSlots[i].TransitionToState(null, false, transitionDuration); } // Transition to "empty" state
+            Debug.LogWarning("TurnOrderUI.UpdateTurnOrderDisplay: upcomingUnits list is null. Clearing display.", this);
+            for (int i = 0; i < _uiSlots.Count; i++) 
+            {
+                if (_uiSlots[i] != null) _uiSlots[i].TransitionToState(null, false, transitionDuration); 
+            }
             if (_activeUnitNameCanvasGroup != null)
             {
                 if (_activeNameFadeCoroutine != null) StopCoroutine(_activeNameFadeCoroutine);
-                _activeNameFadeCoroutine = StartCoroutine(UnitTurnSlotUI.FadeCanvasGroup(_activeUnitNameCanvasGroup, 0f, transitionDuration));
+                _activeNameFadeCoroutine = StartCoroutine(UnitTurnSlotUI.FadeCanvasGroup(_activeUnitNameCanvasGroup, 0f, transitionDuration, "ActiveName_Clear"));
             }
             return;
         }
@@ -320,31 +402,37 @@ public class TurnOrderUI : MonoBehaviour // This IS a MonoBehaviour
         bool activeUnitFoundInList = false;
         for (int i = 0; i < _uiSlots.Count; i++)
         {
+            if (_uiSlots[i] == null) continue; 
+
             if (i < upcomingUnits.Count)
             {
                 Unit unitToShow = upcomingUnits[i];
                 bool isThisUnitActive = (unitToShow == activeUnit);
-                _uiSlots[i].TransitionToState(unitToShow, isThisUnitActive, transitionDuration); // Call new transition method
+                
+                // This log can also be spammy.
+                // Debug.Log($"TurnOrderUI.Update: Slot {i} ({_uiSlots[i].slotGameObject.name}), Unit: {unitToShow?.unitName}, IsActiveTarget: {isThisUnitActive}, ActiveUnitParam: {activeUnit?.unitName}, TargetSprite: {(isThisUnitActive ? activeUnitDiamondSprite?.name : upcomingUnitDiamondSprite?.name)}", this);
+
+                _uiSlots[i].TransitionToState(unitToShow, isThisUnitActive, transitionDuration); 
 
                 if (isThisUnitActive && unitToShow != null) activeUnitFoundInList = true;
             }
             else
             {
-                _uiSlots[i].TransitionToState(null, false, transitionDuration); // Transition to "empty" state
+                _uiSlots[i].TransitionToState(null, false, transitionDuration); 
             }
         }
 
-        if (_activeUnitNameCanvasGroup != null)
+        if (_activeUnitNameCanvasGroup != null && activeUnitNameTextDisplay != null)
         {
             if (_activeNameFadeCoroutine != null) StopCoroutine(_activeNameFadeCoroutine);
-            if (activeUnit != null && activeUnitFoundInList)
+            if (activeUnit != null && activeUnitFoundInList) 
             {
                 activeUnitNameTextDisplay.text = activeUnit.unitName;
-                _activeNameFadeCoroutine = StartCoroutine(UnitTurnSlotUI.FadeCanvasGroup(_activeUnitNameCanvasGroup, 1f, transitionDuration));
+                _activeNameFadeCoroutine = StartCoroutine(UnitTurnSlotUI.FadeCanvasGroup(_activeUnitNameCanvasGroup, 1f, transitionDuration, "ActiveName_Show"));
             }
             else
             {
-                _activeNameFadeCoroutine = StartCoroutine(UnitTurnSlotUI.FadeCanvasGroup(_activeUnitNameCanvasGroup, 0f, transitionDuration));
+                _activeNameFadeCoroutine = StartCoroutine(UnitTurnSlotUI.FadeCanvasGroup(_activeUnitNameCanvasGroup, 0f, transitionDuration, "ActiveName_Hide"));
             }
         }
     }

@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: 4eafe97035ba4c341a3bcd10d88619a3
+guid: 3b3c86136cc90ee459745b1b489730f2
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -6498126669292196579
-    second: Turn_order_unit_background_76_0
+      213: -8205079620237608079
+    second: round_grey_detailed_red_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -51,7 +51,7 @@ TextureImporter:
   spriteMeshType: 1
   alignment: 0
   spritePivot: {x: 0.5, y: 0.5}
-  spritePixelsToUnits: 76
+  spritePixelsToUnits: 64
   spriteBorder: {x: 0, y: 0, z: 0, w: 0}
   spriteGenerateFallbackPhysicsShape: 1
   alphaUsage: 1
@@ -113,13 +113,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: Turn_order_unit_background_76_0
+      name: round_grey_detailed_red_0
       rect:
         serializedVersion: 2
         x: 0
         y: 0
-        width: 76
-        height: 76
+        width: 64
+        height: 64
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -128,8 +128,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: d1da85b093402d5a0800000000000000
-      internalID: -6498126669292196579
+      spriteID: 17bb0f9ce83b12e80800000000000000
+      internalID: -8205079620237608079
       vertices: []
       indices: 
       edges: []
@@ -148,7 +148,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      Turn_order_unit_background_76_0: -6498126669292196579
+      round_grey_detailed_red_0: -8205079620237608079
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
