@@ -17,7 +17,8 @@ GameObject:
   - component: {fileID: 4589334875929836765}
   - component: {fileID: 388531307580686513}
   - component: {fileID: 4811907382212882586}
-  m_Layer: 0
+  - component: {fileID: -8470359815128833318}
+  m_Layer: 8
   m_Name: Enemy_Elf_Rogue_Prefab.
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -124,8 +125,6 @@ MonoBehaviour:
   attackAnimDuration: 0.5
   hurtAnimDuration: 0.3
   deathAnimDuration: 1
-  maxActionPoints: 2
-  currentActionPoints: 0
   actionCounter: 0
 --- !u!114 &3768964610325662076
 MonoBehaviour:
@@ -158,16 +157,23 @@ MonoBehaviour:
     Spark: 5
     Glimmer: 5
     Aura: 5
-  _maxVitalityPoints: 10
+  _baseMaxActionPoints: 2
+  currentActionPoints: 0
+  _baseMaxVitalityPoints: 0
   currentVitalityPoints: 0
-  _maxManaPoints: 10
+  baseVitalityRegenRate: 0
+  _baseMaxManaPoints: 0
   currentManaPoints: 0
-  _maxStaminaPoints: 10
+  baseManaRegenRate: 1
+  _baseMaxStaminaPoints: 0
   currentStaminaPoints: 0
-  _maxFocusPoints: 10
+  baseStaminaRegenRate: 1
+  _baseMaxFocusPoints: 0
   currentFocusPoints: 0
-  _maxInfluencePoints: 10
+  baseFocusRegenRate: 1
+  _baseMaxInfluencePoints: 0
   currentInfluencePoints: 0
+  baseInfluenceRegenRate: 1
 --- !u!114 &6043540816100653047
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -221,3 +227,49 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   aiHandlerLogic: {fileID: 0}
+--- !u!61 &-8470359815128833318
+BoxCollider2D:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9173187324434785590}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Density: 1
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_ForceSendLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ForceReceiveLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ContactCaptureLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_CallbackLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_IsTrigger: 0
+  m_UsedByEffector: 0
+  m_CompositeOperation: 0
+  m_CompositeOrder: 0
+  m_Offset: {x: 0, y: 0}
+  m_SpriteTilingProperty:
+    border: {x: 0, y: 0, z: 0, w: 0}
+    pivot: {x: 0.5, y: 0.5}
+    oldSize: {x: 1, y: 1}
+    newSize: {x: 0.16, y: 0.16}
+    adaptiveTilingThreshold: 0.5
+    drawMode: 0
+    adaptiveTiling: 0
+  m_AutoTiling: 0
+  m_Size: {x: 1, y: 1}
+  m_EdgeRadius: 0
