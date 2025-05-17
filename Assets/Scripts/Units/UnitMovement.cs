@@ -2,7 +2,7 @@
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
-using MythTactics.Combat; // For Unit, Tile, GridManager, DebugHelper
+using MythTactics.Combat; 
 
 [RequireComponent(typeof(Unit))]
 public class UnitMovement : MonoBehaviour
@@ -12,8 +12,8 @@ public class UnitMovement : MonoBehaviour
     private Transform _unitTransform;
 
     [Header("Movement Properties")]
-    [SerializeField] private float _moveSpeed = 5f; // Default value, can be overridden by Unit's public field if needed
-    public const int MoveActionAPCost = 1; // GDD 3.1: Move Action (use full MoveRange): 1 AP
+    [SerializeField] private float _moveSpeed = 5f; 
+    public const int MoveActionAPCost = 1; 
 
     private Tile _currentTile;
     private bool _isMoving = false;
@@ -26,6 +26,10 @@ public class UnitMovement : MonoBehaviour
         get => _moveSpeed;
         set => _moveSpeed = value;
     }
+
+    // Cached RaceDataSO and ClassDataSO for movement calculation
+    private RaceDataSO _raceDataForMovement; // ADDED
+    private ClassDataSO _classDataForMovement; // ADDED
 
     public void Initialize(Unit mainUnit)
     {
@@ -43,24 +47,32 @@ public class UnitMovement : MonoBehaviour
         }
         _unitTransform = _unitMain.transform;
         _moveSpeed = _unitMain.moveSpeed;
+
+        // Cache these for CalculatedMoveRange
+        _raceDataForMovement = _unitMain.raceData;     // ADDED
+        _classDataForMovement = _unitMain.classData;   // ADDED
     }
 
     public int CalculatedMoveRange
     {
         get
         {
-            if (!_unitStats.IsAlive || _unitMain.raceData == null || _unitMain.classData == null || _unitStats.currentAttributes == null)
+            // Ensure _unitStats and currentAttributes are valid before accessing them.
+            if (_unitStats == null || !_unitStats.IsAlive || _raceDataForMovement == null || _classDataForMovement == null || _unitStats.currentAttributes == null)
                 return 0;
 
-            return Mathf.Max(1,
-                (_unitMain.raceData.baseMovementContribution +
-                 _unitMain.classData.baseMovementContribution +
-                 Mathf.FloorToInt(_unitStats.currentAttributes.Echo / 5f)));
+            // Use cached _raceDataForMovement and _classDataForMovement
+            int baseMove = (_raceDataForMovement.baseMovementContribution + _classDataForMovement.baseMovementContribution);
+            int echoBonus = Mathf.FloorToInt(_unitStats.EffectiveAttributes.Echo / 5f); // Use Effective Echo
+            
+            return Mathf.Max(1, baseMove + echoBonus);
         }
     }
 
     public void PlaceOnTile(Tile tile)
     {
+        if (_unitStats == null) { Debug.LogError("UnitMovement.PlaceOnTile: _unitStats is null!", this); return; }
+
         if (!_unitStats.IsAlive && tile != null && tile.occupyingUnit == _unitMain)
         {
             tile.ClearOccupyingUnit();
@@ -84,7 +96,7 @@ public class UnitMovement : MonoBehaviour
         }
         else
         {
-            DebugHelper.LogWarning($"{_unitMain.unitName} (Movement) placed on NULL tile.", _unitMain);
+            // DebugHelper.LogWarning($"{_unitMain.unitName} (Movement) placed on NULL tile.", _unitMain);
         }
     }
 
@@ -105,48 +117,48 @@ public class UnitMovement : MonoBehaviour
 
     public IEnumerator MoveOnPath(List<Tile> path)
     {
-        if (!_unitStats.IsAlive || _isMoving) { yield break; }
+        if (_unitStats == null || !_unitStats.IsAlive || _isMoving) { yield break; }
         if (path == null || path.Count == 0) { yield break; }
-
-        // Check and spend AP for movement
-        if (_unitStats == null) // Safety check, though Initialize should prevent this
-        {
-            DebugHelper.LogError($"{_unitMain.unitName} cannot move. UnitStats is null.", _unitMain);
-            yield break;
-        }
 
         if (!_unitStats.SpendActionPoints(MoveActionAPCost))
         {
-            // UnitStats.SpendActionPoints already logs a warning with current/max AP.
-            // No need for an additional log here if SpendActionPoints is comprehensive.
-            // If more context is needed for movement failure specifically:
-            // DebugHelper.LogWarning($"{_unitMain.unitName} cannot move. Insufficient AP for Move Action. Needs {MoveActionAPCost}, Has {_unitStats.currentActionPoints}.", _unitMain);
-            yield break; // Not enough AP
+            yield break; 
         }
-        // Log successful AP expenditure for movement
-        DebugHelper.Log($"{_unitMain.unitName} performs Move Action (Cost: {MoveActionAPCost} AP). Remaining AP: {_unitStats.currentActionPoints}/{_unitStats.MaxActionPoints}.", _unitMain);
-
+        // DebugHelper.Log($"{_unitMain.unitName} performs Move Action (Cost: {MoveActionAPCost} AP). Remaining AP: {_unitStats.currentActionPoints}/{_unitStats.MaxActionPoints}.", _unitMain);
+        // AP spending is already logged by UnitStats.SpendActionPoints
 
         _isMoving = true;
         _moveCoroutine = StartCoroutine(PerformMovementCoroutine(path));
-        yield return _moveCoroutine;
+        yield return _moveCoroutine; // Wait for the movement to complete
+
+        // ADDED: Log movement after it's done
+        if (_isMoving) // If it wasn't interrupted
+        {
+            CombatLogger.LogMovement(_unitMain, path.Count);
+        }
+
         _isMoving = false;
         _moveCoroutine = null;
     }
 
     private IEnumerator PerformMovementCoroutine(List<Tile> path)
     {
-        if (CurrentTile != null)
+        if (CurrentTile != null && GridManager.Instance != null) // Ensure GridManager is available
         {
-            _unitTransform.position = GridManager.Instance != null ? GridManager.Instance.GridToWorld(CurrentTile.gridPosition) : CurrentTile.transform.position;
+            _unitTransform.position = GridManager.Instance.GridToWorld(CurrentTile.gridPosition);
         }
+        else if (CurrentTile != null)
+        {
+             _unitTransform.position = CurrentTile.transform.position; // Fallback if no GridManager
+        }
+
 
         for (int i = 0; i < path.Count; i++)
         {
-            if (!_unitStats.IsAlive)
+            if (_unitStats == null || !_unitStats.IsAlive) // Check stats null as well
             {
-                DebugHelper.Log($"{_unitMain.unitName} died during movement (PerformMovementCoroutine).", _unitMain);
-                _isMoving = false;
+                // DebugHelper.Log($"{_unitMain.unitName} died during movement (PerformMovementCoroutine).", _unitMain);
+                _isMoving = false; // Ensure flag is reset
                 yield break;
             }
 
@@ -154,7 +166,7 @@ public class UnitMovement : MonoBehaviour
             if (nextTileInPath == null)
             {
                 DebugHelper.LogError($"Movement path for {_unitMain.unitName} contained a null tile at index {i}!", _unitMain);
-                break;
+                break; 
             }
 
             Vector3 startPos = _unitTransform.position;
@@ -165,7 +177,7 @@ public class UnitMovement : MonoBehaviour
                 _currentTile.ClearOccupyingUnit();
             }
             _currentTile = nextTileInPath;
-            if (_unitStats.IsAlive)
+            if (_unitStats.IsAlive) // Re-check before setting new occupying unit
             {
                 _currentTile.SetOccupyingUnit(_unitMain);
             }
@@ -179,11 +191,11 @@ public class UnitMovement : MonoBehaviour
                 float journeyFraction = 0f;
                 while (journeyFraction < 1.0f)
                 {
-                    if (!_isMoving || !_unitStats.IsAlive)
+                    if (!_isMoving || _unitStats == null || !_unitStats.IsAlive) // Check stats null
                     {
-                        if (!_unitStats.IsAlive) DebugHelper.Log($"{_unitMain.unitName} died, interrupting movement lerp.", _unitMain);
-                        else DebugHelper.Log($"{_unitMain.unitName} movement lerp interrupted.", _unitMain);
-                        _isMoving = false;
+                        // if (_unitStats == null || !_unitStats.IsAlive) DebugHelper.Log($"{_unitMain.unitName} died or stats became null, interrupting movement lerp.", _unitMain);
+                        // else DebugHelper.Log($"{_unitMain.unitName} movement lerp interrupted.", _unitMain);
+                        _isMoving = false; // Ensure flag is reset
                         yield break;
                     }
                     float distCovered = (Time.time - startTime) * _moveSpeed;
@@ -194,6 +206,8 @@ public class UnitMovement : MonoBehaviour
             }
             _unitTransform.position = endPos;
         }
+        // Note: _isMoving is set to false in the calling MoveOnPath coroutine after this one finishes.
+        // The CombatLogger call will happen there.
     }
 
     public void StopMovementCoroutines()
@@ -203,7 +217,7 @@ public class UnitMovement : MonoBehaviour
             StopCoroutine(_moveCoroutine);
             _isMoving = false;
             _moveCoroutine = null;
-            DebugHelper.Log($"{_unitMain.unitName} movement coroutines stopped by UnitMovement.", _unitMain);
+            // DebugHelper.Log($"{_unitMain.unitName} movement coroutines stopped by UnitMovement.", _unitMain);
         }
     }
 }
