@@ -2,29 +2,45 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using System.Collections.Generic;
-using System.Text;
+using System.Collections; 
 
 public class CombatLogUI : MonoBehaviour
 {
     [Header("UI References")]
-    [Tooltip("Button to toggle the visibility of the log panel.")]
     public Button toggleButton;
-    [Tooltip("The main panel that contains the log content. This will be shown/hidden.")]
     public GameObject logDisplayPanel;
-    [Tooltip("The ScrollRect containing the log messages.")]
     public ScrollRect logScrollRect;
-    [Tooltip("The Transform (Content object) inside the ScrollRect where log message Text objects will be parented.")]
     public RectTransform logContentContainer;
-    [Tooltip("Prefab for a single log message TextMeshProUGUI element.")]
-    public GameObject logMessagePrefab; // This should be a prefab with just a TextMeshProUGUI component
+    public GameObject logMessagePrefab;
+
+    [Header("Filter UI")] 
+    public GameObject filterTogglesPanel; 
+    public Toggle filterSystemToggle;
+    public Toggle filterTurnFlowToggle;
+    public Toggle filterCombatActionToggle;
+    public Toggle filterStatusChangeToggle;
+    public Toggle filterMovementToggle;
 
     [Header("Settings")]
-    [Tooltip("Maximum number of messages to keep in the log.")]
     public int maxMessages = 100;
 
-    private List<GameObject> _logMessageObjects = new List<GameObject>();
-    private bool _isLogVisible = false;
-    private StringBuilder _sb = new StringBuilder(); // For formatting messages
+    private List<LogMessageEntry> _logMessageEntries = new List<LogMessageEntry>();
+    private bool _isLogVisible = false; 
+    private Coroutine _scrollCoroutine = null; 
+
+    private struct LogMessageEntry
+    {
+        public GameObject gameObject;
+        public LogMessageType type;
+        public TextMeshProUGUI textComponent; 
+
+        public LogMessageEntry(GameObject go, LogMessageType messageType, TextMeshProUGUI tmp)
+        {
+            gameObject = go;
+            type = messageType;
+            textComponent = tmp;
+        }
+    }
 
     void Awake()
     {
@@ -33,90 +49,194 @@ public class CombatLogUI : MonoBehaviour
         if (logScrollRect == null) Debug.LogError("CombatLogUI: LogScrollRect not assigned!", this);
         if (logContentContainer == null) Debug.LogError("CombatLogUI: LogContentContainer not assigned!", this);
         if (logMessagePrefab == null) Debug.LogError("CombatLogUI: LogMessagePrefab not assigned!", this);
+        
+        if (filterTogglesPanel == null) Debug.LogWarning("CombatLogUI: FilterTogglesPanel not assigned.", this);
+
+        if (filterSystemToggle == null) Debug.LogWarning("CombatLogUI: FilterSystemToggle not assigned.", this);
+        else filterSystemToggle.onValueChanged.AddListener(delegate { OnFilterChanged(); });
+
+        if (filterTurnFlowToggle == null) Debug.LogWarning("CombatLogUI: FilterTurnFlowToggle not assigned.", this);
+        else filterTurnFlowToggle.onValueChanged.AddListener(delegate { OnFilterChanged(); });
+        
+        if (filterCombatActionToggle == null) Debug.LogWarning("CombatLogUI: FilterCombatActionToggle not assigned.", this);
+        else filterCombatActionToggle.onValueChanged.AddListener(delegate { OnFilterChanged(); });
+
+        if (filterStatusChangeToggle == null) Debug.LogWarning("CombatLogUI: FilterStatusChangeToggle not assigned.", this);
+        else filterStatusChangeToggle.onValueChanged.AddListener(delegate { OnFilterChanged(); });
+
+        if (filterMovementToggle == null) Debug.LogWarning("CombatLogUI: FilterMovementToggle not assigned.", this);
+        else filterMovementToggle.onValueChanged.AddListener(delegate { OnFilterChanged(); });
 
         if (toggleButton != null)
         {
-            toggleButton.onClick.AddListener(ToggleLogVisibility);
+            // MODIFIED: Added direct log on click
+            toggleButton.onClick.AddListener(() => {
+                Debug.Log("<<<<< CombatLogUI ToggleButton CLICKED >>>>>", this); 
+                ToggleLogVisibility();
+            });
         }
 
-        // Start with the log panel hidden
-        if (logDisplayPanel != null)
-        {
-            logDisplayPanel.SetActive(_isLogVisible);
-        }
+        _isLogVisible = false; 
+        if (logDisplayPanel != null) logDisplayPanel.SetActive(false);
+        if (filterTogglesPanel != null) filterTogglesPanel.SetActive(false);
+        Debug.Log($"CombatLogUI.Awake: Initial _isLogVisible: {_isLogVisible}, logDisplayPanel.activeSelf: {logDisplayPanel?.activeSelf}, filterTogglesPanel.activeSelf: {filterTogglesPanel?.activeSelf}", this);
     }
 
     void OnEnable()
     {
-        // Subscribe to an event from a CombatLogger system
-        CombatLogger.OnLogMessage += AddMessage;
+        CombatLogger.OnLogMessage += HandleNewLogMessage; 
     }
 
     void OnDisable()
     {
-        // Unsubscribe
-        CombatLogger.OnLogMessage -= AddMessage;
+        CombatLogger.OnLogMessage -= HandleNewLogMessage; 
     }
 
     public void ToggleLogVisibility()
     {
-        _isLogVisible = !_isLogVisible;
+        Debug.Log($"CombatLogUI.ToggleLogVisibility: Called. Current _isLogVisible BEFORE toggle: {_isLogVisible}", this);
+        _isLogVisible = !_isLogVisible; 
+        Debug.Log($"CombatLogUI.ToggleLogVisibility: _isLogVisible AFTER toggle: {_isLogVisible}", this);
+
         if (logDisplayPanel != null)
         {
+            Debug.Log($"CombatLogUI.ToggleLogVisibility: Setting logDisplayPanel active state to: {_isLogVisible}. Current activeSelf: {logDisplayPanel.activeSelf}", this);
             logDisplayPanel.SetActive(_isLogVisible);
-            if (_isLogVisible)
+            Debug.Log($"CombatLogUI.ToggleLogVisibility: logDisplayPanel.activeSelf AFTER SetActive: {logDisplayPanel.activeSelf}", this);
+        }
+        if (filterTogglesPanel != null) 
+        {
+            Debug.Log($"CombatLogUI.ToggleLogVisibility: Setting filterTogglesPanel active state to: {_isLogVisible}. Current activeSelf: {filterTogglesPanel.activeSelf}", this);
+            filterTogglesPanel.SetActive(_isLogVisible);
+            Debug.Log($"CombatLogUI.ToggleLogVisibility: filterTogglesPanel.activeSelf AFTER SetActive: {filterTogglesPanel.activeSelf}", this);
+        }
+
+        if (_isLogVisible) 
+        {
+            Debug.Log("CombatLogUI.ToggleLogVisibility: Log is now visible. Applying filters and scrolling.", this);
+            ApplyFiltersToExistingMessages(); 
+            ScrollToBottom(); 
+        }
+        else 
+        {
+            Debug.Log("CombatLogUI.ToggleLogVisibility: Log is now hidden. Stopping scroll coroutine if active.", this);
+            if (_scrollCoroutine != null) 
             {
-                ScrollToBottom();
+                StopCoroutine(_scrollCoroutine);
+                _scrollCoroutine = null;
+                Debug.Log("CombatLogUI.ToggleLogVisibility: Scroll coroutine stopped.", this);
             }
         }
-        // Optionally change toggle button text/sprite (e.g., "Show Log" / "Hide Log")
     }
 
-    public void AddMessage(string message, Color color) // Modified to accept color
+    private void HandleNewLogMessage(string message, Color color, LogMessageType type) 
     {
         if (logMessagePrefab == null || logContentContainer == null) return;
 
-        if (_logMessageObjects.Count >= maxMessages)
+        if (_logMessageEntries.Count >= maxMessages)
         {
-            GameObject oldestMessage = _logMessageObjects[0];
-            _logMessageObjects.RemoveAt(0);
-            Destroy(oldestMessage);
+            LogMessageEntry oldestEntry = _logMessageEntries[0];
+            _logMessageEntries.RemoveAt(0);
+            Destroy(oldestEntry.gameObject);
         }
 
         GameObject newMessageGO = Instantiate(logMessagePrefab, logContentContainer);
         TextMeshProUGUI messageText = newMessageGO.GetComponent<TextMeshProUGUI>();
+        
         if (messageText != null)
         {
             messageText.text = message;
-            messageText.color = color; // Apply color
+            messageText.color = color;
         }
         else
         {
             Debug.LogError("CombatLogUI: LogMessagePrefab is missing TextMeshProUGUI component!", newMessageGO);
         }
         
-        _logMessageObjects.Add(newMessageGO);
+        LogMessageEntry newEntry = new LogMessageEntry(newMessageGO, type, messageText);
+        _logMessageEntries.Add(newEntry);
 
-        if (_isLogVisible) // Only scroll if visible
+        bool shouldBeVisibleBasedOnFilters = IsMessageVisible(type);
+        newMessageGO.SetActive(shouldBeVisibleBasedOnFilters);
+
+        if (_isLogVisible && shouldBeVisibleBasedOnFilters) 
         {
             ScrollToBottom();
+        }
+    }
+    
+    private void OnFilterChanged()
+    {
+        if (_isLogVisible) 
+        {
+            ApplyFiltersToExistingMessages();
+            ScrollToBottom(); 
+        }
+    }
+
+    private void ApplyFiltersToExistingMessages()
+    {
+        if (logContentContainer == null) return;
+
+        bool changedVisibility = false;
+        foreach (LogMessageEntry entry in _logMessageEntries)
+        {
+            if (entry.gameObject != null)
+            {
+                bool currentActiveState = entry.gameObject.activeSelf;
+                bool newActiveState = IsMessageVisible(entry.type);
+                if (currentActiveState != newActiveState)
+                {
+                    entry.gameObject.SetActive(newActiveState);
+                    changedVisibility = true;
+                }
+            }
+        }
+        
+        if (changedVisibility && logContentContainer.gameObject.activeInHierarchy) 
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate(logContentContainer);
+        }
+    }
+
+    private bool IsMessageVisible(LogMessageType type)
+    {
+        switch (type)
+        {
+            case LogMessageType.System:         
+                return filterSystemToggle != null ? filterSystemToggle.isOn : true; 
+            case LogMessageType.TurnFlow:       
+                return filterTurnFlowToggle != null ? filterTurnFlowToggle.isOn : true;
+            case LogMessageType.CombatAction:   
+                return filterCombatActionToggle != null ? filterCombatActionToggle.isOn : true;
+            case LogMessageType.StatusChange:   
+                return filterStatusChangeToggle != null ? filterStatusChangeToggle.isOn : true;
+            case LogMessageType.Movement:       
+                return filterMovementToggle != null ? filterMovementToggle.isOn : true;
+            default: 
+                return true; 
         }
     }
 
     private void ScrollToBottom()
     {
-        if (logScrollRect == null) return;
-        // Canvas.ForceUpdateCanvases(); // May not be needed with coroutine
-        // logScrollRect.verticalNormalizedPosition = 0f;
-        StartCoroutine(ScrollToBottomNextFrame());
+        if (logScrollRect == null || !logScrollRect.gameObject.activeInHierarchy) return;
+        
+        if (_scrollCoroutine != null) 
+        {
+            StopCoroutine(_scrollCoroutine);
+        }
+        _scrollCoroutine = StartCoroutine(ScrollToBottomCoroutine());
     }
 
-    private IEnumerator<object> ScrollToBottomNextFrame()
+    private IEnumerator ScrollToBottomCoroutine() 
     {
-        yield return null; // Wait for one frame for layout to update
-        if (logScrollRect != null)
+        yield return new WaitForEndOfFrame(); 
+        
+        if (logScrollRect != null && logScrollRect.gameObject.activeInHierarchy)
         {
             logScrollRect.verticalNormalizedPosition = 0f;
         }
+        _scrollCoroutine = null; 
     }
 }
