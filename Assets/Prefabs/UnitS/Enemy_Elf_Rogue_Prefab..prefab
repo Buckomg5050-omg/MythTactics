@@ -119,6 +119,8 @@ MonoBehaviour:
   unitName: Elf Scout
   level: 1
   xpValue: 75
+  CurrentFaction: 0
+  CurrentAlignment: 0
   knownAbilities: []
   equippedWeapon: {fileID: 11400000, guid: 32db0ab0bf4643243ab12e8e06f6b725, type: 2}
   equippedBodyArmor: {fileID: 11400000, guid: c5613d342d0cc694fbbe15663788d54e, type: 2}

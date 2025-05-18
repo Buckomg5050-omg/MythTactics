@@ -1,180 +1,63 @@
 // GridTester.cs
 using UnityEngine;
 using System.Collections;
-using System.Collections.Generic;
+using System.Collections.Generic; // Required for List
 
 public class GridTester : MonoBehaviour
 {
-    [Header("References")]
+    [Header("References (Optional for On-Demand Tests)")]
     public TurnManager turnManager;
 
-    [Header("Player Unit Setup")]
-    public GameObject playerUnitPrefab;
-    public Vector2Int playerStartPos = new Vector2Int(1, 1);
-    public Unit PlayerUnitInstance { get; private set; }
-
-    [Header("Test Occupancy Setup (Optional)")]
-    [Tooltip("Assign the prefab for the first dummy/blocking unit.")]
-    public GameObject dummyUnitPrefab1;
-    public Vector2Int blockingUnit1Pos = new Vector2Int(4, 1);
-
-    [Tooltip("Assign the prefab for the second dummy/blocking unit. Can be the same as Prefab1 if desired.")]
-    public GameObject dummyUnitPrefab2;
-    public Vector2Int blockingUnit2Pos = new Vector2Int(6, 2);
-
-    private List<Unit> _dummyUnits = new List<Unit>();
-
-    [Header("Logging Test Parameters (Optional)")]
+    [Header("Test Parameters (For On-Demand Grid Logic Tests)")]
     public Vector2Int logPathTestStart = new Vector2Int(10, 10);
     public Vector2Int logPathTestEnd = new Vector2Int(20, 20);
     public int logReachableTestRange = 3;
+    public Unit unitForReachableTest;
 
-    void Start()
+    [Header("On-Demand Test Triggers")]
+    public bool runTestsOnEnable = false;
+
+    void OnEnable()
     {
-        if (GridManager.Instance == null) { DebugHelper.LogError("GridTester: GridManager.Instance missing!", this); enabled = false; return; }
-        if (GridManager.Instance.PathfinderInstance == null) { DebugHelper.LogError("GridTester: GridManager.Instance.PathfinderInstance is null!", this); enabled = false; return; }
-        if (turnManager == null) { DebugHelper.LogError("GridTester: TurnManager missing! Please assign in Inspector.", this); enabled = false; return; }
-        
-        StartCoroutine(RunGridTests());
+        if (runTestsOnEnable)
+        {
+            RunAllGridLogicTests();
+        }
     }
 
-    System.Collections.IEnumerator RunGridTests()
+    [ContextMenu("Execute All Grid Logic Tests Now")]
+    public void RunAllGridLogicTests()
     {
-        yield return null; 
-        DebugHelper.Log("===== GridTester: Starting Spawn & Initial LOGGING Tests =====", this);
-        
-        SetupDummyUnitsForTest();
-        SpawnPlayerUnit();
-        
-        yield return new WaitForSeconds(0.1f); // Extra small delay to ensure Awakes run on spawned units
+        if (GridManager.Instance == null) { DebugHelper.LogError("GridTester: GridManager.Instance missing! Cannot run grid logic tests.", this); return; }
+        if (GridManager.Instance.PathfinderInstance == null && (ShouldRunPathfindingTests() || ShouldRunReachableTilesTest()))
+        { DebugHelper.LogWarning("GridTester: GridManager.Instance.PathfinderInstance is null! Pathfinding/Reachable tests might fail or be skipped.", this); }
 
+        DebugHelper.Log("===== GridTester: EXECUTING ON-DEMAND GRID LOGIC TESTS =====", this);
         TestGridToWorld();
         TestWorldToGrid();
         TestGetNeighbors();
         TestGetTilesInRange();
-        TestPathfinding();
-        TestGetReachableTiles();
-        DebugHelper.Log("===== GridTester: Finished Initial LOGGING Tests =====", this);
 
-        if (turnManager != null)
-        {
-            DebugHelper.Log("===== GridTester: Starting Combat via TurnManager =====", this);
-            turnManager.StartCombat();
-        }
-        else
-        {
-            DebugHelper.LogError("GridTester: TurnManager reference not set. Cannot start combat.", this);
-        }
+        if (ShouldRunPathfindingTests()) TestPathfinding(); else DebugHelper.Log("GridTester: Skipping Pathfinding test (Pathfinder might be null).", this);
+        if (ShouldRunReachableTilesTest()) TestGetReachableTiles(); else DebugHelper.Log("GridTester: Skipping Reachable Tiles test (Pathfinder or test unit might be null).", this);
+
+        DebugHelper.Log("===== GridTester: FINISHED ON-DEMAND GRID LOGIC TESTS =====", this);
     }
 
-    void SetupDummyUnitsForTest()
+    private bool ShouldRunPathfindingTests()
     {
-        DebugHelper.Log("--- GridTester: Setting up dummy units ---", this);
-        
-        if (dummyUnitPrefab1 != null)
-        {
-            SpawnSpecificDummy(dummyUnitPrefab1, blockingUnit1Pos, "DummyBlocker_1");
-        }
-        else
-        {
-            DebugHelper.Log("GridTester: No dummyUnitPrefab1, skipping first blocker setup.", this);
-        }
-
-        if (dummyUnitPrefab2 != null)
-        {
-            SpawnSpecificDummy(dummyUnitPrefab2, blockingUnit2Pos, "DummyBlocker_2");
-        }
-        else
-        {
-            DebugHelper.Log("GridTester: No dummyUnitPrefab2, skipping second blocker setup.", this);
-        }
+        return GridManager.Instance != null && GridManager.Instance.PathfinderInstance != null;
     }
-
-    void SpawnSpecificDummy(GameObject prefab, Vector2Int position, string unitInstanceName)
+    private bool ShouldRunReachableTilesTest()
     {
-        if (GridManager.Instance.IsInPlayableBounds(position))
-        {
-            Tile tile = GridManager.Instance.GetTile(position);
-            if (tile != null && !tile.IsOccupied)
-            {
-                GameObject unitGO = Instantiate(prefab, GridManager.Instance.GridToWorld(position), Quaternion.identity);
-                unitGO.name = unitInstanceName;
-                Unit unitComp = unitGO.GetComponent<Unit>();
-                if (unitComp == null)
-                {
-                     DebugHelper.LogWarning($"GridTester: Prefab {prefab.name} missing Unit comp, adding one.", unitGO);
-                     unitComp = unitGO.AddComponent<Unit>();
-                     // Force Awake if added dynamically, though prefabs should be set up
-                     // This is tricky because Awake order isn't guaranteed if added here.
-                     // Best to ensure prefabs have all components (Unit, UnitStats, UnitCombat, UnitMovement).
-                }
-                
-                unitComp.unitName = unitGO.name; 
-                // MODIFIED: Call placement through UnitMovement component
-                if (unitComp.Movement != null)
-                {
-                    unitComp.Movement.SetCurrentTileForced(tile); 
-                }
-                else
-                {
-                    DebugHelper.LogError($"GridTester: {unitComp.unitName} is missing UnitMovement component! Cannot place on tile.", unitComp);
-                }
-                _dummyUnits.Add(unitComp);
-
-                if (turnManager != null) turnManager.RegisterUnit(unitComp);
-                else DebugHelper.LogError($"GridTester: TurnManager null during {unitInstanceName} setup!", this);
-                DebugHelper.Log($"Placed and registered {unitComp.unitName} at {position}", this);
-            }
-            else if (tile != null)
-            {
-                DebugHelper.LogWarning($"Dummy setup: Tile {position} for {unitInstanceName} occupied by {tile.occupyingUnit?.unitName}.", this);
-            }
-        }
-        else
-        {
-            DebugHelper.LogWarning($"Dummy setup: Pos {position} for {unitInstanceName} out of bounds.", this);
-        }
-    }
-
-    void SpawnPlayerUnit()
-    {
-        if (playerUnitPrefab == null) { DebugHelper.LogError("GridTester: playerUnitPrefab not assigned!", this); return; }
-        if (!GridManager.Instance.IsInPlayableBounds(playerStartPos)) { DebugHelper.LogError($"GridTester: playerStartPos {playerStartPos} out of bounds!", this); return; }
-        Tile startTile = GridManager.Instance.GetTile(playerStartPos);
-        if (startTile == null) { DebugHelper.LogError($"GridTester: Cannot get tile at playerStartPos {playerStartPos}!", this); return; }
-        if (startTile.IsOccupied) { DebugHelper.LogWarning($"GridTester: playerStartPos {startTile.gridPosition} occupied by {startTile.occupyingUnit?.name}! Check dummy placement.", this); }
-
-        DebugHelper.Log($"--- GridTester: Spawning Player Unit at {playerStartPos} ---", this);
-        GameObject unitGO = Instantiate(playerUnitPrefab, GridManager.Instance.GridToWorld(playerStartPos), Quaternion.identity);
-        unitGO.name = "PlayerUnit_Instance";
-        PlayerUnitInstance = unitGO.GetComponent<Unit>();
-        if (PlayerUnitInstance == null) 
-        {
-            DebugHelper.LogWarning("PlayerUnitPrefab missing Unit comp, adding one.", unitGO); 
-            PlayerUnitInstance = unitGO.AddComponent<Unit>();
-        }
-        
-        PlayerUnitInstance.unitName = "Player"; 
-        // MODIFIED: Call placement through UnitMovement component
-        if (PlayerUnitInstance.Movement != null)
-        {
-            PlayerUnitInstance.Movement.SetCurrentTileForced(startTile);
-        }
-        else
-        {
-             DebugHelper.LogError($"GridTester: PlayerUnitInstance is missing UnitMovement component! Cannot place on tile.", PlayerUnitInstance);
-        }
-        
-        if (turnManager != null) turnManager.RegisterUnit(PlayerUnitInstance);
-        else DebugHelper.LogError("GridTester: TurnManager null during player spawn!", this);
-        
-        DebugHelper.Log($"Spawned and registered {PlayerUnitInstance.unitName} at {startTile.gridPosition}", this);
+        return GridManager.Instance != null && GridManager.Instance.PathfinderInstance != null && unitForReachableTest != null;
     }
 
     void TestGridToWorld() {
         DebugHelper.Log("--- GridTester: Testing GridToWorld ---", this);
         Vector2Int pos1 = new Vector2Int(0, 0); Vector3 world1 = GridManager.Instance.GridToWorld(pos1); DebugHelper.Log($"G2W: {pos1} -> {world1}", this); Tile tile1 = GridManager.Instance.GetTile(pos1); if (tile1) DebugHelper.Log($"G2W Actual tile pos: {tile1.transform.position}", this);
-        Vector2Int pos2 = new Vector2Int(GridManager.Instance.playableWidth-1, GridManager.Instance.playableHeight-1); Vector3 world2 = GridManager.Instance.GridToWorld(pos2); DebugHelper.Log($"G2W: {pos2} -> {world2}", this); Tile tile2 = GridManager.Instance.GetTile(pos2); if (tile2) DebugHelper.Log($"G2W Actual tile pos: {tile2.transform.position}", this);
+        // MODIFIED: Used capitalized PlayableWidth and PlayableHeight properties
+        Vector2Int pos2 = new Vector2Int(GridManager.Instance.PlayableWidth-1, GridManager.Instance.PlayableHeight-1); Vector3 world2 = GridManager.Instance.GridToWorld(pos2); DebugHelper.Log($"G2W: {pos2} -> {world2}", this); Tile tile2 = GridManager.Instance.GetTile(pos2); if (tile2) DebugHelper.Log($"G2W Actual tile pos: {tile2.transform.position}", this);
         DebugHelper.Log("--- GridTester: Finished G2W Test ---", this);
     }
     void TestWorldToGrid() {
@@ -186,17 +69,19 @@ public class GridTester : MonoBehaviour
     }
     void TestGetNeighbors() {
         DebugHelper.Log("--- GridTester: Testing GetNeighbors ---", this);
-        Vector2Int p1 = new Vector2Int(GridManager.Instance.playableWidth/2, GridManager.Instance.playableHeight/2); if(GridManager.Instance.IsInPlayableBounds(p1)) { DebugHelper.Log($"Neighbors4 for {p1}:", this); GridManager.Instance.GetNeighbors(p1).ForEach(n => DebugHelper.Log($"- {n.gridPosition} ({n.currentTerrainType})", this)); DebugHelper.Log($"Neighbors8 for {p1}:", this); GridManager.Instance.GetNeighbors(p1, true).ForEach(n => DebugHelper.Log($"- {n.gridPosition} ({n.currentTerrainType})", this));} else DebugHelper.LogWarning($"GN T1 OOB {p1}");
+        // MODIFIED: Used capitalized PlayableWidth and PlayableHeight properties
+        Vector2Int p1 = new Vector2Int(GridManager.Instance.PlayableWidth/2, GridManager.Instance.PlayableHeight/2); if(GridManager.Instance.IsInPlayableBounds(p1)) { DebugHelper.Log($"Neighbors4 for {p1}:", this); GridManager.Instance.GetNeighbors(p1).ForEach(n => DebugHelper.Log($"- {n.gridPosition} ({n.currentTerrainType})", this)); DebugHelper.Log($"Neighbors8 for {p1}:", this); GridManager.Instance.GetNeighbors(p1, true).ForEach(n => DebugHelper.Log($"- {n.gridPosition} ({n.currentTerrainType})", this));} else DebugHelper.LogWarning($"GN T1 OOB {p1}");
         Vector2Int p2 = new Vector2Int(0,0); if(GridManager.Instance.IsInPlayableBounds(p2)) { DebugHelper.Log($"Neighbors4 for {p2}:", this); GridManager.Instance.GetNeighbors(p2).ForEach(n => DebugHelper.Log($"- {n.gridPosition} ({n.currentTerrainType})", this));} else DebugHelper.LogWarning($"GN T2 OOB {p2}");
         DebugHelper.Log("--- GridTester: Finished GN Test ---", this);
     }
     void TestGetTilesInRange() {
         DebugHelper.Log("--- GridTester: Testing GetTilesInRange (Manhattan Distance) ---", this);
-        Vector2Int p1 = new Vector2Int(GridManager.Instance.playableWidth/2, GridManager.Instance.playableHeight/2); int r1=2; if(GridManager.Instance.IsInPlayableBounds(p1)) { List<Tile> res1=GridManager.Instance.GetTilesInRange(p1,r1); DebugHelper.Log($"TilesInRange (Manhattan) {p1} R={r1}: Found {res1.Count}", this); } else DebugHelper.LogWarning($"GTIR T1 OOB {p1}");
+        // MODIFIED: Used capitalized PlayableWidth and PlayableHeight properties
+        Vector2Int p1 = new Vector2Int(GridManager.Instance.PlayableWidth/2, GridManager.Instance.PlayableHeight/2); int r1=2; if(GridManager.Instance.IsInPlayableBounds(p1)) { List<Tile> res1=GridManager.Instance.GetTilesInRange(p1,r1); DebugHelper.Log($"TilesInRange (Manhattan) {p1} R={r1}: Found {res1.Count}", this); } else DebugHelper.LogWarning($"GTIR T1 OOB {p1}");
         DebugHelper.Log("--- GridTester: Finished GTIR Test ---", this);
     }
     void TestPathfinding() {
-        if (GridManager.Instance.PathfinderInstance == null) { DebugHelper.LogError("PF Test Error: PathfinderInstance null on GridManager.", this); return; }
+        if (GridManager.Instance == null || GridManager.Instance.PathfinderInstance == null) { DebugHelper.LogError("PF Test Error: GridManager or PathfinderInstance null.", this); return; }
         DebugHelper.Log("--- GridTester: Testing Pathfinding Calc ---", this);
         DebugHelper.Log($"Pathfinding {logPathTestStart} -> {logPathTestEnd}", this);
         List<Tile> path1 = GridManager.Instance.PathfinderInstance.FindPath(logPathTestStart, logPathTestEnd, null); 
@@ -206,20 +91,22 @@ public class GridTester : MonoBehaviour
 
     void TestGetReachableTiles()
     {
-        if (GridManager.Instance.PathfinderInstance == null) { DebugHelper.LogError("Reachable Test Error: PathfinderInstance null on GridManager.", this); return; }
+        if (GridManager.Instance == null || GridManager.Instance.PathfinderInstance == null) { DebugHelper.LogError("Reachable Test Error: GridManager or PathfinderInstance null.", this); return; }
         DebugHelper.Log("--- GridTester: Testing GetReachableTiles Calc (Pathfinder) ---", this);
-        Vector2Int center_grt = new Vector2Int(GridManager.Instance.playableWidth/2, GridManager.Instance.playableHeight/2); 
+        // MODIFIED: Used capitalized PlayableWidth and PlayableHeight properties
+        Vector2Int center_grt = new Vector2Int(GridManager.Instance.PlayableWidth/2, GridManager.Instance.PlayableHeight/2); 
         int range1_grt = logReachableTestRange; 
 
         if (GridManager.Instance.IsInPlayableBounds(center_grt)) { 
-            if (PlayerUnitInstance != null && PlayerUnitInstance.Stats != null && PlayerUnitInstance.Movement != null) 
+            if (unitForReachableTest != null && unitForReachableTest.Stats != null && unitForReachableTest.Movement != null) 
             {
-                List<Tile> reach1 = GridManager.Instance.PathfinderInstance.GetReachableTiles(center_grt, range1_grt, PlayerUnitInstance);
-                DebugHelper.Log($"Reachable (Pathfinder) from {center_grt} with {range1_grt} move points for {PlayerUnitInstance.unitName}: Found {reach1.Count} tiles.", this); 
+                int actualRangeToTest = unitForReachableTest.Movement.CalculatedMoveRange > 0 ? unitForReachableTest.Movement.CalculatedMoveRange : range1_grt;
+                List<Tile> reach1 = GridManager.Instance.PathfinderInstance.GetReachableTiles(center_grt, actualRangeToTest, unitForReachableTest);
+                DebugHelper.Log($"Reachable (Pathfinder) from {center_grt} with {actualRangeToTest} move points for {unitForReachableTest.unitName}: Found {reach1.Count} tiles.", this); 
             }
             else
             {
-                DebugHelper.LogWarning($"Reachable Calc Test: PlayerUnitInstance, its Stats, or Movement not ready for test.", this);
+                DebugHelper.LogWarning($"Reachable Calc Test: 'unitForReachableTest' not assigned or lacks Stats/Movement. Cannot perform unit-specific reachable test.", this);
             }
         } else DebugHelper.LogWarning($"Reachable Calc T1 OOB {center_grt}");
         DebugHelper.Log("--- GridTester: Finished Reachable Calc Test ---", this);

@@ -3,7 +3,7 @@ using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 using MythTactics.Combat;
-using Random = UnityEngine.Random; // For AI stat variation
+using Random = UnityEngine.Random;
 
 [RequireComponent(typeof(UnitStats))]
 [RequireComponent(typeof(UnitCombat))]
@@ -15,8 +15,6 @@ public class Unit : MonoBehaviour
     [Header("Core Unit Data (Populated by Factory or Inspector for direct placement)")]
     public RaceDataSO raceData;
     public ClassDataSO classData;
-    [Tooltip("Initial primary attributes. For factory-created units, this is set from UnitTemplateSO. For scene-placed units, this is their Lvl 1 base.")]
-    // MODIFIED: Initialize as new instance since it's a class
     public UnitPrimaryAttributes initialPrimaryAttributes = new UnitPrimaryAttributes();
 
     [Header("Components")]
@@ -58,13 +56,16 @@ public class Unit : MonoBehaviour
     public int CurrentActionPoints => (Stats != null) ? Stats.currentActionPoints : 0;
     public int MaxActionPoints => (Stats != null) ? Stats.MaxActionPoints : 0;
 
-    private SpriteRenderer _mainSpriteRenderer;
+    // MODIFIED: Changed to public property, fetched in Awake
+    public SpriteRenderer MainSpriteRenderer { get; private set; }
     private bool _isInitialized = false;
 
     void Awake()
     {
-        _mainSpriteRenderer = GetComponent<SpriteRenderer>();
-        if (_mainSpriteRenderer == null && transform.childCount > 0) _mainSpriteRenderer = GetComponentInChildren<SpriteRenderer>();
+        // Fetch SpriteRenderer here to ensure it's available early
+        MainSpriteRenderer = GetComponent<SpriteRenderer>();
+        if (MainSpriteRenderer == null && transform.childCount > 0) MainSpriteRenderer = GetComponentInChildren<SpriteRenderer>();
+        if (MainSpriteRenderer == null) Debug.LogWarning($"Unit {this.name} could not find a SpriteRenderer in Awake. Visuals might not update.", this);
 
         Stats = GetComponent<UnitStats>();
         Combat = GetComponent<UnitCombat>();
@@ -80,10 +81,9 @@ public class Unit : MonoBehaviour
             if (raceData == null || classData == null) {
                  Debug.LogWarning($"Unit '{this.name}' is being initialized via Start() but lacks RaceData or ClassData. Stats might be minimal.", this);
             }
-            // Ensure initialPrimaryAttributes is not null if it's a class and wasn't new'd in declaration
             if (this.initialPrimaryAttributes == null)
             {
-                this.initialPrimaryAttributes = new UnitPrimaryAttributes(); // Default values (all 5s)
+                this.initialPrimaryAttributes = new UnitPrimaryAttributes();
             }
             InitializeUnitSystems();
         }
@@ -97,36 +97,53 @@ public class Unit : MonoBehaviour
             return;
         }
 
-        this.unitName = template.unitName;
         this.gameObject.name = $"[UNIT] {template.unitName} (Lvl {newLevel})";
+        this.unitName = template.unitName;
+
+        // Set In-World Sprite from template
+        if (MainSpriteRenderer != null) // Ensure we have a renderer
+        {
+            if (template.inWorldCombatSprite != null)
+            {
+                MainSpriteRenderer.sprite = template.inWorldCombatSprite;
+            }
+            else if (template.portrait != null) // Fallback to portrait if inWorldCombatSprite is null
+            {
+                MainSpriteRenderer.sprite = template.portrait;
+                Debug.Log($"[PrimeData] Unit {this.unitName} using 'portrait' for in-world sprite as 'inWorldCombatSprite' was not set in template '{template.name}'.", this);
+            }
+            else
+            {
+                // If both are null, the prefab's default sprite remains.
+                Debug.LogWarning($"[PrimeData] Unit {this.unitName} using default sprite from prefab. Neither 'inWorldCombatSprite' nor 'portrait' assigned in template '{template.name}'.", this);
+            }
+        }
+        else
+        {
+            Debug.LogWarning($"[PrimeData] Unit {this.unitName} has no SpriteRenderer component found to set its visual sprite.", this);
+        }
+
 
         this.raceData = template.raceData;
         this.classData = template.classData;
         
-        // MODIFIED: Handle UnitPrimaryAttributes as a class (create new instance)
         if (template.baseLevel1Attributes != null)
         {
-            this.initialPrimaryAttributes = new UnitPrimaryAttributes( // Use 6-arg constructor to copy values
-                template.baseLevel1Attributes.Core,
-                template.baseLevel1Attributes.Echo,
-                template.baseLevel1Attributes.Pulse,
-                template.baseLevel1Attributes.Spark,
-                template.baseLevel1Attributes.Glimmer,
-                template.baseLevel1Attributes.Aura
+            this.initialPrimaryAttributes = new UnitPrimaryAttributes(
+                template.baseLevel1Attributes.Core, template.baseLevel1Attributes.Echo,
+                template.baseLevel1Attributes.Pulse, template.baseLevel1Attributes.Spark,
+                template.baseLevel1Attributes.Glimmer, template.baseLevel1Attributes.Aura
             );
         }
-        else // Fallback if template.baseLevel1Attributes is somehow null (shouldn't be if SO is configured)
+        else
         {
-            this.initialPrimaryAttributes = new UnitPrimaryAttributes(); // Uses default constructor (all 5s)
+            this.initialPrimaryAttributes = new UnitPrimaryAttributes();
             Debug.LogWarning($"Template '{template.name}' has null baseLevel1Attributes field. '{this.unitName}' will use default attributes.", this);
         }
 
-
         if (applyAIStatVariation && template.allowsStatVariationForAI && factionToSet != FactionType.Player)
         {
-            // Ensure initialPrimaryAttributes is not null before trying to modify it
             if (this.initialPrimaryAttributes == null) this.initialPrimaryAttributes = new UnitPrimaryAttributes();
-
             float variation = template.aiStatVariationPercent;
             this.initialPrimaryAttributes.Core = Mathf.Max(1, Mathf.RoundToInt(this.initialPrimaryAttributes.Core * (1 + Random.Range(-variation, variation))));
             this.initialPrimaryAttributes.Echo = Mathf.Max(1, Mathf.RoundToInt(this.initialPrimaryAttributes.Echo * (1 + Random.Range(-variation, variation))));
@@ -134,37 +151,38 @@ public class Unit : MonoBehaviour
             this.initialPrimaryAttributes.Spark = Mathf.Max(1, Mathf.RoundToInt(this.initialPrimaryAttributes.Spark * (1 + Random.Range(-variation, variation))));
             this.initialPrimaryAttributes.Glimmer = Mathf.Max(1, Mathf.RoundToInt(this.initialPrimaryAttributes.Glimmer * (1 + Random.Range(-variation, variation))));
             this.initialPrimaryAttributes.Aura = Mathf.Max(1, Mathf.RoundToInt(this.initialPrimaryAttributes.Aura * (1 + Random.Range(-variation, variation))));
-            // Debug.Log($"[UnitFactory/PrimeData] Applied AI stat variation to {this.unitName}. Variation: {variation*100}%", this);
         }
 
         this.level = Mathf.Max(1, newLevel);
         this.CurrentFaction = factionToSet;
         this.CurrentAlignment = template.alignment;
         this.xpValue = template.defaultXpValueOnDefeat;
-
+         // MODIFIED: Set GameObject tag based on faction
+    switch (this.CurrentFaction)
+    {
+        case FactionType.Player:
+            this.gameObject.tag = "Player"; // Ensure "Player" tag exists in your project
+            break;
+        case FactionType.Enemy:
+            this.gameObject.tag = "Enemy";  // Ensure "Enemy" tag exists if you use it
+            break;
+        // Add cases for Ally, Neutral if they need specific tags
+        default:
+            this.gameObject.tag = "Untagged"; // Or a default tag
+            break;
+    }
+    // Debug.Log($"[PrimeData] Set tag for {this.unitName} to '{this.gameObject.tag}' based on faction {this.CurrentFaction}.", this);
         this.equippedWeapon = template.startingWeapon;
         this.equippedBodyArmor = template.startingBodyArmor;
 
         this.knownAbilities.Clear();
-        if (template.startingAbilities != null)
-        {
-            foreach (AbilitySO ability in template.startingAbilities)
-            {
-                if (ability != null) this.knownAbilities.Add(ability);
-            }
-        }
-
+        if (template.startingAbilities != null) { foreach (AbilitySO ability in template.startingAbilities) { if (ability != null) this.knownAbilities.Add(ability); } }
         this.inventory.Clear();
-        if (template.startingInventory != null)
-        {
-            foreach (ItemSO item in template.startingInventory)
-            {
-                if (item != null) this.inventory.Add(item);
-            }
-        }
+        if (template.startingInventory != null) { foreach (ItemSO item in template.startingInventory) { if (item != null) this.inventory.Add(item); } }
 
         if (AI != null && this.CurrentFaction != FactionType.Player)
         {
+            AI.enabled = true; 
             AI.SetBehaviorProfile(template.aiProfile);
         }
         else if (AI != null && this.CurrentFaction == FactionType.Player)
@@ -179,28 +197,25 @@ public class Unit : MonoBehaviour
     {
         if (_isInitialized) return;
 
-        if (Stats == null || Combat == null || Movement == null || Animation == null || AI == null)
+        if (Stats == null || Combat == null || Movement == null || Animation == null || AI == null || MainSpriteRenderer == null /* Crucial check if needed by Animation Init */)
         {
-            Debug.LogError($"Unit '{unitName}' is missing one or more core components. Initialization aborted.", this);
-             _isInitialized = true;
+            Debug.LogError($"Unit '{unitName}' is missing one or more core components (Stats, Combat, Movement, Animation, AI, or SpriteRenderer). Initialization aborted.", this);
+             _isInitialized = true; 
             return;
         }
+        if (this.initialPrimaryAttributes == null) { this.initialPrimaryAttributes = new UnitPrimaryAttributes(); }
         
-        // Ensure initialPrimaryAttributes is instantiated before passing to Stats.Initialize
-        if (this.initialPrimaryAttributes == null)
-        {
-            Debug.LogWarning($"Unit '{unitName}' initialPrimaryAttributes was null before Stats.Initialize. Creating default.", this);
-            this.initialPrimaryAttributes = new UnitPrimaryAttributes(); // Default constructor values
-        }
         Stats.Initialize(this, raceData, classData, this.initialPrimaryAttributes);
-
         Combat.Initialize(this);
         Movement.Initialize(this);
         Movement.MoveSpeed = this.moveSpeed;
-        Animation.Initialize(this, _mainSpriteRenderer);
+        
+        // MODIFIED: Pass MainSpriteRenderer to UnitAnimation.Initialize
+        Animation.Initialize(this, MainSpriteRenderer); 
         Animation.SetAttackAnimDuration(this.attackAnimDuration);
         Animation.SetHurtAnimDuration(this.hurtAnimDuration);
         Animation.SetDeathAnimDuration(this.deathAnimDuration);
+        
         AI.Initialize(this);
 
         _isInitialized = true;

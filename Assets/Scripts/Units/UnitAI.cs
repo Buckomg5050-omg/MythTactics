@@ -6,11 +6,21 @@ using System.Collections;
 public class UnitAI : MonoBehaviour
 {
     private Unit _unitMain;
-    [Tooltip("Assign the BasicAIHandler prefab or a scriptable object defining AI behavior if you change approach.")]
-    [SerializeField] private BasicAIHandler aiHandlerLogic; // The actual AI logic implementation
+    // MODIFIED: aiHandlerLogic will now be fetched in Awake
+    private BasicAIHandler aiHandlerLogic; 
+    private AIBehaviorProfile _currentBehaviorProfile = AIBehaviorProfile.None;
 
-    // MODIFIED: Added field to store the behavior profile
-    private AIBehaviorProfile _currentBehaviorProfile = AIBehaviorProfile.None; // Default
+    // MODIFIED: Added Awake to fetch BasicAIHandler
+    void Awake()
+    {
+        // Try to get the BasicAIHandler component on the same GameObject.
+        aiHandlerLogic = GetComponent<BasicAIHandler>();
+        if (aiHandlerLogic == null)
+        {
+            // This warning will now appear earlier if the handler is missing from the prefab.
+            Debug.LogWarning($"UnitAI on {this.gameObject.name}: BasicAIHandler component not found in Awake. AI may be passive.", this);
+        }
+    }
 
     public void Initialize(Unit mainUnit)
     {
@@ -18,94 +28,65 @@ public class UnitAI : MonoBehaviour
         if (_unitMain == null)
         {
             Debug.LogError("UnitAI.Initialize: Main Unit reference is null!", this);
-            enabled = false; return;
+            enabled = false; 
+            return;
         }
 
+        // MODIFIED: aiHandlerLogic is already fetched in Awake. We just check it here.
         if (aiHandlerLogic == null)
         {
-            aiHandlerLogic = GetComponent<BasicAIHandler>();
-            if (aiHandlerLogic == null)
-            {
-                Debug.LogWarning($"UnitAI on {_unitMain.unitName} does not have AI Handler Logic assigned or found. AI may be passive depending on profile: {_currentBehaviorProfile}.", this);
-            }
+            // This means it wasn't found in Awake either.
+            Debug.LogWarning($"UnitAI on {_unitMain.unitName} still does not have AI Handler Logic after Awake. AI will be passive depending on profile: {_currentBehaviorProfile}.", this);
         }
 
-        // If this unit is a player unit, the AI component should typically be disabled by the factory or spawner.
-        // However, if it's active, we log it.
         if (_unitMain.CurrentFaction == FactionType.Player)
         {
-            Debug.LogWarning($"UnitAI initialized on a Player faction unit: {_unitMain.unitName}. This component should likely be disabled for players.", this);
-            // this.enabled = false; // Consider disabling it here if it wasn't already by the factory
+            // This component should have been disabled by Unit.PrimeDataFromTemplate if it's a player
+            // but this log is a good sanity check if it's somehow enabled.
+            if(this.enabled)
+                Debug.LogWarning($"UnitAI initialized and enabled on a Player faction unit: {_unitMain.unitName}. It should typically be disabled.", this);
         }
     }
 
-    // MODIFIED: New method to set the behavior profile, called by UnitFactory or Unit.PrimeDataFromTemplate
     public void SetBehaviorProfile(AIBehaviorProfile profile)
     {
         _currentBehaviorProfile = profile;
-        // Debug.Log($"UnitAI on {(_unitMain != null ? _unitMain.unitName : this.gameObject.name)} profile set to: {profile}", this);
-
-        // Future: Based on the profile, you might:
-        // - Load different parameters for BasicAIHandler
-        // - Swap out the aiHandlerLogic with a different implementation
-        // - Enable/disable certain sub-behaviors within BasicAIHandler
-        if (aiHandlerLogic != null)
-        {
-            // Example: aiHandlerLogic.UpdateBehaviorParameters(_currentBehaviorProfile);
-        }
+        // if (aiHandlerLogic != null && _unitMain != null) // Check if aiHandlerLogic is valid
+        // {
+        //     Debug.Log($"UnitAI on {_unitMain.unitName} profile set to: {profile}. AI Handler found: {aiHandlerLogic != null}", this);
+        // }
     }
 
     public IEnumerator ProcessTurn()
     {
-        if (_unitMain == null || !_unitMain.IsAlive)
+        if (!_unitMain.IsAlive || _unitMain.CurrentFaction == FactionType.Player)
         {
-            DebugHelper.LogWarning($"UnitAI.ProcessTurn: Unit '{(_unitMain != null ? _unitMain.unitName : "Unknown")}' is null or not alive.", _unitMain);
-            HandleTurnEndSafety(); // MODIFIED: Changed to Safety call
-            yield break;
-        }
-
-        // This check should ideally be handled by TurnManager ensuring AI only processes turns for non-player AI factions
-        if (_unitMain.CurrentFaction == FactionType.Player)
-        {
-            DebugHelper.LogWarning($"UnitAI.ProcessTurn: Called on a Player unit {_unitMain.unitName}. AI should not control players.", _unitMain);
-            HandleTurnEndSafety(); // MODIFIED: Changed to Safety call
+            // Simplified initial checks
+            HandleTurnEndSafety();
             yield break;
         }
 
         if (aiHandlerLogic == null)
         {
             DebugHelper.Log($"{_unitMain.unitName} (UnitAI - Profile: {_currentBehaviorProfile}): No AI handler logic. Waiting out turn.", _unitMain);
-            // AI performs a simple wait if no logic is present but it has AP
-            if (_unitMain.CanAffordAPForAction(PlayerInputHandler.WaitActionCost)) // Assuming WaitActionCost is accessible or define a const
+            if (_unitMain.CanAffordAPForAction(PlayerInputHandler.WaitActionCost))
             {
                 CombatLogger.LogEvent($"{_unitMain.unitName} (AI) waits.", Color.gray, LogMessageType.TurnFlow);
                 _unitMain.SpendAPForAction(PlayerInputHandler.WaitActionCost);
             }
-            HandleTurnEndSafety(); // MODIFIED: Changed to Safety call
+            HandleTurnEndSafety();
             yield break;
         }
 
-        // Execute the assigned AI logic
-        // Pass the profile to the handler if it needs to adapt its behavior
-        yield return StartCoroutine(aiHandlerLogic.ExecuteTurn(_unitMain, _currentBehaviorProfile)); // MODIFIED: Pass profile
-
-        // The aiHandlerLogic.ExecuteTurn should call HandleTurnEndSafety itself.
-        // This is an additional failsafe.
+        yield return StartCoroutine(aiHandlerLogic.ExecuteTurn(_unitMain, _currentBehaviorProfile));
         HandleTurnEndSafety();
     }
 
-    // Renamed for clarity and to emphasize it's the primary way AI should signal turn end.
     public void HandleTurnEndSafety()
     {
         if (TurnManager.Instance != null && TurnManager.Instance.ActiveUnit == _unitMain)
         {
-            // This ensures the turn manager correctly processes the end of the AI's turn.
-            // DebugHelper.Log($"UnitAI.HandleTurnEndSafety: Requesting EndUnitTurn for {_unitMain.unitName}.", _unitMain);
             TurnManager.Instance.EndUnitTurn(_unitMain);
         }
-        // else if (TurnManager.Instance != null && TurnManager.Instance.ActiveUnit != _unitMain)
-        // {
-            // DebugHelper.LogWarning($"UnitAI.HandleTurnEndSafety: Called for {_unitMain.unitName}, but active unit is {TurnManager.Instance.ActiveUnit?.unitName}. Turn already ended or different active unit.", _unitMain);
-        // }
     }
 }

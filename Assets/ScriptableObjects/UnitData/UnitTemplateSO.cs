@@ -2,12 +2,6 @@
 using UnityEngine;
 using System.Collections.Generic;
 
-// Make sure your enum files (FactionType.cs, AlignmentType.cs, AIBehaviorProfile.cs)
-// are accessible, either by being in the global namespace or by adding 'using' directives
-// if you've placed them within a specific namespace. For this example, I'm assuming global.
-
-// Also, UnitPrimaryAttributes struct needs to be accessible.
-
 [CreateAssetMenu(fileName = "NewUnitTemplate", menuName = "MythTactics/Unit Template")]
 public class UnitTemplateSO : ScriptableObject
 {
@@ -15,11 +9,15 @@ public class UnitTemplateSO : ScriptableObject
     [Tooltip("The display name for units created from this template.")]
     public string unitName = "New Unit";
 
-    [Tooltip("The visual prefab for this unit. Should have a Unit component and other necessary Unity components (SpriteRenderer, Animator, etc.).")]
+    [Tooltip("The visual prefab for this unit. Should be your GenericUnit_Prefab.")]
     public GameObject unitPrefab;
 
-    [Tooltip("Portrait sprite used in UI elements like Turn Order, Info Panels, etc.")]
+    [Header("== VISUALS ==")]
+    [Tooltip("Portrait sprite used in UI elements (Turn Order, Info Panels, etc.). Can also be used as a fallback for the in-world sprite if 'In World Combat Sprite' is not set.")]
     public Sprite portrait;
+
+    [Tooltip("The primary sprite used for the unit in the game world during combat. If null, the 'Portrait' sprite will be attempted. If both are null, the prefab's default sprite is used.")]
+    public Sprite inWorldCombatSprite; // MODIFIED: Added this new field
 
     [Header("== FACTION & ALIGNMENT ==")]
     [Tooltip("Default faction this unit belongs to (Player, Enemy, Ally, Neutral).")]
@@ -36,20 +34,15 @@ public class UnitTemplateSO : ScriptableObject
     public ClassDataSO classData;
 
     [Header("== BASE STATS & LEVEL 1 SETUP ==")]
-    [Tooltip("The fundamental primary attribute values for this unit archetype at Level 1. These are set BEFORE race/class base values are added and before any racial/class attribute modifiers might apply if those were a feature.")]
+    [Tooltip("The fundamental primary attribute values for this unit archetype at Level 1.")]
     public UnitPrimaryAttributes baseLevel1Attributes = new UnitPrimaryAttributes();
-    // Note: UnitStats.Initialize combines these with Race/Class contributions.
 
     [Tooltip("The XP value this unit grants when defeated. Primarily for enemy units.")]
     public int defaultXpValueOnDefeat = 10;
 
-    // public int startingLevel = 1; // If units can start at > Lvl 1 via template. For now, assume Lvl 1.
-
     [Header("== STARTING EQUIPMENT ==")]
     public WeaponSO startingWeapon;
     public ArmorSO startingBodyArmor;
-    // public ArmorSO startingShield; // Example for future expansion
-    // public AccessorySO startingAccessory1; // Example
 
     [Header("== STARTING ABILITIES & ITEMS ==")]
     [Tooltip("Abilities known by the unit from the start.")]
@@ -57,7 +50,6 @@ public class UnitTemplateSO : ScriptableObject
 
     [Tooltip("Items in the unit's inventory from the start.")]
     public List<ItemSO> startingInventory = new List<ItemSO>();
-    // Consider adding quantity if items can stack in templates, e.g., List<ItemStack> where ItemStack is a struct { ItemSO item; int quantity; }
 
     [Header("== AI CONFIGURATION (If not Player Faction) ==")]
     [Tooltip("The general behavior profile for AI-controlled units of this template.")]
@@ -66,10 +58,7 @@ public class UnitTemplateSO : ScriptableObject
     [Tooltip("If true, allows minor randomization of primary attributes for AI instances created from this template.")]
     public bool allowsStatVariationForAI = false;
 
-    [Range(0f, 0.3f)] // Max 30% variation
+    [Range(0f, 0.3f)]
     [Tooltip("Percentage for stat variation (e.g., 0.1 for +/- 10% of baseLevel1Attributes). Only used if allowsStatVariationForAI is true and unit is not Player faction.")]
     public float aiStatVariationPercent = 0.1f;
-
-    // For more advanced AI (GDD 6.1.2) - We can add WeightedAbilityEntry struct/class later
-    // public List<WeightedAbilityEntry> enemySkillPool;
 }
