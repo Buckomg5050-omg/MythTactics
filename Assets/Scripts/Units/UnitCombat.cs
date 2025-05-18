@@ -44,8 +44,6 @@ public class UnitCombat : MonoBehaviour
         }
 
         _unitMain.SpendAPForAction(PlayerInputHandler.AttackActionCost);
-        // string attackLogMsg = $"{_unitMain.unitName} attacks {targetUnit.unitName}."; // Covered by hit/miss/damage logs
-        // DebugHelper.Log($"{attackLogMsg} (AP: {_unitStats.currentActionPoints}/{_unitStats.MaxActionPoints})", _unitMain);
 
         if (_unitMain.Animation != null) 
         {
@@ -66,10 +64,7 @@ public class UnitCombat : MonoBehaviour
                 int currentAttackBaseDamage = (_unitMain.equippedWeapon != null) ? _unitMain.equippedWeapon.baseDamage : DamageCalculator.UNARMED_BASE_DAMAGE;
                 int totalDamage = DamageCalculator.CalculatePhysicalAttackDamage(currentAttackBaseDamage, _unitMain, targetUnit, criticalDamageMultiplier);
                 
-                // CORRECTED: Assume Physical for basic attacks if WeaponSO doesn't specify damageType
                 DamageType attackDamageType = DamageType.Physical; 
-                // If your WeaponSO *does* have a damageType field, you would use:
-                // DamageType attackDamageType = _unitMain.equippedWeapon != null ? _unitMain.equippedWeapon.damageType : DamageType.Physical;
                 CombatLogger.LogDamage(_unitMain, targetUnit, totalDamage, attackDamageType, isCritical);
 
                 if (targetUnit.gameObject.activeInHierarchy && targetUnit.Combat != null)
@@ -84,7 +79,6 @@ public class UnitCombat : MonoBehaviour
         }
         else
         {
-            // DebugHelper.Log($"{_unitMain.unitName}'s attack MISSES {targetUnit.unitName}!", _unitMain);
             CombatLogger.LogEvent($"{_unitMain.unitName}'s attack MISSES {targetUnit.unitName}.", Color.yellow); 
         }
 
@@ -95,7 +89,6 @@ public class UnitCombat : MonoBehaviour
     {
         if (!_unitStats.IsAlive || ability == null)
         {
-            // CORRECTED: Use onAbilityComplete
             onAbilityComplete?.Invoke();
             yield break;
         }
@@ -124,7 +117,7 @@ public class UnitCombat : MonoBehaviour
         logMessageBuilder.Append(_unitMain.unitName).Append(" uses ").Append(ability.abilityName);
         if (abilityTarget != null && abilityTarget != _unitMain) { logMessageBuilder.Append(" targeting ").Append(abilityTarget.unitName); }
         else if (ability.targetType == AbilityTargetType.Self) { logMessageBuilder.Append(" on SELF"); }
-        CombatLogger.LogEvent(logMessageBuilder.ToString() + ".", Color.white); 
+        CombatLogger.LogEvent(logMessageBuilder.ToString() + ".", Color.white, LogMessageType.CombatAction);
 
         if (_unitMain.Animation != null) yield return _unitMain.Animation.PlayAttackAnimation(); 
         else yield return new WaitForSeconds(0.5f);
@@ -155,7 +148,7 @@ public class UnitCombat : MonoBehaviour
                 if (abilityTarget != null && abilityTarget.IsAlive && abilityTarget.Combat != null)
                 {
                     bool isMagicalCritical = (ability.damageType != DamageType.Physical && CombatCalculator.CheckMagicalCriticalHit(_unitMain, abilityTarget));
-                    bool isPhysicalCritical = (ability.damageType == DamageType.Physical && CombatCalculator.CheckCriticalHit(_unitMain, abilityTarget)); // Assuming abilities can also leverage this
+                    bool isPhysicalCritical = (ability.damageType == DamageType.Physical && CombatCalculator.CheckCriticalHit(_unitMain, abilityTarget));
                     bool isCritical = isMagicalCritical || isPhysicalCritical;
 
                     int totalDamage = DamageCalculator.CalculateMagicalAbilityDamage(ability, _unitMain, abilityTarget); 
@@ -196,7 +189,7 @@ public class UnitCombat : MonoBehaviour
             }
         }
         else { 
-            CombatLogger.LogEvent($"{_unitMain.unitName}'s ability {ability.abilityName} MISSES {abilityTarget?.unitName ?? "target"}.", Color.yellow); 
+            CombatLogger.LogEvent($"{_unitMain.unitName}'s ability {ability.abilityName} MISSES {abilityTarget?.unitName ?? "target"}.", Color.yellow, LogMessageType.CombatAction);
         }
 
         onAbilityComplete?.Invoke();
@@ -250,13 +243,12 @@ public class UnitCombat : MonoBehaviour
         if (!_unitStats.IsAlive) yield break;
         _unitStats.ModifyVitality(-damageAmount);
         
-        string attackerName = attacker != null ? attacker.unitName : "Effects"; // Changed "Unknown source" to "Effects" for unattributed damage like DoTs
-        Color logColor = Color.red; // Default for damage to self
-        if (attacker != null && _unitMain.CompareTag("Player") && !attacker.CompareTag("Player")) logColor = new Color(1f, 0.6f, 0.6f); // Player takes damage from enemy (lighter red)
-        else if (attacker != null && !_unitMain.CompareTag("Player") && attacker.CompareTag("Player")) logColor = new Color(1f, 0.8f, 0.3f); // Enemy takes damage from player (orangey/yellow)
+        string attackerName = attacker != null ? attacker.unitName : "Effects"; 
+        Color logColor = Color.red; 
+        if (attacker != null && _unitMain.CompareTag("Player") && !attacker.CompareTag("Player")) logColor = new Color(1f, 0.6f, 0.6f); 
+        else if (attacker != null && !_unitMain.CompareTag("Player") && attacker.CompareTag("Player")) logColor = new Color(1f, 0.8f, 0.3f); 
 
-
-        CombatLogger.LogEvent($"{_unitMain.unitName} takes {damageAmount} damage from {attackerName}. ({_unitStats.currentVitalityPoints}/{_unitStats.MaxVitalityPoints} VP)", logColor);
+        CombatLogger.LogEvent($"{_unitMain.unitName} takes {damageAmount} damage from {attackerName}. ({_unitStats.currentVitalityPoints}/{_unitStats.MaxVitalityPoints} VP)", logColor, LogMessageType.System);
 
         if (_unitStats.IsAlive)
         {
@@ -265,19 +257,30 @@ public class UnitCombat : MonoBehaviour
         }
         else
         {
-            CombatLogger.LogEvent($"{_unitMain.unitName} has been defeated by {attackerName}!", Color.magenta); 
+            CombatLogger.LogEvent($"{_unitMain.unitName} has been defeated by {attackerName}!", Color.magenta, LogMessageType.CombatAction); 
             yield return _unitMain.StartCoroutine(Die()); 
         }
     }
 
     private IEnumerator Die()
     {
+        if (_unitMain != null && !_unitMain.CompareTag("Player") && _unitMain.xpValue > 0)
+        {
+            // MODIFIED: Add XP to TurnManager's accumulator
+            if (TurnManager.Instance != null)
+            {
+                TurnManager.Instance.AddBattleXP(_unitMain.xpValue);
+            }
+            // End of MODIFICATION
+            CombatLogger.LogEvent($"{_unitMain.unitName} defeated! (Grants {_unitMain.xpValue} XP)", Color.cyan, LogMessageType.System);
+        }
+
         if (_unitMain.Movement != null && _unitMain.Movement.IsMoving) _unitMain.Movement.StopMovementCoroutines();
         if (_unitMain.Animation != null) yield return _unitMain.Animation.PlayDeathAnimation();
         else yield return new WaitForSeconds(1.0f);
         if (_unitMain.Movement != null) _unitMain.Movement.ClearCurrentTileReferenceForDeath();
         if (TurnManager.Instance != null) TurnManager.Instance.UnregisterUnit(_unitMain);
-        _unitStats?.ClearAllEffects(); // This will log effect removals
+        _unitStats?.ClearAllEffects(); 
         if (_unitMain.gameObject != null) _unitMain.gameObject.SetActive(false);
     }
 }

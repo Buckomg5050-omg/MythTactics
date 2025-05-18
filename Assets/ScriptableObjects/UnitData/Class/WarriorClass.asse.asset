@@ -24,9 +24,9 @@ MonoBehaviour:
   baseIPContribution: 4
   baseAttackRange: 1
   primaryStatGains:
-    coreGain: 4
+    coreGain: 1
     echoGain: 1
-    pulseGain: 2
-    sparkGain: 0
+    pulseGain: 1
+    sparkGain: 1
     glimmerGain: 1
-    auraGain: 0
+    auraGain: 1

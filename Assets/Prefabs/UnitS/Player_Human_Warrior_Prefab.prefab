@@ -116,7 +116,8 @@ MonoBehaviour:
     Glimmer: 5
     Aura: 5
   unitName: Player Hero
-  level: 1
+  level: 3
+  xpValue: 0
   knownAbilities:
   - {fileID: 11400000, guid: 3c15a59f5c7edf1498ccf72fc486c07c, type: 2}
   - {fileID: 11400000, guid: 722cecde233d2c242a83628b06721cef, type: 2}
