@@ -2,32 +2,34 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
-using System; 
+using System;
 using System.Collections.Generic;
 
-// ... (ActionButtonSetup class, fields, Awake, GetAPCostForAction, UpdateAvailableActions remain the same) ...
-[System.Serializable] 
+[System.Serializable]
 public class ActionButtonSetup
 {
-    public string actionName; 
+    public string actionName;
 }
 
 public class ActionMenuUI : MonoBehaviour
 {
     [Header("Prefab & Settings")]
-    public GameObject radialActionButtonPrefab; 
-    public float menuRadius = 100f; 
-    public Vector2 menuCenterOffset = new Vector2(0, 50f); 
+    public GameObject radialActionButtonPrefab;
+    public float menuRadius = 100f;
+    public Vector2 menuCenterOffset = new Vector2(0, 50f);
 
     [Header("Configurable Actions")]
-    public List<ActionButtonSetup> configurableActions = new List<ActionButtonSetup>(); 
+    public List<ActionButtonSetup> configurableActions = new List<ActionButtonSetup>();
 
     [Header("Button Text Colors")]
-    public Color affordableTextColor = Color.black; 
-    public Color unaffordableTextColor = new Color(0.4f, 0.4f, 0.4f, 1f); 
+    public Color affordableTextColor = Color.black;
+    public Color unaffordableTextColor = new Color(0.4f, 0.4f, 0.4f, 1f);
+
+    // REMOVED: No direct reference to ItemSelectionPanelUI here
+    // public ItemSelectionPanelUI itemSelectionPanelUI;
 
     private List<GameObject> _activeButtons = new List<GameObject>();
-    private Unit _currentUnitInternal; 
+    private Unit _currentUnitInternal;
 
     public delegate void ActionSelectedHandler(Unit unit, string actionName);
     public static event ActionSelectedHandler OnActionSelected;
@@ -37,8 +39,8 @@ public class ActionMenuUI : MonoBehaviour
     public struct ActionDefinition
     {
         public string name;
-        public string displayName; 
-        public bool canAfford;
+        public string displayName;
+        public bool canAfford; // For actions like Move/Attack, this is AP. For Skills/Items, this is effectively "can open panel".
 
         public ActionDefinition(string name, string displayName, bool canAfford)
         {
@@ -54,24 +56,27 @@ public class ActionMenuUI : MonoBehaviour
         {
             Debug.LogError("ActionMenuUI.Awake: RadialActionButton_Prefab not assigned in Inspector! Menu will not function.", this);
         }
-         if (radialActionButtonPrefab != null && radialActionButtonPrefab.GetComponent<TooltipTrigger>() == null)
+        if (radialActionButtonPrefab != null && radialActionButtonPrefab.GetComponent<TooltipTrigger>() == null)
         {
             Debug.LogWarning("ActionMenuUI.Awake: RadialActionButton_Prefab is missing the TooltipTrigger component. Tooltips for action buttons will not work.", this);
         }
+        // REMOVED: Null check for itemSelectionPanelUI
     }
 
     private int GetAPCostForAction(string actionName)
     {
+        // This returns AP cost for actions that are directly executed.
+        // Opening sub-menus like "Items" or "Skills" via OnActionSelected is considered free at this stage.
+        // The AP cost for using an item or skill will be handled by the respective systems.
         switch (actionName)
         {
             case "Move": return PlayerInputHandler.MoveActionCost;
             case "Attack": return PlayerInputHandler.AttackActionCost;
-            case "Skills": return PlayerInputHandler.SkillsActionCost; 
-            case "Items": return PlayerInputHandler.ItemsActionCost;   
-            case "Info": return PlayerInputHandler.InfoActionCost;     
+            case "Skills": return 0; // Cost to OPEN panel is 0. Actual skill use has cost.
+            case "Items": return 0;  // Cost to OPEN panel is 0. Actual item use has cost.
+            case "Info": return PlayerInputHandler.InfoActionCost; // Typically 0
             case "Wait": return PlayerInputHandler.WaitActionCost;
             default:
-                // Debug.LogWarning($"ActionMenuUI: Unknown action name '{actionName}' for AP cost lookup. Assuming 0 AP.");
                 return 0;
         }
     }
@@ -85,20 +90,28 @@ public class ActionMenuUI : MonoBehaviour
         {
             if (string.IsNullOrEmpty(actionSetup.actionName)) continue;
 
+            bool canAffordAction;
+
             if (actionSetup.actionName == "Skills")
             {
                 bool hasSkills = unit.knownAbilities != null && unit.knownAbilities.Count > 0;
-                if (!hasSkills) { continue; } 
+                if (!hasSkills) { continue; } // Don't add "Skills" button if no skills
+                canAffordAction = true; // Opening skill menu is always "affordable"
             }
-            
-            bool canAffordAction;
-            if (actionSetup.actionName == "Info")
+            else if (actionSetup.actionName == "Items")
             {
-                canAffordAction = true; 
+                // Future: Could add a check here if unit has no usable items, then 'continue;'
+                // bool hasItems = unit.HasUsableItems(); // Requires inventory system
+                // if (!hasItems) { continue; }
+                canAffordAction = true; // Opening item menu is always "affordable"
+            }
+            else if (actionSetup.actionName == "Info")
+            {
+                canAffordAction = true;
             }
             else
             {
-                int apCost = GetAPCostForAction(actionSetup.actionName);
+                int apCost = GetAPCostForAction(actionSetup.actionName); // This will be 0 for Items/Skills now
                 canAffordAction = unit.CanAffordAPForAction(apCost);
             }
             _runtimeAvailableActions.Add(new ActionDefinition(actionSetup.actionName, actionSetup.actionName, canAffordAction));
@@ -142,7 +155,7 @@ public class ActionMenuUI : MonoBehaviour
             HideMenu();
             return;
         }
-        float buttonWidth = prefabRect.sizeDelta.x * prefabRect.transform.localScale.x; // Assuming uniform scale
+        float buttonWidth = prefabRect.sizeDelta.x * prefabRect.transform.localScale.x;
         float buttonHeight = prefabRect.sizeDelta.y * prefabRect.transform.localScale.y;
         float angleStep = 360f / numActions;
         float startAngleOffset = 90f;
@@ -185,31 +198,42 @@ public class ActionMenuUI : MonoBehaviour
             if (buttonText != null)
             {
                 buttonText.text = currentActionDef.displayName;
+                // For items/skills/info, color is always affordable because opening panel is free.
+                // For other actions, it depends on AP.
                 buttonText.color = currentActionDef.canAfford ? affordableTextColor : unaffordableTextColor;
             }
             Button buttonComponent = buttonInstance.GetComponent<Button>();
             if (buttonComponent != null)
             {
+                // Interactability for items/skills/info is always true (opening panel is free)
+                // For other actions, it depends on AP.
                 buttonComponent.interactable = currentActionDef.canAfford;
+
                 string capturedActionName = currentActionDef.name;
                 buttonComponent.onClick.AddListener(() => OnActionButtonClicked(capturedActionName));
             }
 
-            // MODIFIED: Set tooltip text for the button
             TooltipTrigger trigger = buttonInstance.GetComponent<TooltipTrigger>();
             if (trigger != null)
             {
-                int apCost = GetAPCostForAction(currentActionDef.name);
-                string costString = (apCost > 0) ? $"\n(AP Cost: {apCost})" : "\n(Free Action)";
-                if (currentActionDef.name == "Info" || currentActionDef.name == "Skills" || currentActionDef.name == "Items") costString = ""; // No AP cost display for menu openers
-
+                string costString = "";
+                // Tooltip for "Items" and "Skills" should not show AP cost, as opening is free.
+                // The cost is for *using* an item/skill from the subsequent panel.
+                if (currentActionDef.name != "Info" && currentActionDef.name != "Skills" && currentActionDef.name != "Items")
+                {
+                    // For other actions, get their direct AP cost for the tooltip
+                    int apCostForDirectAction = 0; // Default to 0
+                     switch (currentActionDef.name) // Re-fetch specific costs for tooltip clarity
+                    {
+                        case "Move": apCostForDirectAction = PlayerInputHandler.MoveActionCost; break;
+                        case "Attack": apCostForDirectAction = PlayerInputHandler.AttackActionCost; break;
+                        case "Wait": apCostForDirectAction = PlayerInputHandler.WaitActionCost; break;
+                        // Info, Skills, Items are handled by the outer if
+                    }
+                    costString = (apCostForDirectAction > 0) ? $"\n(AP Cost: {apCostForDirectAction})" : "\n(Free Action)";
+                }
                 trigger.tooltipText = $"{currentActionDef.displayName}{costString}";
             }
-            // else 
-            // {
-            //     Debug.LogWarning($"Button {currentActionDef.name} is missing TooltipTrigger component.", buttonInstance);
-            // }
-
 
             buttonInstance.name = $"ActionButton_{currentActionDef.name}";
             buttonInstance.SetActive(true);
@@ -219,24 +243,32 @@ public class ActionMenuUI : MonoBehaviour
 
     public void HideMenu()
     {
-        // ... (HideMenu logic remains the same) ...
         foreach (GameObject button in _activeButtons)
         {
             if (button != null) Destroy(button);
         }
         _activeButtons.Clear();
-        _currentUnitInternal = null; 
-        if (gameObject.activeSelf) 
+        _currentUnitInternal = null;
+        if (gameObject.activeSelf)
         {
-            gameObject.SetActive(false); 
+            gameObject.SetActive(false);
         }
     }
 
     private void OnActionButtonClicked(string actionName)
     {
+        if (_currentUnitInternal == null) return;
+
+        // ALL actions now simply invoke OnActionSelected.
+        // The PlayerInputHandler (or other listeners) will decide how to react,
+        // e.g., open the ItemSelectionPanelUI or SkillSelectionPanelUI.
         // DebugHelper.Log($"ActionMenuUI: Button '{actionName}' clicked for unit '{_currentUnitInternal?.unitName}'. Invoking OnActionSelected.", this.gameObject);
         OnActionSelected?.Invoke(_currentUnitInternal, actionName);
-        // HideMenu(); // Hiding is now handled by PlayerInputHandler when state changes or action is processed
+
+        // The ActionMenuUI usually hides after an action is selected and PlayerInputHandler takes over.
+        // If PlayerInputHandler doesn't hide it, it might need to be hidden explicitly
+        // when sub-panels like ItemSelectionPanelUI are shown.
+        // For now, we assume PlayerInputHandler will manage hiding this menu when appropriate.
     }
 
     public bool IsVisible()

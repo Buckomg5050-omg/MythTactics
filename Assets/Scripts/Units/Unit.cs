@@ -34,16 +34,14 @@ public class Unit : MonoBehaviour
     [Header("Equipment")]
     public WeaponSO equippedWeapon;
     public ArmorSO equippedBodyArmor;
+    [Tooltip("Items currently held by this unit.")] // MODIFIED: Added tooltip
+    public List<ItemSO> inventory = new List<ItemSO>(); // MODIFIED: Added inventory list
 
     [Header("Movement & Animation Timings")]
     public float moveSpeed = 5f;
     public float attackAnimDuration = 0.5f;
     public float hurtAnimDuration = 0.3f;
     public float deathAnimDuration = 1.0f;
-
-    // REMOVED: AP fields are now managed by UnitStats
-    // public int maxActionPoints = 2;
-    // public int currentActionPoints;
 
     [Header("Turn Order")]
     public int actionCounter = 0;
@@ -52,7 +50,6 @@ public class Unit : MonoBehaviour
     public bool IsMoving => (Movement != null) ? Movement.IsMoving : false;
     public bool IsAlive => (Stats != null) ? Stats.IsAlive : false;
 
-    // Pass-through properties for AP, getting values from UnitStats
     public int CurrentActionPoints => (Stats != null) ? Stats.currentActionPoints : 0;
     public int MaxActionPoints => (Stats != null) ? Stats.MaxActionPoints : 0;
 
@@ -66,7 +63,6 @@ public class Unit : MonoBehaviour
 
         Stats = GetComponent<UnitStats>();
         if (Stats == null) Stats = gameObject.AddComponent<UnitStats>();
-        // initialPrimaryAttributes are passed here, Stats.Initialize handles AP initialization based on its _maxActionPoints
         Stats.Initialize(this, raceData, classData, initialPrimaryAttributes);
 
         Combat = GetComponent<UnitCombat>();
@@ -93,21 +89,18 @@ public class Unit : MonoBehaviour
     public void StopMovementCoroutines() { Movement?.StopMovementCoroutines(); }
     public void ClearCurrentTileReference() { Movement?.ClearCurrentTileReferenceForDeath(); }
 
-    // Renamed from ResetActionPoints to ResetForCombatStart for clarity, called by TurnManager.StartCombat
-    // This method now delegates AP regeneration to UnitStats.
     public void ResetForCombatStart()
     {
         if (Stats != null)
         {
             if (IsAlive)
             {
-                Stats.RegenerateActionPointsAtTurnStart(); // Sets AP to MaxAP if alive
+                Stats.RegenerateActionPointsAtTurnStart();
             }
             else
             {
-                Stats.currentActionPoints = 0; // Ensure dead units start combat with 0 AP
+                Stats.currentActionPoints = 0;
             }
-            // Potentially other combat start resets can go here (e.g., clearing temporary effects)
         }
         else
         {
@@ -115,20 +108,16 @@ public class Unit : MonoBehaviour
         }
     }
 
-    // Delegates AP check to UnitStats
     public bool CanAffordAPForAction(int apCost)
     {
         if (!IsAlive || Stats == null) return false;
         return Stats.currentActionPoints >= apCost;
     }
 
-    // Delegates AP spending to UnitStats
     public void SpendAPForAction(int apCost)
     {
         if (!IsAlive || Stats == null) return;
-        if (apCost <= 0) return; // Basic validation, though Stats.SpendActionPoints also handles it
-
-        // UnitStats.SpendActionPoints now handles logging success/failure.
+        if (apCost <= 0) return;
         Stats.SpendActionPoints(apCost);
     }
 

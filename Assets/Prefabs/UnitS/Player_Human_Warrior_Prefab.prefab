@@ -123,6 +123,10 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 6b03aa241c84e444fa20f5e1bc51dd19, type: 2}
   equippedWeapon: {fileID: 11400000, guid: 32db0ab0bf4643243ab12e8e06f6b725, type: 2}
   equippedBodyArmor: {fileID: 11400000, guid: b463ce178bb8cb446a058aba0b6b2990, type: 2}
+  inventory:
+  - {fileID: 11400000, guid: 097dfab541492b94997058f0b7d007e2, type: 2}
+  - {fileID: 11400000, guid: 80d65c9a2e0e6ea4c904d2f6afc8f0a7, type: 2}
+  - {fileID: 11400000, guid: 9e60287a33c619b4cb4450bc0a45d591, type: 2}
   moveSpeed: 5
   attackAnimDuration: 0.5
   hurtAnimDuration: 0.3

@@ -1,7 +1,7 @@
+// TooltipUI.cs
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
-// using System.Diagnostics; // Keep commented out unless StackTrace is re-enabled
 
 public class TooltipUI : MonoBehaviour
 {
@@ -26,6 +26,8 @@ public class TooltipUI : MonoBehaviour
         if (Instance == null)
         {
             Instance = this;
+            // Optional: If you want this to persist across scenes and only have one.
+            // DontDestroyOnLoad(gameObject); 
         }
         else if (Instance != this)
         {
@@ -40,12 +42,13 @@ public class TooltipUI : MonoBehaviour
         _parentCanvas = GetComponentInParent<Canvas>();
         if (_parentCanvas == null)
         {
-            UnityEngine.Debug.LogError("TooltipUI: Must be a child of a Canvas!", this);
-            enabled = false;
-            return;
+            UnityEngine.Debug.LogError("TooltipUI: Must be a child of a Canvas for proper operation!", this);
         }
-        _canvasRectTransform = _parentCanvas.GetComponent<RectTransform>();
-        _uiCamera = _parentCanvas.worldCamera; 
+        else
+        {
+            _canvasRectTransform = _parentCanvas.GetComponent<RectTransform>();
+            _uiCamera = _parentCanvas.worldCamera; 
+        }
 
         if (tooltipPanel != null) 
         {
@@ -82,33 +85,50 @@ public class TooltipUI : MonoBehaviour
             tooltipPanel.sizeDelta = new Vector2(tooltipText.preferredWidth, tooltipText.preferredHeight) + textPadding * 2;
         }
         
-        if (!wasAlreadyVisible || textChanged) 
-        {
-            UnityEngine.Debug.Log($"TooltipUI.ShowTooltip: ACTIVATING. Text: '{text}'. WasVisible: {wasAlreadyVisible}, TextChanged: {textChanged}", this);
-        }
         tooltipPanel.gameObject.SetActive(true); 
+
+        // MODIFIED: Ensure the *TooltipUI's root GameObject* is rendered on top within its parent canvas's children
+        if (this.transform.parent != null) // Check if the TooltipUI GameObject itself has a parent
+        {
+            this.transform.SetAsLastSibling(); // This moves the entire TooltipUI object to the end of its parent's child list
+        }
+        // End of Modification
+
         InternalUpdatePosition(screenPosition); 
     }
 
+    // ... HideTooltip, InternalUpdatePosition, ClampToScreen, LateUpdate remain the same ...
     public void HideTooltip()
     {
         if (tooltipPanel != null && tooltipPanel.gameObject.activeSelf)
         {
             tooltipPanel.gameObject.SetActive(false);
             _currentTooltipText = ""; 
-            UnityEngine.Debug.Log("TooltipUI.HideTooltip: DEACTIVATED.", this);
         }
     }
 
     private void InternalUpdatePosition(Vector2 screenPosition)
     {
-        if (tooltipPanel == null || !_parentCanvas || _canvasRectTransform == null) return;
+        if (tooltipPanel == null) return;
+        if (_parentCanvas == null || _canvasRectTransform == null)
+        {
+            _parentCanvas = GetComponentInParent<Canvas>();
+            if (_parentCanvas != null)
+            {
+                _canvasRectTransform = _parentCanvas.GetComponent<RectTransform>();
+                _uiCamera = _parentCanvas.worldCamera;
+            }
+            else
+            {
+                return; 
+            }
+        }
 
         Vector2 anchoredPosition;
         RectTransformUtility.ScreenPointToLocalPointInRectangle(
             _canvasRectTransform, 
-            screenPosition, 
-            _uiCamera, 
+            screenPosition,       
+            _uiCamera,            
             out anchoredPosition);
 
         tooltipPanel.anchoredPosition = anchoredPosition + offset;
@@ -120,7 +140,7 @@ public class TooltipUI : MonoBehaviour
         if (tooltipPanel == null || _parentCanvas == null || _canvasRectTransform == null) return;
 
         Vector3[] panelCorners = new Vector3[4];
-        tooltipPanel.GetWorldCorners(panelCorners);
+        tooltipPanel.GetWorldCorners(panelCorners); 
 
         float currentCanvasScale = _parentCanvas.scaleFactor; 
         if (currentCanvasScale <= 0) currentCanvasScale = 1f; 
@@ -136,13 +156,13 @@ public class TooltipUI : MonoBehaviour
         Vector2 topRightScreen = RectTransformUtility.WorldToScreenPoint(_uiCamera, panelCorners[2]);
         Vector2 topLeftScreen = RectTransformUtility.WorldToScreenPoint(_uiCamera, panelCorners[1]);
 
-        if (bottomLeftScreen.x < minScreenX) { screenSpaceOffset.x = minScreenX - bottomLeftScreen.x; }
-        else if (topRightScreen.x > maxScreenX) { screenSpaceOffset.x = maxScreenX - topRightScreen.x; }
+        if (bottomLeftScreen.x < minScreenX) { screenSpaceOffset.x = (minScreenX - bottomLeftScreen.x); }
+        else if (topRightScreen.x > maxScreenX) { screenSpaceOffset.x = (maxScreenX - topRightScreen.x); }
 
-        if (bottomLeftScreen.y < minScreenY) { screenSpaceOffset.y = minScreenY - bottomLeftScreen.y; }
-        else if (topLeftScreen.y > maxScreenY) { screenSpaceOffset.y = maxScreenY - topLeftScreen.y; }
+        if (bottomLeftScreen.y < minScreenY) { screenSpaceOffset.y = (minScreenY - bottomLeftScreen.y); }
+        else if (topLeftScreen.y > maxScreenY) { screenSpaceOffset.y = (maxScreenY - topLeftScreen.y); } 
         
-        tooltipPanel.anchoredPosition += screenSpaceOffset / currentCanvasScale; 
+        tooltipPanel.anchoredPosition += screenSpaceOffset / currentCanvasScale;
     }
 
     void LateUpdate()
