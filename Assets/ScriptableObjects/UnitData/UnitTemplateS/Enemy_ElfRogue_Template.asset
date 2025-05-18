@@ -1,0 +1,39 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a007a16e6860ee6438fff27b615d0d32, type: 3}
+  m_Name: Enemy_ElfRogue_Template
+  m_EditorClassIdentifier: 
+  unitName: Elven Shadowblade
+  unitPrefab: {fileID: 5369858329263020711, guid: 5acf772276d1bbd47b334fbaee522ef6, type: 3}
+  portrait: {fileID: 21300000, guid: 7fd16b0d40f306241b51344bd9193f4e, type: 3}
+  defaultFaction: 1
+  alignment: 2
+  raceData: {fileID: 11400000, guid: d0d6d8deb707b4040bf6c3bd3827610e, type: 2}
+  classData: {fileID: 11400000, guid: ccce3f070e7190c4fb5b6e103d79208d, type: 2}
+  baseLevel1Attributes:
+    Core: 7
+    Echo: 12
+    Pulse: 8
+    Spark: 6
+    Glimmer: 11
+    Aura: 6
+  defaultXpValueOnDefeat: 60
+  startingWeapon: {fileID: 11400000, guid: 0411f7c6f9f39bf49a44be3c4a184a5e, type: 2}
+  startingBodyArmor: {fileID: 11400000, guid: 6f4f867891bc1f14d919cfb03793e84a, type: 2}
+  startingAbilities:
+  - {fileID: 11400000, guid: 0cb45106cf414d74c8adf75b188f7af8, type: 2}
+  - {fileID: 11400000, guid: 3c15a59f5c7edf1498ccf72fc486c07c, type: 2}
+  startingInventory:
+  - {fileID: 11400000, guid: 9e60287a33c619b4cb4450bc0a45d591, type: 2}
+  aiProfile: 5
+  allowsStatVariationForAI: 1
+  aiStatVariationPercent: 0.1

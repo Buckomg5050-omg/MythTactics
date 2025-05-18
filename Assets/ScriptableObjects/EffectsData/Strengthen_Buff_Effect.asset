@@ -12,10 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b09d1e7a96db0814bb8a706d65b5b459, type: 3}
   m_Name: Strengthen_Buff_Effect
   m_EditorClassIdentifier: 
-  effectID: minor_strength_buff
-  effectName: Minor Strength
-  description: Increases Core by 2 for a few turns.
-  icon: {fileID: 21300000, guid: f97874e2b452420479ecbd8c76da63eb, type: 3}
+  effectID: EFFECT_BUFF_STRENGTHEN
+  effectName: Strengthen
+  description: Temporarily increases the target's Core attribute.
+  icon: {fileID: 21300000, guid: 9863a01bc74d2614e8f0ccddae6bbecf, type: 3}
   durationType: 0
   duration: 3
   maxStacks: 1
@@ -23,9 +23,21 @@ MonoBehaviour:
   statModifiers:
   - stat: 0
     type: 0
-    value: 2
+    value: 3
   effectTypeTags:
   - Buff
+  - Positive
+  - Physical
+  - StatBoost
+  onApplyDirectEffectType: 0
+  onApplyDirectEffectBasePower: 0
+  onApplyDirectEffectScalesWithCasterStat: 0
+  onApplyDirectEffectScalingStat: 3
+  onApplyDirectEffectScalingFactor: 0.25
+  onApplyDirectEffectDamageType: 2
   tickActionType: 0
   tickActionBasePower: 0
   tickActionDamageType: 2
+  tickActionScalesWithCasterStat: 0
+  tickScalingStat: 3
+  tickScalingFactor: 0.25

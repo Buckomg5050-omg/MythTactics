@@ -1,0 +1,38 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a007a16e6860ee6438fff27b615d0d32, type: 3}
+  m_Name: Enemy_DwarfMage_Template
+  m_EditorClassIdentifier: 
+  unitName: Dwarven Runesmith
+  unitPrefab: {fileID: 5369858329263020711, guid: 5acf772276d1bbd47b334fbaee522ef6, type: 3}
+  portrait: {fileID: 21300000, guid: f5e59a6adcac198459c0b17fc5556d2b, type: 3}
+  defaultFaction: 1
+  alignment: 0
+  raceData: {fileID: 11400000, guid: f3691685d93530e40b768cafa3616fca, type: 2}
+  classData: {fileID: 11400000, guid: 13a5d879309a1d34cb19f0cead1f8f3c, type: 2}
+  baseLevel1Attributes:
+    Core: 8
+    Echo: 6
+    Pulse: 9
+    Spark: 12
+    Glimmer: 10
+    Aura: 5
+  defaultXpValueOnDefeat: 75
+  startingWeapon: {fileID: 11400000, guid: 77eb5dc0fff06a04caebf97457f5bb5b, type: 2}
+  startingBodyArmor: {fileID: 11400000, guid: 6f4f867891bc1f14d919cfb03793e84a, type: 2}
+  startingAbilities:
+  - {fileID: 11400000, guid: 0cb45106cf414d74c8adf75b188f7af8, type: 2}
+  - {fileID: 11400000, guid: bde4c3c75f3e4c048bf2f4097c5556a7, type: 2}
+  startingInventory: []
+  aiProfile: 1
+  allowsStatVariationForAI: 1
+  aiStatVariationPercent: 0.1

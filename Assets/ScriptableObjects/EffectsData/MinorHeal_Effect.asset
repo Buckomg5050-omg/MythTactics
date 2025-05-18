@@ -13,17 +13,20 @@ MonoBehaviour:
   m_Name: MinorHeal_Effect
   m_EditorClassIdentifier: 
   effectID: EFFECT_HEAL_MINOR
-  effectName: Minor Potion Heal
-  description: Minor Potion Heal
-  icon: {fileID: 21300000, guid: 55001b21843a7c545a1c592fac7f343c, type: 3}
+  effectName: Minor Healing
+  description: Instantly restores a small amount of Vitality Points.
+  icon: {fileID: 21300000, guid: 8b05aaf91e732e04d8c873958456cfb8, type: 3}
   durationType: 2
-  duration: 3
+  duration: 0
   maxStacks: 1
-  stackingBehavior: 1
+  stackingBehavior: 0
   statModifiers: []
-  effectTypeTags: []
+  effectTypeTags:
+  - Healing
+  - Positive
+  - Restoration
   onApplyDirectEffectType: 1
-  onApplyDirectEffectBasePower: 10
+  onApplyDirectEffectBasePower: 15
   onApplyDirectEffectScalesWithCasterStat: 0
   onApplyDirectEffectScalingStat: 3
   onApplyDirectEffectScalingFactor: 0.25

@@ -13,14 +13,14 @@ MonoBehaviour:
   m_Name: HumanRace
   m_EditorClassIdentifier: 
   raceName: Human
-  description: 'Adaptable and widespread, humans form the backbone of many nations,
-    known for their balanced capabilities.
-
-'
+  description: Adaptable and versatile, humans are widespread and form the backbone
+    of many societies.
+  loreText: 
+  typicalAlignment: 0
   baseMovementContribution: 0
-  raceSpeedBonus: 50
-  baseVPContribution: 5
+  raceSpeedBonus: 5
+  baseVPContribution: 10
   baseMPContribution: 5
-  baseSPContribution: 5
+  baseSPContribution: 10
   baseFPContribution: 5
-  baseIPContribution: 7
+  baseIPContribution: 10

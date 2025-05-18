@@ -12,5 +12,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4281b39bb8ef4f440b81ab28676fc059, type: 3}
   m_Name: IronPlateCuirass
   m_EditorClassIdentifier: 
-  armorName: Plate Armor
-  armorValue: 50
+  armorName: Iron Plate Cuirass
+  icon: {fileID: 21300000, guid: 3145c6be6be2f5d4ab76827ca6930ae2, type: 3}
+  shortDescription: A sturdy breastplate and backplate made of shaped iron. Excellent
+    physical protection at the cost of agility.
+  loreText: The mark of a well-equipped soldier or knight, an iron cuirass can turn
+    aside many a deadly blow, though its weight is considerable.
+  armorType: 3
+  armorValue: 20
+  baseEvasion: -2
+  statModifiers:
+  - stat: 14
+    type: 0
+    value: -5
+  - stat: 13
+    type: 0
+    value: -1

@@ -12,22 +12,32 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b09d1e7a96db0814bb8a706d65b5b459, type: 3}
   m_Name: Poison_Debuff_Effect
   m_EditorClassIdentifier: 
-  effectID: poisoned_dot
-  effectName: Poisoned
-  description: Target takes poison damage at the end of each of its turns.
-  icon: {fileID: 10905, guid: 0000000000000000f000000000000000, type: 0}
+  effectID: EFFECT_DEBUFF_POISON_WEAK
+  effectName: Weak Poison
+  description: Inflicts minor damage each turn and slightly reduces Pulse.
+  icon: {fileID: 21300000, guid: cebf664472930bc4a8226c58c945424a, type: 3}
   durationType: 0
   duration: 3
-  maxStacks: 1
-  stackingBehavior: 1
-  statModifiers: []
+  maxStacks: 2
+  stackingBehavior: 3
+  statModifiers:
+  - stat: 2
+    type: 0
+    value: -2
   effectTypeTags:
   - Debuff
+  - Negative
   - Poison
-  - DamageOverTime"
+  - DamageOverTime
+  onApplyDirectEffectType: 0
+  onApplyDirectEffectBasePower: 0
+  onApplyDirectEffectScalesWithCasterStat: 0
+  onApplyDirectEffectScalingStat: 3
+  onApplyDirectEffectScalingFactor: 0.25
+  onApplyDirectEffectDamageType: 2
   tickActionType: 1
   tickActionBasePower: 5
   tickActionDamageType: 2
-  tickActionScalesWithCasterStat: 1
+  tickActionScalesWithCasterStat: 0
   tickScalingStat: 3
   tickScalingFactor: 0.25

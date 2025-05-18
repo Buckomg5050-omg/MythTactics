@@ -13,20 +13,23 @@ MonoBehaviour:
   m_Name: WarriorClass.asse
   m_EditorClassIdentifier: 
   className: Warrior
-  description: Masters of close-quarters combat, warriors are disciplined and versatile
-    fighters, skilled with a variety of weapons and armor.
+  description: Masters of martial combat, warriors excel in direct confrontation,
+    wielding heavy weapons and armor.
+  loreText: 
+  typicalAlignment: 0
+  commonFactionAssociations: 
   baseMovementContribution: 3
   classSpeedBonus: 0
-  baseVPContribution: 5
+  baseVPContribution: 25
   baseMPContribution: 0
-  baseSPContribution: 10
-  baseFPContribution: 3
-  baseIPContribution: 4
+  baseSPContribution: 20
+  baseFPContribution: 5
+  baseIPContribution: 0
   baseAttackRange: 1
   primaryStatGains:
-    coreGain: 1
-    echoGain: 0
-    pulseGain: 1
+    coreGain: 2
+    echoGain: 1
+    pulseGain: 2
     sparkGain: 0
     glimmerGain: 0
     auraGain: 0

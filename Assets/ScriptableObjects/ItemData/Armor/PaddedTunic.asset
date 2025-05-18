@@ -12,5 +12,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4281b39bb8ef4f440b81ab28676fc059, type: 3}
   m_Name: PaddedTunic
   m_EditorClassIdentifier: 
-  armorName: No Armor
-  armorValue: 0
+  armorName: Padded Tunic
+  icon: {fileID: 21300000, guid: b6f431dc1f251b0439585b63c3e2cdb5, type: 3}
+  shortDescription: A thick, quilted tunic offering minimal protection. Better than
+    nothing.
+  loreText: Often worn by peasants or as an underlayer for heavier armor, this tunic
+    provides some cushioning against blows but little real defense
+  armorType: 1
+  armorValue: 2
+  baseEvasion: 1
+  statModifiers: []

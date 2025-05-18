@@ -12,21 +12,23 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 03c22eb5c5793164cb194bc23aced609, type: 3}
   m_Name: StrengthenSelf_Ability
   m_EditorClassIdentifier: 
-  abilityName: New Ability
-  description: Ability Description.
-  abilityIcon: {fileID: 0}
+  abilityName: Battle Focus
+  description: The user focuses their will, temporarily bolstering their physical
+    might.
+  abilityIcon: {fileID: 21300000, guid: d290c4db09fcb4d4aa5ea7101ccf7079, type: 3}
   apCost: 1
   mpCost: 0
-  spCost: 0
+  spCost: 10
   fpCost: 0
   ipCost: 0
-  targetType: 1
-  range: 1
+  targetType: 0
+  range: 0
   baseAccuracy: 80
-  alwaysHits: 0
+  alwaysHits: 1
   critChanceModifier: 0
-  effectType: 1
-  basePower: 10
+  effectType: 3
+  basePower: 0
   damageType: 1
   dealsTrueDamage: 0
-  effectsToApplyOnHit: []
+  effectsToApplyOnHit:
+  - {fileID: 11400000, guid: a717a0d6f0da25642bc67593e80b5c67, type: 2}

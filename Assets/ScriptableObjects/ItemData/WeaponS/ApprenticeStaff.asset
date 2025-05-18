@@ -12,14 +12,22 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1ce67ed290b12a847b9b6590d8f01035, type: 3}
   m_Name: ApprenticeStaff
   m_EditorClassIdentifier: 
-  weaponName: Generic Weapon
-  icon: {fileID: 0}
-  shortDescription: A standard weapon.
-  loreText: Many such weapons exist, each with its own minor history.
-  weaponType: 1
-  baseDamage: 5
+  weaponName: Apprentice Staff
+  icon: {fileID: 21300000, guid: fa7717f405ff3bd4aac042c30b7c6b6c, type: 3}
+  shortDescription: A simple wooden staff, often the first tool for a budding mage.
+    Enhances minor magical energies.
+  loreText: Carved with basic runes of channeling, this staff helps focus the untrained
+    mind, a stepping stone to greater power.
+  weaponType: 8
+  baseDamage: 4
   range: 1
-  baseAccuracy: 75
+  baseAccuracy: 65
   dealsTrueDamage: 0
-  statModifiers: []
+  statModifiers:
+  - stat: 3
+    type: 0
+    value: 2
+  - stat: 7
+    type: 0
+    value: 5
   grantedAbility: {fileID: 0}

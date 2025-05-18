@@ -1,0 +1,39 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a007a16e6860ee6438fff27b615d0d32, type: 3}
+  m_Name: Player_HumanWarrior_Template
+  m_EditorClassIdentifier: 
+  unitName: Player Hero
+  unitPrefab: {fileID: 5369858329263020711, guid: 5acf772276d1bbd47b334fbaee522ef6, type: 3}
+  portrait: {fileID: 21300000, guid: b616ca9e792ac584f95bc6f387092e1a, type: 3}
+  defaultFaction: 0
+  alignment: 1
+  raceData: {fileID: 11400000, guid: a4a37fdc0bafcc842969c6f1060741aa, type: 2}
+  classData: {fileID: 11400000, guid: 22debfe3dab8b764f8c8354c38193a3c, type: 2}
+  baseLevel1Attributes:
+    Core: 10
+    Echo: 8
+    Pulse: 10
+    Spark: 5
+    Glimmer: 7
+    Aura: 8
+  defaultXpValueOnDefeat: 0
+  startingWeapon: {fileID: 11400000, guid: 32db0ab0bf4643243ab12e8e06f6b725, type: 2}
+  startingBodyArmor: {fileID: 11400000, guid: c5613d342d0cc694fbbe15663788d54e, type: 2}
+  startingAbilities:
+  - {fileID: 11400000, guid: 0cb45106cf414d74c8adf75b188f7af8, type: 2}
+  - {fileID: 11400000, guid: e4fafe8a61d102e449b1e5f217505fa2, type: 2}
+  startingInventory:
+  - {fileID: 11400000, guid: 80d65c9a2e0e6ea4c904d2f6afc8f0a7, type: 2}
+  aiProfile: 1
+  allowsStatVariationForAI: 0
+  aiStatVariationPercent: 0

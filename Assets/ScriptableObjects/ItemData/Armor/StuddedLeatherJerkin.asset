@@ -12,5 +12,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4281b39bb8ef4f440b81ab28676fc059, type: 3}
   m_Name: StuddedLeatherJerkin
   m_EditorClassIdentifier: 
-  armorName: Leather Armor
-  armorValue: 10
+  armorName: Studded Leather Jerkin
+  icon: {fileID: 21300000, guid: eb41588ff6935964fbcdfbb461c224f3, type: 3}
+  shortDescription: Hardened leather reinforced with metal studs. Offers decent protection
+    without sacrificing much mobility.
+  loreText: Favored by scouts, rogues, and light infantry, studded leather provides
+    a good balance of defense and agility.
+  armorType: 1
+  armorValue: 8
+  baseEvasion: 3
+  statModifiers:
+  - stat: 14
+    type: 0
+    value: -1

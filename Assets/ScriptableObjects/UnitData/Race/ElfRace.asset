@@ -13,12 +13,14 @@ MonoBehaviour:
   m_Name: ElfRace
   m_EditorClassIdentifier: 
   raceName: Elf
-  description: Graceful and long-lived, elves are often attuned to nature and possess
-    keen senses and swiftness.
-  baseMovementContribution: 1
-  raceSpeedBonus: 60
+  description: Graceful and long-lived, elves possess a natural talent for archery
+    and magic, often with a deep connection to nature.
+  loreText: 
+  typicalAlignment: 0
+  baseMovementContribution: 0
+  raceSpeedBonus: 10
   baseVPContribution: 5
-  baseMPContribution: 10
-  baseSPContribution: 0
-  baseFPContribution: 8
+  baseMPContribution: 15
+  baseSPContribution: 5
+  baseFPContribution: 10
   baseIPContribution: 5

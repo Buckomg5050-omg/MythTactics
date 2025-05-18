@@ -13,12 +13,14 @@ MonoBehaviour:
   m_Name: DwarfRace
   m_EditorClassIdentifier: 
   raceName: Dwarf
-  description: ' Resilient and strong, dwarves are master artisans and warriors,
-    though not known for their fleetness of foot.'
+  description: ' Sturdy and resilient, dwarves are known for their craftsmanship
+    and affinity for the earth.'
+  loreText: 
+  typicalAlignment: 0
   baseMovementContribution: -1
-  raceSpeedBonus: 40
-  baseVPContribution: 5
-  baseMPContribution: 5
-  baseSPContribution: 10
-  baseFPContribution: 6
-  baseIPContribution: 4
+  raceSpeedBonus: 0
+  baseVPContribution: 20
+  baseMPContribution: 0
+  baseSPContribution: 15
+  baseFPContribution: 5
+  baseIPContribution: 5

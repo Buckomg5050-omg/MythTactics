@@ -13,20 +13,23 @@ MonoBehaviour:
   m_Name: MageClass
   m_EditorClassIdentifier: 
   className: Mage
-  description: Scholars of the arcane, mages wield powerful elemental and mystical
-    energies from a distance, often unburdened by heavy armor.
-  baseMovementContribution: 2
-  classSpeedBonus: -5
-  baseVPContribution: 5
-  baseMPContribution: 20
+  description: Wielders of potent arcane energies, mages command destructive spells
+    and subtle enchantments from a distance.
+  loreText: 
+  typicalAlignment: 0
+  commonFactionAssociations: 
+  baseMovementContribution: 3
+  classSpeedBonus: 0
+  baseVPContribution: 10
+  baseMPContribution: 30
   baseSPContribution: 0
-  baseFPContribution: 8
-  baseIPContribution: 4
+  baseFPContribution: 15
+  baseIPContribution: 5
   baseAttackRange: 1
   primaryStatGains:
     coreGain: 0
-    echoGain: 1
+    echoGain: 0
     pulseGain: 1
     sparkGain: 2
     glimmerGain: 2
-    auraGain: 1
+    auraGain: 0

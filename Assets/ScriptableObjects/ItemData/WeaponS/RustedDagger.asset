@@ -10,18 +10,16 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 1ce67ed290b12a847b9b6590d8f01035, type: 3}
-  m_Name: IronSword
+  m_Name: RustedDagger
   m_EditorClassIdentifier: 
-  weaponName: Iron Sword
-  icon: {fileID: 21300000, guid: faaebbaba793a274fa2a124e482bb20d, type: 3}
-  shortDescription: A standard, reliable blade forged from iron. Common among soldiers
-    and adventurers.
-  loreText: While unremarkable, the iron sword has been a steadfast companion in
-    countless battles, its worth proven by its prevalence..
-  weaponType: 1
-  baseDamage: 10
+  weaponName: Rusted Dagger
+  icon: {fileID: 21300000, guid: 30a33a3ecf5ff0048b2ed85b7ff5ee2a, type: 3}
+  shortDescription: A poorly kept dagger, but still sharp enough.
+  loreText: Often found in the hands of cutpurses or desperate scavengers.
+  weaponType: 4
+  baseDamage: 7
   range: 1
-  baseAccuracy: 75
+  baseAccuracy: 80
   dealsTrueDamage: 0
   statModifiers: []
   grantedAbility: {fileID: 0}

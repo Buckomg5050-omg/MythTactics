@@ -13,15 +13,18 @@ MonoBehaviour:
   m_Name: RogueClass
   m_EditorClassIdentifier: 
   className: Rogue
-  description: Cunning and agile, rogues excel at stealth, precision strikes, and
-    exploiting enemy weaknesses. They favor speed and evasion over heavy defenses.
+  description: Masters of stealth and subtlety, rogues strike from the shadows and
+    excel at exploiting enemy weaknesses.
+  loreText: 
+  typicalAlignment: 0
+  commonFactionAssociations: 
   baseMovementContribution: 4
-  classSpeedBonus: 10
-  baseVPContribution: 5
+  classSpeedBonus: 5
+  baseVPContribution: 15
   baseMPContribution: 5
-  baseSPContribution: 10
-  baseFPContribution: 7
-  baseIPContribution: 6
+  baseSPContribution: 15
+  baseFPContribution: 10
+  baseIPContribution: 5
   baseAttackRange: 1
   primaryStatGains:
     coreGain: 1
@@ -29,4 +32,4 @@ MonoBehaviour:
     pulseGain: 1
     sparkGain: 0
     glimmerGain: 2
-    auraGain: 1
+    auraGain: 0

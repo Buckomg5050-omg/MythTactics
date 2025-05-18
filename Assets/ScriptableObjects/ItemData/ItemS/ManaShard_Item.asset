@@ -14,8 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemName: Basic Mana Shard
   itemIcon: {fileID: 21300000, guid: d052f3b3963204148b11385015f9357f, type: 3}
-  description: A small, crystallized fragment of raw mana. Crushing it releases a
-    minor surge of magical energy.
+  shortDescription: Restores 10 Mana Points.
+  loreText: A crystallized fragment of raw magical energy. Cool to the touch.
   itemType: 0
   isUsableInCombat: 1
   apCostToUse: 1
