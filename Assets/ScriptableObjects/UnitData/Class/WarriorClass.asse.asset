@@ -25,8 +25,8 @@ MonoBehaviour:
   baseAttackRange: 1
   primaryStatGains:
     coreGain: 1
-    echoGain: 1
+    echoGain: 0
     pulseGain: 1
-    sparkGain: 1
-    glimmerGain: 1
-    auraGain: 1
+    sparkGain: 0
+    glimmerGain: 0
+    auraGain: 0

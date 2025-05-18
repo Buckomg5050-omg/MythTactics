@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4281b39bb8ef4f440b81ab28676fc059, type: 3}
-  m_Name: Plate_Armor
+  m_Name: IronPlateCuirass
   m_EditorClassIdentifier: 
   armorName: Plate Armor
   armorValue: 50

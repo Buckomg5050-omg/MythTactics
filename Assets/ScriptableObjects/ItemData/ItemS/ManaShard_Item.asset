@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 2c8192a5c2bc5f84d846aa5e7efc4e6f, type: 3}
-  m_Name: BasicManaShard
+  m_Name: ManaShard_Item
   m_EditorClassIdentifier: 
   itemName: Basic Mana Shard
   itemIcon: {fileID: 21300000, guid: d052f3b3963204148b11385015f9357f, type: 3}

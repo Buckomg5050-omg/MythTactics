@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1ce67ed290b12a847b9b6590d8f01035, type: 3}
+  m_Name: IronSword
+  m_EditorClassIdentifier: 
+  weaponName: Iron Shortsword
+  icon: {fileID: 0}
+  shortDescription: A standard weapon.
+  loreText: Many such weapons exist, each with its own minor history.
+  weaponType: 1
+  baseDamage: 5
+  range: 1
+  baseAccuracy: 75
+  dealsTrueDamage: 0
+  statModifiers: []
+  grantedAbility: {fileID: 0}

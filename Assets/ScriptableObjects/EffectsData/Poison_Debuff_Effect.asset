@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: b09d1e7a96db0814bb8a706d65b5b459, type: 3}
-  m_Name: Poisoned_EffectSO
+  m_Name: Poison_Debuff_Effect
   m_EditorClassIdentifier: 
   effectID: poisoned_dot
   effectName: Poisoned

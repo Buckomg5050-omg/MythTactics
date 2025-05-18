@@ -1,69 +1,74 @@
 // AbilitySO.cs
 using UnityEngine;
-using MythTactics.Combat;
-using System.Collections.Generic; // Added for List<EffectSO>
+using MythTactics.Combat; // For DamageType, AbilityTargetType, AbilityEffectType
+using System.Collections.Generic;
 
-/// <summary>
-/// ScriptableObject defining the properties of an ability.
-/// </summary>
 [CreateAssetMenu(fileName = "NewAbility", menuName = "MythTactics/Ability")]
 public class AbilitySO : ScriptableObject
 {
-    [Header("General Info")]
+    [Header("== IDENTIFICATION & LORE ==")]
     [Tooltip("The display name of the ability.")]
     public string abilityName = "New Ability";
 
-    [Tooltip("A description of what the ability does.")]
-    [TextArea(3, 5)]
+    [Tooltip("Detailed description of what the ability does, its effects, and any special properties. Can include flavor text.")]
+    [TextArea(3, 6)] // Slightly increased size
     public string description = "Ability Description.";
 
     public Sprite abilityIcon;
 
-    [Header("Costs")]
+
+    [Header("== COSTS & REQUIREMENTS ==")]
     [Tooltip("Action Points (AP) required to use this ability.")]
     public int apCost = 1;
-
-    [Tooltip("Mana Points (MP) required to use this ability.")]
     public int mpCost = 0;
-
-    [Tooltip("Stamina Points (SP) required to use this ability.")]
     public int spCost = 0;
-
-    [Tooltip("Focus Points (FP) required to use this ability.")]
     public int fpCost = 0;
-
-    [Tooltip("Influence Points (IP) required to use this ability.")]
     public int ipCost = 0;
+    // Future: public int levelRequirement = 1;
 
-    [Header("Targeting")]
+
+    [Header("== TARGETING & RANGE ==")]
     [Tooltip("Who or what this ability can target.")]
     public AbilityTargetType targetType = AbilityTargetType.EnemyUnit;
 
-    [Tooltip("The range of the ability in tiles. 0 for self-cast, 1 for adjacent, etc.")]
+    [Tooltip("The range of the ability in tiles. 0 for self-cast, 1 for adjacent, etc. For AoEs, this is often the cast range to the center point.")]
     public int range = 1;
 
-    [Tooltip("Base accuracy of the ability (0-100). Used in hit chance calculation if applicable.")]
+
+    [Header("== ACCURACY & CRITICAL HIT ==")] // NEW/MODIFIED Header
+    [Tooltip("Base accuracy of the ability (0-100 if it rolls to hit). Used in hit chance calculation if applicable and 'Always Hits' is false.")]
     [Range(0, 100)]
     public int baseAccuracy = 80;
 
-    [Header("Primary Effect")] // Renamed "Effects" to "Primary Effect" for clarity
-    [Tooltip("The primary type of effect this ability produces (e.g., Damage, Heal).")]
+    [Tooltip("If true, this ability does not perform a hit roll and always connects (e.g., self-buffs, friendly heals, some AoEs). Base Accuracy is ignored.")]
+    public bool alwaysHits = false; // NEW FIELD
+
+    [Tooltip("Bonus percentage points added to the user's critical hit chance when using this specific ability.")]
+    [Range(-100, 100)]
+    public int critChanceModifier = 0; // NEW FIELD
+
+
+    [Header("== PRIMARY EFFECT (Damage/Heal/Etc) ==")]
+    [Tooltip("The primary type of direct effect this ability produces (e.g., Damage, Heal).")]
     public AbilityEffectType effectType = AbilityEffectType.Damage;
 
-    [Tooltip("The base power of the ability (e.g., base damage for a damage spell, base heal amount). Modifiers may apply.")]
+    [Tooltip("The base power of the ability (e.g., base damage, base heal amount). Modifiers may apply from caster stats.")]
     public int basePower = 10;
 
     [Tooltip("The type of damage dealt by this ability, if applicable (e.g., Physical, Magical, Fire).")]
     public DamageType damageType = DamageType.Magical;
 
-    [Tooltip("If true, this ability's damage bypasses most resistances and mitigations.")]
+    [Tooltip("If true, this ability's direct damage/effect bypasses most resistances and mitigations.")]
     public bool dealsTrueDamage = false;
 
-    // NEW: Section for applying status effects
-    [Header("Applied Status Effects")]
-    [Tooltip("List of status effects this ability applies to the target(s) on successful use.")]
-    public List<EffectSO> effectsToApplyOnHit; // Or OnUse for self/ally buffs
 
-    // [Tooltip("Chance to apply each effect (0-100). If not set or list count mismatch, assumes 100% for listed effects.")]
-    // public List<int> effectApplicationChances; // Optional: for more complex proc chances per effect
+    [Header("== APPLIED STATUS EFFECTS ==")]
+    [Tooltip("List of status effects this ability applies to the target(s) on successful use (or automatically if 'Always Hits' is true and applicable).")]
+    public List<EffectSO> effectsToApplyOnHit = new List<EffectSO>();
+
+    // Future:
+    // public AreaOfEffectSO areaOfEffect; // To define AoE shapes and sizes
+    // public SoundEffectSO castSound, hitSound, missSound;
+    // public VisualEffectSO castVFX, hitVFX, travelVFX;
+    // public List<AbilityTag> abilityTags; // e.g., "Fire", "Control", "SingleTarget" for filtering or special interactions
 }
