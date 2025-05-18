@@ -13,6 +13,7 @@ public class ItemButtonDisplay : MonoBehaviour
     private ItemSO _currentItemSO;
     private Unit _currentUser;
     private Button _buttonComponent;
+    private TooltipTrigger _tooltipTrigger; // MODIFIED: Added reference
 
     void Awake()
     {
@@ -20,6 +21,14 @@ public class ItemButtonDisplay : MonoBehaviour
         if (_buttonComponent == null)
         {
             Debug.LogError("ItemButtonDisplay: Button component not found on this GameObject!", this);
+        }
+
+        // MODIFIED: Get the TooltipTrigger component
+        _tooltipTrigger = GetComponent<TooltipTrigger>();
+        if (_tooltipTrigger == null)
+        {
+            // This is not an error, as tooltips are optional on buttons, but a warning might be useful during development.
+            // Debug.LogWarning($"ItemButtonDisplay: TooltipTrigger component not found on button for item {this.gameObject.name}. Item tooltips will not be shown for this button.", this);
         }
     }
 
@@ -30,10 +39,11 @@ public class ItemButtonDisplay : MonoBehaviour
 
         if (_currentItemSO == null)
         {
-            Debug.LogWarning("ItemButtonDisplay.Setup: Received null itemSO.", this);
+            // Debug.LogWarning("ItemButtonDisplay.Setup: Received null itemSO.", this); // Already have this log
             if (itemIconImage != null) itemIconImage.enabled = false;
             if (itemNameText != null) itemNameText.text = "N/A";
             if (_buttonComponent != null) _buttonComponent.interactable = false;
+            if (_tooltipTrigger != null) _tooltipTrigger.tooltipText = ""; // Clear tooltip for invalid item
             return;
         }
 
@@ -46,7 +56,7 @@ public class ItemButtonDisplay : MonoBehaviour
             }
             else
             {
-                itemIconImage.enabled = false; // Hide if no icon
+                itemIconImage.enabled = false;
             }
         }
 
@@ -55,22 +65,30 @@ public class ItemButtonDisplay : MonoBehaviour
             itemNameText.text = _currentItemSO.itemName;
         }
 
-        // Set up button click event
+        // MODIFIED: Set tooltip text
+        if (_tooltipTrigger != null)
+        {
+            // You can customize the format here. Example: Name, AP cost, then description.
+            string apCostString = (_currentItemSO.apCostToUse > 0) ? $"(AP: {_currentItemSO.apCostToUse})" : "(Free)";
+            _tooltipTrigger.tooltipText = $"<b>{_currentItemSO.itemName}</b> {apCostString}\n<size=90%>{_currentItemSO.description}</size>";
+            // Optionally, set the showDelay if you want item tooltips to have a specific delay different from other UI elements
+            // _tooltipTrigger.showDelay = 0.75f; // Example: slightly longer delay for item details
+        }
+
         if (_buttonComponent != null)
         {
-            _buttonComponent.onClick.RemoveAllListeners(); // Clear previous listeners
+            _buttonComponent.onClick.RemoveAllListeners();
             _buttonComponent.onClick.AddListener(() => {
                 if (onClickCallback != null)
                 {
                     onClickCallback(_currentItemSO);
                 }
-                else
-                {
-                    Debug.LogWarning($"ItemButtonDisplay: onClickCallback is null for item {_currentItemSO.itemName}", this);
-                }
+                // else
+                // {
+                //     Debug.LogWarning($"ItemButtonDisplay: onClickCallback is null for item {_currentItemSO.itemName}", this);
+                // }
             });
 
-            // Check if unit can afford AP cost for the item
             bool canAfford = (_currentUser != null) && _currentUser.CanAffordAPForAction(_currentItemSO.apCostToUse);
             _buttonComponent.interactable = canAfford;
         }

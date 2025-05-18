@@ -12,10 +12,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2c8192a5c2bc5f84d846aa5e7efc4e6f, type: 3}
   m_Name: SmokePellet
   m_EditorClassIdentifier: 
-  itemName: Minor Health Potion
-  itemIcon: {fileID: 21300000, guid: 55001b21843a7c545a1c592fac7f343c, type: 3}
-  description: A common alchemical brew that restores a small amount of Vitality.
+  itemName: Smoke Pellet
+  itemIcon: {fileID: 21300000, guid: 02f81415b6889324fb1266ad29a57138, type: 3}
+  description: A compressed pellet that releases a small cloud of obscuring smoke
+    when thrown. Might make the user harder to hit briefly.
   itemType: 0
   isUsableInCombat: 1
   apCostToUse: 1
-  effectToApplyOnUse: {fileID: 0}
+  consumeOnUse: 1
+  effectToApplyOnUse: {fileID: 11400000, guid: 0a95576b90371924ea1a54e6917845d5, type: 2}

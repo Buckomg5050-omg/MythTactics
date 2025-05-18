@@ -15,7 +15,7 @@ public class PlayerInputHandler : MonoBehaviour
     public GameObject itemSelectionPanelPrefab;
 
     [Header("Tooltip Settings")]
-    public float unitTooltipDelay = 0.5f; // Default value, can be adjusted in Inspector
+    public float unitTooltipDelay = 0.5f;
 
     private SkillSelectionUI _skillSelectionPanelInstance;
     private UnitInfoPanelUI _unitInfoPanelInstance;
@@ -78,7 +78,7 @@ public class PlayerInputHandler : MonoBehaviour
 
         if (unitInfoPanelPrefab != null)
         {
-            Canvas mainCanvas = FindFirstObjectByType<Canvas>(); // Assumes one main canvas for these panels
+            Canvas mainCanvas = FindFirstObjectByType<Canvas>();
             if (mainCanvas != null)
             {
                 GameObject panelGO = Instantiate(unitInfoPanelPrefab, mainCanvas.transform);
@@ -142,7 +142,7 @@ public class PlayerInputHandler : MonoBehaviour
         else { if (_selectedUnit != null || !(_currentStateObject is PIH_WaitingForTurnState)) { _selectedUnit = null; SelectedAbility = null; ChangeState(new PIH_WaitingForTurnState()); } }
 
         _currentStateObject?.UpdateState();
-        HandleTileHoverForTooltip(); // Call new method
+        HandleTileHoverForTooltip();
     }
     
     private void HandleTileHoverForTooltip()
@@ -155,14 +155,10 @@ public class PlayerInputHandler : MonoBehaviour
         bool itemPanelVisible = (_itemSelectionPanelInstance != null && _itemSelectionPanelInstance.IsVisible());
         bool majorUIIsOpen = actionMenuVisible || skillPanelVisible || infoPanelVisible || itemPanelVisible;
 
-        // Uncomment for verbose debugging of suppression logic
-        // Debug.Log($"TooltipHover: MajorUIOpen: {majorUIIsOpen} (Action:{actionMenuVisible}, Skill:{skillPanelVisible}, Info:{infoPanelVisible}, Item:{itemPanelVisible}), PointerOverUI: {_isPointerOverUIThisFrame}");
-
         if (majorUIIsOpen || _isPointerOverUIThisFrame)
         {
             if (_hoveredUnitOnTileForTooltip != null)
             {
-                // Debug.Log($"TooltipHover: Suppressing for major UI or pointer over UI. Hiding for {_hoveredUnitOnTileForTooltip.unitName}");
                 if (_unitTooltipCoroutine != null) StopCoroutine(_unitTooltipCoroutine);
                 _unitTooltipCoroutine = null;
                 TooltipUI.Instance.HideTooltip();
@@ -172,17 +168,13 @@ public class PlayerInputHandler : MonoBehaviour
             return;
         }
 
-        Tile hoveredTile = GetTileUnderMouse(false); // false = don't block if general UI is over mouse (already handled by _isPointerOverUIThisFrame check above)
+        Tile hoveredTile = GetTileUnderMouse(false);
         Unit unitOnHoveredTile = hoveredTile?.occupyingUnit;
-
-        // Uncomment for verbose debugging of tile/unit detection
-        // Debug.Log($"TooltipHover: HoveredTile: {hoveredTile?.gridPosition}, UnitOnTile: {unitOnHoveredTile?.unitName}");
 
         if (unitOnHoveredTile != null)
         {
             if (_hoveredUnitOnTileForTooltip != unitOnHoveredTile || _lastHoveredTileWithUnit != hoveredTile)
             {
-                // Debug.Log($"TooltipHover: New unit/tile detected: {unitOnHoveredTile.unitName} on {hoveredTile.gridPosition}. PrevUnit: {_hoveredUnitOnTileForTooltip?.unitName}, PrevTile: {_lastHoveredTileWithUnit?.gridPosition}");
                 if (_hoveredUnitOnTileForTooltip != null) TooltipUI.Instance.HideTooltip();
                 if (_unitTooltipCoroutine != null) StopCoroutine(_unitTooltipCoroutine);
                 
@@ -190,16 +182,14 @@ public class PlayerInputHandler : MonoBehaviour
                 _lastHoveredTileWithUnit = hoveredTile;
                 if (gameObject.activeInHierarchy)
                 {
-                    // Debug.Log($"TooltipHover: Starting ShowUnitTooltipAfterDelay coroutine for {unitOnHoveredTile.unitName}");
                     _unitTooltipCoroutine = StartCoroutine(ShowUnitTooltipAfterDelay(unitOnHoveredTile, Mouse.current.position.ReadValue()));
                 }
             }
         }
-        else // Mouse is over an empty tile or not over the grid
+        else
         {
             if (_hoveredUnitOnTileForTooltip != null)
             {
-                // Debug.Log($"TooltipHover: Mouse no longer over a unit's tile or valid grid. Hiding tooltip for {_hoveredUnitOnTileForTooltip.unitName}");
                 if (_unitTooltipCoroutine != null) StopCoroutine(_unitTooltipCoroutine);
                 _unitTooltipCoroutine = null;
                 TooltipUI.Instance.HideTooltip();
@@ -211,26 +201,19 @@ public class PlayerInputHandler : MonoBehaviour
 
     private IEnumerator ShowUnitTooltipAfterDelay(Unit unit, Vector2 screenPosition)
     {
-        // Debug.Log($"TooltipDelay: Coroutine START for {unit?.unitName} at screen pos {screenPosition}");
         yield return new WaitForSeconds(unitTooltipDelay);
 
-        // Re-check conditions just before showing
         Tile currentTileUnderMouse = GetTileUnderMouse(false);
         bool stillHoveringSameUnitAndTile = (_hoveredUnitOnTileForTooltip == unit && currentTileUnderMouse == _lastHoveredTileWithUnit);
-        // Also re-check _isPointerOverUIThisFrame as mouse might have moved onto UI during delay
         bool currentPointerOverUI = UnityEngine.EventSystems.EventSystem.current != null && UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject();
 
         bool conditionsMet = stillHoveringSameUnitAndTile && 
                              TooltipUI.Instance != null && 
                              unit != null && unit.Stats != null && 
-                             !currentPointerOverUI; // Use re-checked pointer over UI
-
-        // Uncomment for verbose debugging of coroutine completion
-        // Debug.Log($"TooltipDelay: Coroutine END for {unit?.unitName}. StillHoveringSame: {stillHoveringSameUnitAndTile}, ConditionsMet: {conditionsMet}, CurrentPointerOverUI: {currentPointerOverUI}");
+                             !currentPointerOverUI; 
 
         if (conditionsMet)
         {
-            // Debug.Log($"TooltipDelay: SHOWING tooltip for {unit.unitName}");
             string tooltipText = $"{unit.unitName}\nVP: {unit.Stats.currentVitalityPoints} / {unit.Stats.MaxVitalityPoints}";
             if (unit.IsAlive)
             {
@@ -242,14 +225,12 @@ public class PlayerInputHandler : MonoBehaviour
         }
         else
         {
-            // Debug.Log($"TooltipDelay: NOT showing tooltip for {unit?.unitName}. Hiding if it was for this unit.");
-            // Only hide if this coroutine was for the currently "active" tooltip hover attempt
             if (TooltipUI.Instance != null && _hoveredUnitOnTileForTooltip == unit) 
             {
                 TooltipUI.Instance.HideTooltip();
             }
         }
-        _unitTooltipCoroutine = null; // Coroutine is done
+        _unitTooltipCoroutine = null;
     }
 
     public void ChangeState(PlayerInputStateBase newState)
@@ -310,7 +291,6 @@ public class PlayerInputHandler : MonoBehaviour
         UnitInfoPanelUI.OnInfoPanelClosedByButton += HandleInfoPanelClosedByButton;
         SkillSelectionUI.OnSkillPanelClosedByButton += HandleSkillPanelClosedByButton; 
         ItemSelectionPanelUI.OnItemSelectedForUse += HandleItemSelectedFromPanel;
-        // ItemSelectionPanelUI.OnItemPanelClosedByButton += HandleItemPanelClosedByButton; // If you add a close button
     }
 
     private void OnDisable()
@@ -327,7 +307,6 @@ public class PlayerInputHandler : MonoBehaviour
         UnitInfoPanelUI.OnInfoPanelClosedByButton -= HandleInfoPanelClosedByButton; 
         SkillSelectionUI.OnSkillPanelClosedByButton -= HandleSkillPanelClosedByButton; 
         ItemSelectionPanelUI.OnItemSelectedForUse -= HandleItemSelectedFromPanel;
-        // ItemSelectionPanelUI.OnItemPanelClosedByButton -= HandleItemPanelClosedByButton;
 
         if (_playerControls.Gameplay.enabled) _playerControls.Gameplay.Disable();
 
@@ -355,12 +334,8 @@ public class PlayerInputHandler : MonoBehaviour
                 return null; 
             }
         }
-        // For pure hover detection (blockIfOverUI = false), we still want to check general IsPointerOverGameObject
-        // to prevent world tooltips if *any* UI is under the mouse. This is now also handled by the _isPointerOverUIThisFrame in HandleTileHoverForTooltip.
-        // This specific check here is more for the click context.
         else if (!blockIfOverUI && _isPointerOverUIThisFrame) 
         {
-             // If not blocking for UI clicks but mouse IS over UI, return null for hover context to prevent world tooltip.
             return null;
         }
 
@@ -391,7 +366,7 @@ public class PlayerInputHandler : MonoBehaviour
         ChangeState(new PIH_UnitActionPhaseState());
     }
 
-    private void HandleItemPanelClosedByButton() // If you add a close button to the Item Panel
+    private void HandleItemPanelClosedByButton()
     {
         _itemSelectionPanelInstance?.HidePanel();
         ChangeState(new PIH_UnitActionPhaseState());
@@ -557,7 +532,6 @@ public class PlayerInputHandler : MonoBehaviour
     {
         if (_selectedUnit == null || itemSelectionPanelPrefab == null)
         {
-            // Debug.LogWarning("PIH.ShowItemSelectionPanel: Selected unit or prefab is null. Cannot show panel.");
             return;
         }
         if (_itemSelectionPanelInstance == null)
@@ -572,9 +546,7 @@ public class PlayerInputHandler : MonoBehaviour
                 Destroy(panelGO);
                 return;
             }
-            // Debug.Log("PIH: ItemSelectionPanel instance created.", this);
         }
-        // Debug.Log($"PIH: Attempting to show ItemSelectionPanel for unit {_selectedUnit.unitName}", this);
         _itemSelectionPanelInstance.ShowPanel(_selectedUnit); 
         
         actionMenuUI?.HideMenu();
@@ -601,7 +573,6 @@ public class PlayerInputHandler : MonoBehaviour
 
         if (!user.CanAffordAPForAction(selectedItem.apCostToUse))
         {
-            // Debug.LogWarning($"PIH: {user.unitName} cannot afford {selectedItem.itemName} (Cost: {selectedItem.apCostToUse} AP).", this);
             _itemSelectionPanelInstance?.HidePanel(); 
             ChangeState(new PIH_UnitActionPhaseState());
             return;
@@ -621,10 +592,25 @@ public class PlayerInputHandler : MonoBehaviour
                 Debug.LogError("PIH: EffectSystem.Instance is null! Cannot apply item effect.", this);
             }
         }
-        // else
-        // {
-        //     Debug.LogWarning($"PIH: Item '{selectedItem.itemName}' has no effectToApplyOnUse assigned.", this);
-        // }
+        
+        // MODIFIED: Item Consumption Logic
+        if (selectedItem.consumeOnUse)
+        {
+            if (user.inventory != null) // Ensure inventory list exists
+            {
+                bool removed = user.inventory.Remove(selectedItem); // Remove the first instance of this ItemSO
+                if (removed)
+                {
+                    Debug.Log($"PIH: Consumed and removed '{selectedItem.itemName}' from {user.unitName}'s inventory.", this);
+                }
+                else
+                {
+                    // This might happen if the item wasn't actually in the inventory, though it should be if it was displayed.
+                    Debug.LogWarning($"PIH: Tried to consume '{selectedItem.itemName}' but it was not found in {user.unitName}'s inventory for removal.", this);
+                }
+            }
+        }
+        // End of Item Consumption Logic
         
         _itemSelectionPanelInstance?.HidePanel();
         ChangeState(new PIH_UnitActionPhaseState());
@@ -633,7 +619,6 @@ public class PlayerInputHandler : MonoBehaviour
 
     public void ClearAllHighlights()
     {
-        // ... (implementation remains the same) ...
         List<Tile> tilesToClearReach = new List<Tile>(_highlightedReachableTiles);
         List<Tile> tilesToClearPath = new List<Tile>(_highlightedPathTiles);
         List<Tile> tilesToClearAttack = new List<Tile>(_highlightedAttackRangeTiles);
@@ -652,7 +637,6 @@ public class PlayerInputHandler : MonoBehaviour
         if (_selectedUnit?.Movement?.CurrentTile != null)
         {
             bool isSelectedUnitsTurn = TurnManager.Instance?.ActiveUnit == _selectedUnit;
-            // Keep selected unit highlight if it's their action phase or viewing info.
             bool maintainHighlight = (_currentStateObject is PIH_UnitActionPhaseState || _currentStateObject is PIH_ViewingUnitInfoState) && isSelectedUnitsTurn;
 
             if (!maintainHighlight && _selectedUnit.Movement.CurrentTile.CurrentHighlightState == TileHighlightState.SelectedUnit)
@@ -661,7 +645,6 @@ public class PlayerInputHandler : MonoBehaviour
             }
             else if (maintainHighlight && _selectedUnit.Movement.CurrentTile.CurrentHighlightState != TileHighlightState.SelectedUnit)
             {
-                // If it should be highlighted but isn't, re-highlight.
                 _selectedUnit.Movement.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit);
             }
         }
@@ -723,7 +706,6 @@ public class PlayerInputHandler : MonoBehaviour
             _unitInfoPanelInstance?.HidePanel(); 
             _itemSelectionPanelInstance?.HidePanel(); 
             if (_selectedUnit.Movement.CurrentTile != null) _selectedUnit.Movement.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit); 
-            // DebugHelper.Log($"PIH: {_selectedUnit.unitName} has no AP left. Ending turn.", _selectedUnit);
             TurnManager.Instance.EndUnitTurn(_selectedUnit);
         }
     }

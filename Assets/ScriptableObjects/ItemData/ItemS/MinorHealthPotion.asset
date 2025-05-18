@@ -18,4 +18,4 @@ MonoBehaviour:
   itemType: 0
   isUsableInCombat: 1
   apCostToUse: 1
-  effectToApplyOnUse: {fileID: 0}
+  effectToApplyOnUse: {fileID: 11400000, guid: d5c71817dfe881e4aa058a77eb9aa2e3, type: 2}

@@ -3412,6 +3412,7 @@ MonoBehaviour:
   actionMenuUI: {fileID: 833739196}
   skillSelectionPanelPrefab: {fileID: 4970908606545411280, guid: 60749c5fc3f7b074b9505f29f8e7eba0, type: 3}
   unitInfoPanelPrefab: {fileID: 1843257699491961977, guid: d51c5bd744f2db5448e3afacf4b36f25, type: 3}
+  itemSelectionPanelPrefab: {fileID: 3762759553613656015, guid: 598600dff21932041a750663bfe6c8de, type: 3}
   unitTooltipDelay: 1
 --- !u!4 &1791791679
 Transform:
@@ -3883,15 +3884,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4498460464924946836, guid: 95af746db3b4b0d42a69b9a8c2914172, type: 3}
       propertyPath: m_LocalRotation.x
-      value: 0
+      value: -0
       objectReference: {fileID: 0}
     - target: {fileID: 4498460464924946836, guid: 95af746db3b4b0d42a69b9a8c2914172, type: 3}
       propertyPath: m_LocalRotation.y
-      value: 0
+      value: -0
       objectReference: {fileID: 0}
     - target: {fileID: 4498460464924946836, guid: 95af746db3b4b0d42a69b9a8c2914172, type: 3}
       propertyPath: m_LocalRotation.z
-      value: 0
+      value: -0
       objectReference: {fileID: 0}
     - target: {fileID: 4498460464924946836, guid: 95af746db3b4b0d42a69b9a8c2914172, type: 3}
       propertyPath: m_AnchoredPosition.x

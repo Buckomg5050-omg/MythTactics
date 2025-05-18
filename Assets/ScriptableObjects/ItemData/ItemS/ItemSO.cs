@@ -26,15 +26,15 @@ public class ItemSO : ScriptableObject
     public bool isUsableInCombat = true;
     [Tooltip("AP cost to use this item in combat. Relevant if isUsableInCombat is true.")]
     public int apCostToUse = 1; // GDD: "Use Standard Item: 1 AP"
+    [Tooltip("If true, this item will be removed from the unit's inventory after use. Primarily for consumables.")] // MODIFIED: Added Tooltip
+    public bool consumeOnUse = true; // MODIFIED: Added this field, default true for consumables
 
     [Header("Effects")]
     [Tooltip("The primary effect this item applies when used (e.g., heal, buff). Assign an EffectSO here.")]
-    public EffectSO effectToApplyOnUse; // Assuming your EffectSO script is defined and accessible.
-                                        // We might expand this to a list later if items can have multiple effects.
+    public EffectSO effectToApplyOnUse;
 
     // Future considerations we can add later:
-    // public int maxStackSize = 99;
-    // public bool consumeOnUse = true;
+    // public int maxStackSize = 99; // For stackable consumables
     // public int value; // Gold value for buying/selling
     // public AbilitySO grantsAbility; // For items that grant a temporary or permanent ability
 }
