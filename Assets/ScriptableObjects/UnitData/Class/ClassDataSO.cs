@@ -1,5 +1,6 @@
 // ClassDataSO.cs
 using UnityEngine;
+// MODIFIED: Removed 'using UnitDataTypes;'
 
 [CreateAssetMenu(fileName = "NewClassData", menuName = "MythTactics/Unit Class Data")]
 public class ClassDataSO : ScriptableObject
@@ -26,7 +27,6 @@ public class ClassDataSO : ScriptableObject
     [Tooltip("Base Stamina Points (SP) contribution from this class. GDD 2.3.")]
     public int baseSPContribution = 0;
 
-    // NEW FIELDS ADDED
     [Tooltip("Base Focus Points (FP) contribution from this class. GDD 2.3.")]
     public int baseFPContribution = 0;
 
@@ -39,5 +39,5 @@ public class ClassDataSO : ScriptableObject
 
     [Header("Attribute Growth Per Level (GDD 2.2)")]
     [Tooltip("Defines how primary attributes increase automatically per level for this class.")]
-    public UnitDataTypes.SerializablePrimaryStatGain primaryStatGains;
+    public SerializablePrimaryStatGain primaryStatGains; // This should now resolve correctly
 }

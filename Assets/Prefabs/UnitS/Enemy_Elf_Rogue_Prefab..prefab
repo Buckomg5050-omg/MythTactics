@@ -118,7 +118,7 @@ MonoBehaviour:
     Aura: 5
   unitName: Elf Scout
   level: 1
-  xpValue: 15
+  xpValue: 75
   knownAbilities: []
   equippedWeapon: {fileID: 11400000, guid: 32db0ab0bf4643243ab12e8e06f6b725, type: 2}
   equippedBodyArmor: {fileID: 11400000, guid: c5613d342d0cc694fbbe15663788d54e, type: 2}
@@ -159,6 +159,9 @@ MonoBehaviour:
     Spark: 5
     Glimmer: 5
     Aura: 5
+  currentXP: 0
+  xpToNextLevel: 100
+  allocatableAttributePoints: 0
   _baseMaxActionPoints: 2
   currentActionPoints: 0
   _baseMaxVitalityPoints: 0

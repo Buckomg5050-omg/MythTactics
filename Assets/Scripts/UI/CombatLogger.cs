@@ -30,7 +30,7 @@ public static class CombatLogger
     // Main logging method
     public static void LogEvent(string message, Color color, LogMessageType type)
     {
-        Debug.Log($"CombatLog [{type}]: {message}"); 
+        Debug.Log($"CombatLog [{type}]: {message}");
         OnLogMessage?.Invoke(message, color, type);
     }
 
@@ -52,9 +52,9 @@ public static class CombatLogger
     public static void LogDamage(Unit attacker, Unit target, int damage, MythTactics.Combat.DamageType damageType, bool isCritical)
     {
         string critString = isCritical ? " (CRITICAL!)" : "";
-        Color messageColor = Color.yellow; 
-        if (target.CompareTag("Player")) messageColor = new Color(1f, 0.5f, 0.5f); 
-        else if (attacker.CompareTag("Player")) messageColor = new Color(0.5f, 1f, 0.5f); 
+        Color messageColor = Color.yellow;
+        if (target.CompareTag("Player")) messageColor = new Color(1f, 0.5f, 0.5f);
+        else if (attacker.CompareTag("Player")) messageColor = new Color(0.5f, 1f, 0.5f);
 
         LogEvent($"{attacker.unitName} deals {damage} {damageType}{critString} damage to {target.unitName}.", messageColor, LogMessageType.CombatAction);
     }
@@ -69,7 +69,7 @@ public static class CombatLogger
         string casterName = caster != null ? caster.unitName : "System"; // Changed "Unknown Source" to "System"
         LogEvent($"{target.unitName} receives {effectName} from {casterName}.", Color.cyan, LogMessageType.StatusChange);
     }
-    
+
     public static void LogStatusRefreshed(Unit target, string effectName, Unit caster)
     {
         string casterName = caster != null ? caster.unitName : "System";
@@ -86,7 +86,7 @@ public static class CombatLogger
     {
         LogEvent($"{effectName} on {target.unitName} expired.", Color.gray, LogMessageType.StatusChange);
     }
-    
+
     public static void LogStatusTickDamage(Unit target, string effectName, int damage, MythTactics.Combat.DamageType damageType, Unit caster)
     {
         string casterName = caster != null ? caster.unitName : "System";
@@ -123,7 +123,7 @@ public static class CombatLogger
             LogEvent($"--- {message} ---", Color.gray, LogMessageType.System);
         }
     }
-    
+
     public static void LogAbilityUsed(Unit caster, string abilityName, Unit target = null)
     {
         string targetString = target != null ? $" targeting {target.unitName}" : (abilityName.ToLower().Contains("self") ? " on SELF" : "");
@@ -150,4 +150,12 @@ public static class CombatLogger
         string defeaterName = defeater != null ? defeater.unitName : "effects";
         LogEvent($"{defeatedUnit.unitName} has been defeated by {defeaterName}!", Color.magenta, LogMessageType.System);
     }
+
+    // MODIFIED: Added LogLevelUp method
+    public static void LogLevelUp(Unit unit, int newLevel)
+    {
+        if (unit == null) return;
+        LogEvent($"{unit.unitName} has reached Level {newLevel}!", new Color(1f, 0.84f, 0f), LogMessageType.System); // Gold color for level up
+    }
+    // End of MODIFICATION
 }

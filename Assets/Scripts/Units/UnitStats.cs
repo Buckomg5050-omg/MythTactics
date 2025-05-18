@@ -15,16 +15,14 @@ public class UnitStats : MonoBehaviour
     [Header("Primary Attributes")]
     public UnitPrimaryAttributes currentAttributes = new UnitPrimaryAttributes();
 
-    // MODIFIED: Added XP and Leveling related fields
     [Header("Progression")]
     [Tooltip("Current experience points of the unit.")]
     public int currentXP = 0;
     [Tooltip("Experience points needed to reach the next level.")]
-    public int xpToNextLevel = 100; // Default for Lvl 1 -> Lvl 2, can be adjusted by formulas later
-    // public int allocatableStatPoints = 0; // For later when player can allocate points
-    // End of MODIFICATION
+    public int xpToNextLevel = 100;
+    [Tooltip("Attribute points available for manual allocation upon level up. (Player units only)")]
+    public int allocatableAttributePoints = 0;
 
-    // EffectiveAttributes getter remains the same
     public UnitPrimaryAttributes EffectiveAttributes
     {
         get
@@ -68,10 +66,10 @@ public class UnitStats : MonoBehaviour
                     case StatType.Aura: effective.Aura += Mathf.RoundToInt(baseForPercentAdd.Aura * mod.value); break;
                 }
             }
-            
+
             foreach (StatModifier mod in GetAllStatModifiersFromEffects(ModifierType.PercentMult))
             {
-                 switch (mod.stat) 
+                 switch (mod.stat)
                 {
                     case StatType.Core: effective.Core = Mathf.RoundToInt(effective.Core * (1f + mod.value)); break;
                     case StatType.Echo: effective.Echo = Mathf.RoundToInt(effective.Echo * (1f + mod.value)); break;
@@ -88,7 +86,7 @@ public class UnitStats : MonoBehaviour
             effective.Spark = Mathf.Max(1, effective.Spark);
             effective.Glimmer = Mathf.Max(1, effective.Glimmer);
             effective.Aura = Mathf.Max(1, effective.Aura);
-            
+
             return effective;
         }
     }
@@ -112,7 +110,6 @@ public class UnitStats : MonoBehaviour
     public int baseManaRegenRate = 1;
     public int ManaRegenRate => CalculateModifiedStat(baseManaRegenRate, StatType.ManaRegenRate);
 
-    // ... Other resource headers (SP, FP, IP) remain the same ...
     [Header("Stamina (SP - Stamina Points)")]
     [SerializeField] private int _baseMaxStaminaPoints;
     public int currentStaminaPoints;
@@ -144,15 +141,10 @@ public class UnitStats : MonoBehaviour
 
     public void Initialize(Unit unit, RaceDataSO raceData, ClassDataSO classData, UnitPrimaryAttributes templateBaseAttributes)
     {
-        _unit = unit; 
+        _unit = unit;
         _raceData = raceData;
         _classData = classData;
 
-        // Debug.Log($"DEBUG UnitStats.Initialize for {_unit.unitName}: Unit Level is {_unit.level}, Class is '{_classData?.name}', primaryStatGains is null? {(_classData?.primaryStatGains == null)}", _unit);
-        // if (_classData?.primaryStatGains != null) {
-        //     Debug.Log($"DEBUG UnitStats.Initialize: Gains - Core:{_classData.primaryStatGains.coreGain}, Echo:{_classData.primaryStatGains.echoGain}, etc.");
-        // }
-    
         if (templateBaseAttributes == null)
         {
             DebugHelper.LogWarning($"UnitStats for {_unit.unitName} received null templateBaseAttributes, using defaults for Lvl 1 base.", _unit);
@@ -166,7 +158,7 @@ public class UnitStats : MonoBehaviour
         currentAttributes.Glimmer = templateBaseAttributes.Glimmer;
         currentAttributes.Aura = templateBaseAttributes.Aura;
 
-        if (_classData != null && _classData.primaryStatGains != null && _unit != null && _unit.level > 1)
+        if (_classData != null && _unit != null && _unit.level > 1)
         {
             int levelsToGainStats = _unit.level - 1;
             if (levelsToGainStats > 0)
@@ -177,17 +169,15 @@ public class UnitStats : MonoBehaviour
                 currentAttributes.Spark   += _classData.primaryStatGains.sparkGain * levelsToGainStats;
                 currentAttributes.Glimmer += _classData.primaryStatGains.glimmerGain * levelsToGainStats;
                 currentAttributes.Aura    += _classData.primaryStatGains.auraGain * levelsToGainStats;
-                // Debug.Log($"UnitStats Initialize for {_unit.unitName} (Lvl {_unit.level}): Applied {levelsToGainStats} levels of class stat gains.");
             }
         }
-        
-        // MODIFIED: Initialize XP related values
-        currentXP = 0; // Start with 0 XP for the current level
-        xpToNextLevel = CalculateXPForNextLevel(_unit != null ? _unit.level : 1); // Calculate initial XP needed
-        // End of MODIFICATION
+
+        currentXP = 0;
+        xpToNextLevel = CalculateXPForNextLevel(_unit != null ? _unit.level : 1);
+        allocatableAttributePoints = 0;
 
         _activeEffects.Clear();
-        InitializeDerivedAttributesAndResources(); 
+        InitializeDerivedAttributesAndResources();
     }
 
     private void InitializeDerivedAttributesAndResources()
@@ -199,32 +189,7 @@ public class UnitStats : MonoBehaviour
             return;
         }
 
-        int baseVpFromRace = (_raceData != null) ? _raceData.baseVPContribution : 0;
-        int baseVpFromClass = (_classData != null) ? _classData.baseVPContribution : 0;
-        _baseMaxVitalityPoints = baseVpFromRace + baseVpFromClass + (currentAttributes.Pulse * 5);
-        _baseMaxVitalityPoints = Mathf.Max(1, _baseMaxVitalityPoints);
-
-        int baseMpFromRace = (_raceData != null) ? _raceData.baseMPContribution : 0;
-        int baseMpFromClass = (_classData != null) ? _classData.baseMPContribution : 0;
-        _baseMaxManaPoints = baseMpFromRace + baseMpFromClass + (currentAttributes.Spark * 2);
-        _baseMaxManaPoints = Mathf.Max(0, _baseMaxManaPoints);
-
-        // ... (SP, FP, IP base calculations remain the same) ...
-        int baseSpFromRace = (_raceData != null) ? _raceData.baseSPContribution : 0;
-        int baseSpFromClass = (_classData != null) ? _classData.baseSPContribution : 0;
-        _baseMaxStaminaPoints = baseSpFromRace + baseSpFromClass + currentAttributes.Core;
-        _baseMaxStaminaPoints = Mathf.Max(0, _baseMaxStaminaPoints);
-
-        int baseFpFromRace = (_raceData != null) ? _raceData.baseFPContribution : 0;
-        int baseFpFromClass = (_classData != null) ? _classData.baseFPContribution : 0;
-        _baseMaxFocusPoints = baseFpFromRace + baseFpFromClass + currentAttributes.Glimmer;
-        _baseMaxFocusPoints = Mathf.Max(0, _baseMaxFocusPoints);
-        
-        int baseIpFromRace = (_raceData != null) ? _raceData.baseIPContribution : 0;
-        int baseIpFromClass = (_classData != null) ? _classData.baseIPContribution : 0;
-        _baseMaxInfluencePoints = baseIpFromRace + baseIpFromClass + currentAttributes.Aura;
-        _baseMaxInfluencePoints = Mathf.Max(0, _baseMaxInfluencePoints);
-
+        RecalculateBaseMaxResources(); // MODIFIED: Extracted to new method
 
         currentVitalityPoints = MaxVitalityPoints;
         currentManaPoints = MaxManaPoints;
@@ -239,14 +204,50 @@ public class UnitStats : MonoBehaviour
             currentVitalityPoints = 0; currentManaPoints = 0; currentStaminaPoints = 0;
             currentFocusPoints = 0; currentInfluencePoints = 0; currentActionPoints = 0;
         }
-        RecalculateAffectedStats();
+        RecalculateAffectedStats(); // Ensures effects are applied to initial values
     }
 
-    // ModifyVitality, SetAliveStatus, SpendActionPoints, RegenerateActionPointsAtTurnStart remain the same
+    // MODIFIED: New method to recalculate base max resources from attributes, race, and class
+    private void RecalculateBaseMaxResources()
+    {
+        if (_raceData == null || _classData == null || currentAttributes == null || _unit == null)
+        {
+            // This check is important if called independently, though InitializeDerivedAttributesAndResources already checks
+            DebugHelper.LogWarning($"UnitStats on {_unit?.unitName ?? "Unknown Unit"} cannot recalculate base max resources. Missing data.", this);
+            return;
+        }
+
+        int baseVpFromRace = _raceData.baseVPContribution;
+        int baseVpFromClass = _classData.baseVPContribution;
+        _baseMaxVitalityPoints = baseVpFromRace + baseVpFromClass + (currentAttributes.Pulse * 5); // GDD 2.3
+        _baseMaxVitalityPoints = Mathf.Max(1, _baseMaxVitalityPoints);
+
+        int baseMpFromRace = _raceData.baseMPContribution;
+        int baseMpFromClass = _classData.baseMPContribution;
+        _baseMaxManaPoints = baseMpFromRace + baseMpFromClass + (currentAttributes.Spark * 2); // GDD 2.3
+        _baseMaxManaPoints = Mathf.Max(0, _baseMaxManaPoints);
+
+        int baseSpFromRace = _raceData.baseSPContribution;
+        int baseSpFromClass = _classData.baseSPContribution;
+        _baseMaxStaminaPoints = baseSpFromRace + baseSpFromClass + currentAttributes.Core; // GDD 2.3
+        _baseMaxStaminaPoints = Mathf.Max(0, _baseMaxStaminaPoints);
+
+        int baseFpFromRace = _raceData.baseFPContribution;
+        int baseFpFromClass = _classData.baseFPContribution;
+        _baseMaxFocusPoints = baseFpFromRace + baseFpFromClass + currentAttributes.Glimmer; // GDD 2.3
+        _baseMaxFocusPoints = Mathf.Max(0, _baseMaxFocusPoints);
+
+        int baseIpFromRace = _raceData.baseIPContribution;
+        int baseIpFromClass = _classData.baseIPContribution;
+        _baseMaxInfluencePoints = baseIpFromRace + baseIpFromClass + currentAttributes.Aura; // GDD 2.3
+        _baseMaxInfluencePoints = Mathf.Max(0, _baseMaxInfluencePoints);
+    }
+
+
     public void ModifyVitality(int amount)
     {
-        if (!_isAlive && amount < 0) return; 
-        if (!_isAlive && amount > 0 && currentVitalityPoints <=0) { _isAlive = true; } 
+        if (!_isAlive && amount < 0) return;
+        if (!_isAlive && amount > 0 && currentVitalityPoints <=0) { _isAlive = true; }
         int oldVP = currentVitalityPoints;
         currentVitalityPoints += amount;
         currentVitalityPoints = Mathf.Clamp(currentVitalityPoints, 0, MaxVitalityPoints);
@@ -277,16 +278,16 @@ public class UnitStats : MonoBehaviour
     public void SpendStamina(int amount) { if (amount <= 0) return; currentStaminaPoints -= amount; currentStaminaPoints = Mathf.Max(0, currentStaminaPoints); }
     public void SpendFocus(int amount) { if (amount <= 0) return; currentFocusPoints -= amount; currentFocusPoints = Mathf.Max(0, currentFocusPoints); }
     public void SpendInfluence(int amount) { if (amount <= 0) return; currentInfluencePoints -= amount; currentInfluencePoints = Mathf.Max(0, currentInfluencePoints); }
-    public void RegenerateResourcesAtTurnStart() { /* ... same as before ... */ 
+    public void RegenerateResourcesAtTurnStart() {
         if (!_isAlive || _unit == null) return;
         StringBuilder regenLogBuilder = new StringBuilder();
         regenLogBuilder.Append($"{_unit.unitName} regenerates: ");
         bool hasRegeneratedAnything = false;
         int oldVal;
 
-        if (VitalityRegenRate != 0 && currentVitalityPoints < MaxVitalityPoints) 
+        if (VitalityRegenRate != 0 && currentVitalityPoints < MaxVitalityPoints)
         {
-            oldVal = currentVitalityPoints; ModifyVitality(VitalityRegenRate); 
+            oldVal = currentVitalityPoints; ModifyVitality(VitalityRegenRate);
             if (currentVitalityPoints != oldVal) { regenLogBuilder.Append($"VP {currentVitalityPoints-oldVal:+#;-#;0} ({currentVitalityPoints}/{MaxVitalityPoints}). "); hasRegeneratedAnything = true; }
         }
         if (ManaRegenRate != 0 && currentManaPoints < MaxManaPoints)
@@ -312,25 +313,25 @@ public class UnitStats : MonoBehaviour
 
         if (hasRegeneratedAnything) CombatLogger.LogEvent(regenLogBuilder.ToString().TrimEnd(), Color.blue, LogMessageType.StatusChange);
     }
-    public void AddEffect(ActiveStatusEffect newEffect) { /* ... same as before ... */ 
-        if (newEffect == null || newEffect.BaseEffect == null) return; 
+    public void AddEffect(ActiveStatusEffect newEffect) {
+        if (newEffect == null || newEffect.BaseEffect == null) return;
         _activeEffects.Add(newEffect);
         CombatLogger.LogStatusApplied(_unit, newEffect.BaseEffect.effectName, newEffect.Caster);
-        RecalculateAffectedStats(); 
+        RecalculateAffectedStats();
     }
-    public void RemoveEffect(ActiveStatusEffect effectToRemove) { /* ... same as before ... */ 
-        if (effectToRemove == null || effectToRemove.BaseEffect == null) return; 
+    public void RemoveEffect(ActiveStatusEffect effectToRemove) {
+        if (effectToRemove == null || effectToRemove.BaseEffect == null) return;
         if (_activeEffects.Remove(effectToRemove))
         {
             CombatLogger.LogEvent($"{_unit.unitName} loses effect: {effectToRemove.BaseEffect.effectName}.", Color.gray, LogMessageType.StatusChange);
             RecalculateAffectedStats();
         }
     }
-    public void RemoveAllEffectsFromSource(Unit caster) { /* ... same as before ... */ 
+    public void RemoveAllEffectsFromSource(Unit caster) {
         List<ActiveStatusEffect> toRemove = _activeEffects.Where(e => e.Caster == caster).ToList();
         if (toRemove.Count > 0) { foreach(var effect in toRemove) RemoveEffect(effect); }
     }
-    public void ClearAllEffects() { /* ... same as before ... */ 
+    public void ClearAllEffects() {
         if (_activeEffects.Count > 0)
         {
             List<ActiveStatusEffect> effectsToClear = new List<ActiveStatusEffect>(_activeEffects);
@@ -338,16 +339,27 @@ public class UnitStats : MonoBehaviour
             CombatLogger.LogEvent($"{_unit.unitName} had all effects cleared.", Color.gray, LogMessageType.StatusChange);
         }
     }
-    public void RecalculateAffectedStats() { /* ... same as before, ensure clamping occurs ... */ 
-        currentVitalityPoints = Mathf.Clamp(currentVitalityPoints, 0, MaxVitalityPoints);
-        currentManaPoints = Mathf.Clamp(currentManaPoints, 0, MaxManaPoints);
-        currentStaminaPoints = Mathf.Clamp(currentStaminaPoints, 0, MaxStaminaPoints);
-        currentFocusPoints = Mathf.Clamp(currentFocusPoints, 0, MaxFocusPoints);
-        currentInfluencePoints = Mathf.Clamp(currentInfluencePoints, 0, MaxInfluencePoints);
+    public void RecalculateAffectedStats() {
+        int oldMaxVP = MaxVitalityPoints;
+        currentVitalityPoints = Mathf.Clamp(currentVitalityPoints, 0, oldMaxVP);
+
+        int oldMaxMP = MaxManaPoints;
+        currentManaPoints = Mathf.Clamp(currentManaPoints, 0, oldMaxMP);
+
+        int oldMaxSP = MaxStaminaPoints;
+        currentStaminaPoints = Mathf.Clamp(currentStaminaPoints, 0, oldMaxSP);
+
+        int oldMaxFP = MaxFocusPoints;
+        currentFocusPoints = Mathf.Clamp(currentFocusPoints, 0, oldMaxFP);
+
+        int oldMaxIP = MaxInfluencePoints;
+        currentInfluencePoints = Mathf.Clamp(currentInfluencePoints, 0, oldMaxIP);
+
         currentActionPoints = Mathf.Clamp(currentActionPoints, 0, MaxActionPoints);
+
         if (_isAlive && currentVitalityPoints <= 0) { SetAliveStatus(false); }
     }
-    private List<StatModifier> GetAllStatModifiersFromEffects(ModifierType modType) { /* ... same as before ... */ 
+    private List<StatModifier> GetAllStatModifiersFromEffects(ModifierType modType) {
         List<StatModifier> modifiers = new List<StatModifier>();
         if (_activeEffects == null) return modifiers;
         foreach (ActiveStatusEffect effect in _activeEffects) {
@@ -361,7 +373,7 @@ public class UnitStats : MonoBehaviour
         }
         return modifiers;
     }
-    public int CalculateModifiedStat(int baseValueParam, StatType targetStat) { /* ... same as before ... */ 
+    public int CalculateModifiedStat(int baseValueParam, StatType targetStat) {
         float currentValue = baseValueParam;
         foreach (StatModifier mod in GetAllStatModifiersFromEffects(ModifierType.Flat)) {
             if (mod.stat == targetStat) { currentValue += mod.value; }
@@ -376,31 +388,124 @@ public class UnitStats : MonoBehaviour
             if (mod.stat == targetStat) { currentValue *= (1f + mod.value); }
         }
         if (targetStat == StatType.MaxVitalityPoints) return Mathf.Max(1, Mathf.RoundToInt(currentValue));
-        return Mathf.Max(0, Mathf.RoundToInt(currentValue));
+        if (targetStat == StatType.MaxActionPoints ||
+            targetStat == StatType.MaxManaPoints ||
+            targetStat == StatType.MaxStaminaPoints ||
+            targetStat == StatType.MaxFocusPoints ||
+            targetStat == StatType.MaxInfluencePoints)
+        {
+            return Mathf.Max(0, Mathf.RoundToInt(currentValue));
+        }
+        return Mathf.RoundToInt(currentValue);
     }
 
-    // MODIFIED: New method to add XP and check for level up
     public void AddXP(int xpAmount)
     {
-        if (!_isAlive || xpAmount <= 0 || _unit == null) return; // Only living units gain XP
+        if (!_isAlive || xpAmount <= 0 || _unit == null) return;
 
         currentXP += xpAmount;
-        CombatLogger.LogEvent($"{_unit.unitName} gained {xpAmount} XP. (Total: {currentXP}/{xpToNextLevel})", Color.magenta, LogMessageType.System);
+        CombatLogger.LogEvent($"{_unit.unitName} gained {xpAmount} XP. (Current: {currentXP}/{xpToNextLevel})", Color.magenta, LogMessageType.System); // MODIFIED: Changed "Total" to "Current" for clarity
 
-        // Basic level up check (actual level up mechanics will be a separate step)
-        // if (currentXP >= xpToNextLevel)
-        // {
-        //     // LevelUp(); // Placeholder for future LevelUp method
-        // }
+        CheckForLevelUp();
     }
 
-    // MODIFIED: Placeholder for calculating XP to next level (can be a complex formula later)
-    private int CalculateXPForNextLevel(int currentLevel)
+    // MODIFIED: Implemented CheckForLevelUp
+    public void CheckForLevelUp()
     {
-        // Example: Simple scaling: 100 * level, or 100 * (level^1.5)
-        // For now, a flat 100 for simplicity, or slightly increasing.
-        if (currentLevel < 1) currentLevel = 1;
-        return 50 + (currentLevel * 50); // e.g., Lvl 1->2 needs 100, Lvl 2->3 needs 150
+        if (!_isAlive || _unit == null) return; // Basic safety checks
+
+        // Loop to handle multiple level-ups if enough XP is gained
+        bool hasLeveledUpThisCheck = false;
+        while (currentXP >= xpToNextLevel)
+        {
+            LevelUp();
+            hasLeveledUpThisCheck = true;
+        }
+
+        if (hasLeveledUpThisCheck)
+        {
+            // After all potential level-ups, ensure derived stats and resources are fully updated and clamped.
+            // RecalculateBaseMaxResources(); // Already called within LevelUp
+            // RecalculateAffectedStats(); // Already called within LevelUp
+            // The healing part of LevelUp sets current to max, so this should be fine.
+            // One final RecalculateAffectedStats might be redundant if LevelUp handles it perfectly.
+            // However, if LevelUp only updates base maxes and current values, this ensures effects on maxes are applied.
+            // Let's ensure LevelUp does call RecalculateAffectedStats AFTER updating base maxes and healing.
+        }
+    }
+
+    // MODIFIED: Implemented LevelUp
+    private void LevelUp()
+    {
+        if (_unit == null || _classData == null)
+        {
+            DebugHelper.LogError($"LevelUp called on {_unit?.unitName ?? "Unknown Unit"} but Unit or ClassData is missing.", _unit);
+            return;
+        }
+
+        _unit.level++;
+        CombatLogger.LogLevelUp(_unit, _unit.level);
+
+        // Store excess XP before resetting currentXP relative to the old xpToNextLevel
+        int excessXP = currentXP - xpToNextLevel;
+        currentXP = excessXP;
+        xpToNextLevel = CalculateXPForNextLevel(_unit.level);
+
+        // Apply automatic stat gains
+        StringBuilder statGainsLog = new StringBuilder();
+        statGainsLog.Append($"{_unit.unitName} (Lvl {_unit.level}) gained stats: ");
+        bool gainsApplied = false;
+
+        // Using a temporary struct to hold gains for logging clarity
+        SerializablePrimaryStatGain gains = _classData.primaryStatGains;
+
+        if (gains.coreGain != 0) { currentAttributes.Core += gains.coreGain; statGainsLog.Append($"Core +{gains.coreGain}, "); gainsApplied = true; }
+        if (gains.echoGain != 0) { currentAttributes.Echo += gains.echoGain; statGainsLog.Append($"Echo +{gains.echoGain}, "); gainsApplied = true; }
+        if (gains.pulseGain != 0) { currentAttributes.Pulse += gains.pulseGain; statGainsLog.Append($"Pulse +{gains.pulseGain}, "); gainsApplied = true; }
+        if (gains.sparkGain != 0) { currentAttributes.Spark += gains.sparkGain; statGainsLog.Append($"Spark +{gains.sparkGain}, "); gainsApplied = true; }
+        if (gains.glimmerGain != 0) { currentAttributes.Glimmer += gains.glimmerGain; statGainsLog.Append($"Glimmer +{gains.glimmerGain}, "); gainsApplied = true; }
+        if (gains.auraGain != 0) { currentAttributes.Aura += gains.auraGain; statGainsLog.Append($"Aura +{gains.auraGain}, "); gainsApplied = true; }
+
+        if (gainsApplied)
+        {
+            CombatLogger.LogEvent(statGainsLog.ToString().TrimEnd(' ', ','), Color.green, LogMessageType.System);
+        }
+        else
+        {
+            CombatLogger.LogEvent($"{_unit.unitName} (Lvl {_unit.level}) had no automatic stat gains for this class level.", Color.yellow, LogMessageType.System);
+        }
+
+        // Award allocatable points (GDD 2.2: +2 for player units)
+        // Assuming player units are tagged "Player". Adjust if you have a different way to identify player units.
+        if (_unit.CompareTag("Player")) // TODO: Potentially replace with a more robust check (e.g., Faction enum, IsPlayerControlled bool)
+        {
+            allocatableAttributePoints += 2;
+            CombatLogger.LogEvent($"{_unit.unitName} gained 2 allocatable attribute points. (Total: {allocatableAttributePoints})", Color.cyan, LogMessageType.System);
+        }
+
+        // Recalculate base max resources based on new attributes
+        RecalculateBaseMaxResources();
+
+        // Heal unit to full VP/MP (GDD common practice)
+        currentVitalityPoints = MaxVitalityPoints; // MaxVitalityPoints will use the new _baseMaxVitalityPoints and effects
+        currentManaPoints = MaxManaPoints;     // MaxManaPoints will use the new _baseMaxManaPoints and effects
+        CombatLogger.LogEvent($"{_unit.unitName} was fully healed (VP/MP) on level up.", Color.green, LogMessageType.System);
+
+        // Final recalculation to ensure all derived stats (including those from effects on new maxes) are up-to-date
+        RecalculateAffectedStats();
+
+        // Log new XP status
+        CombatLogger.LogEvent($"{_unit.unitName} XP: {currentXP}/{xpToNextLevel}. Level: {_unit.level}.", Color.magenta, LogMessageType.System);
+
+        // TODO: Future - Check for new skills/abilities becoming available.
     }
     // End of MODIFICATION
+
+    private int CalculateXPForNextLevel(int forLevel) // Renamed parameter for clarity
+    {
+        // Current GDD does not specify a formula. Using placeholder.
+        // This formula calculates XP needed to go FROM (forLevel) TO (forLevel + 1)
+        if (forLevel < 1) forLevel = 1;
+        return 50 + (forLevel * 50); // e.g., To reach Lvl 2 (from Lvl 1) needs 100XP. To reach Lvl 3 (from Lvl 2) needs 150XP.
+    }
 }

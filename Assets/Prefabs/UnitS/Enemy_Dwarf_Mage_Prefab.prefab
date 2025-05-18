@@ -119,10 +119,12 @@ MonoBehaviour:
     Aura: 5
   unitName: Dwarf Runesmith
   level: 1
+  xpValue: 50
   knownAbilities:
   - {fileID: 11400000, guid: bde4c3c75f3e4c048bf2f4097c5556a7, type: 2}
   equippedWeapon: {fileID: 0}
   equippedBodyArmor: {fileID: 11400000, guid: 6f4f867891bc1f14d919cfb03793e84a, type: 2}
+  inventory: []
   moveSpeed: 5
   attackAnimDuration: 0.5
   hurtAnimDuration: 0.3
@@ -159,6 +161,9 @@ MonoBehaviour:
     Spark: 5
     Glimmer: 5
     Aura: 5
+  currentXP: 0
+  xpToNextLevel: 100
+  allocatableAttributePoints: 0
   _baseMaxActionPoints: 2
   currentActionPoints: 0
   _baseMaxVitalityPoints: 0

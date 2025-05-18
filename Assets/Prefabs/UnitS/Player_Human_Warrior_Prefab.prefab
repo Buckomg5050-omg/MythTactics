@@ -116,7 +116,7 @@ MonoBehaviour:
     Glimmer: 5
     Aura: 5
   unitName: Player Hero
-  level: 3
+  level: 1
   xpValue: 0
   knownAbilities:
   - {fileID: 11400000, guid: 3c15a59f5c7edf1498ccf72fc486c07c, type: 2}
@@ -152,6 +152,9 @@ MonoBehaviour:
     Spark: 5
     Glimmer: 5
     Aura: 5
+  currentXP: 0
+  xpToNextLevel: 100
+  allocatableAttributePoints: 0
   _baseMaxActionPoints: 5
   currentActionPoints: 0
   _baseMaxVitalityPoints: 5
