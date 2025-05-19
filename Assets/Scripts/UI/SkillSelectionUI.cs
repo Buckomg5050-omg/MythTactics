@@ -81,12 +81,13 @@ public class SkillSelectionUI : MonoBehaviour
     [Header("Panel References")]
     public Transform skillSlotsContainer; 
     public Button closeButton; 
+    public TextMeshProUGUI panelTitleText; // ADDED: Reference for the panel title
 
     private List<SkillSlotUI> _currentSkillSlots = new List<SkillSlotUI>();
     private Unit _caster;
 
     public static event Action<Unit, AbilitySO> OnSkillAbilitySelected;
-    public static event Action OnSkillPanelClosedByButton; // ADDED EVENT
+    public static event Action OnSkillPanelClosedByButton;
 
     void Awake()
     {
@@ -96,10 +97,12 @@ public class SkillSelectionUI : MonoBehaviour
             Debug.LogWarning("SkillSelectionUI: SkillSlotsContainer not assigned. Attempting to use this.transform.", this);
             skillSlotsContainer = this.transform; 
         }
+        // MODIFIED: Check for panelTitleText
+        if (panelTitleText == null) Debug.LogWarning("SkillSelectionUI: PanelTitleText not assigned in Inspector. Title will not be displayed.", this);
+
 
         if (closeButton != null) 
         {
-            // MODIFIED: Listener now calls a method that invokes the event
             closeButton.onClick.AddListener(HandleCloseButtonPressed); 
         }
         else 
@@ -111,21 +114,26 @@ public class SkillSelectionUI : MonoBehaviour
         gameObject.SetActive(false); 
     }
 
-    // ADDED: Method to handle close button press
     private void HandleCloseButtonPressed()
     {
         Debug.Log("SkillSelectionUI: Close button pressed. Invoking OnSkillPanelClosedByButton event.", this);
         OnSkillPanelClosedByButton?.Invoke();
-        // HidePanel(); // PIH will now handle hiding the panel when it changes state.
     }
 
-    public void ShowPanel(Unit caster, Vector2 positionToShowAt, List<AbilitySO> abilities)
+    // MODIFIED: ShowPanel now accepts a title
+    public void ShowPanel(Unit caster, Vector2 positionToShowAt, List<AbilitySO> abilities, string title = "Select Ability")
     {
         _caster = caster;
         if (_caster == null || abilities == null)
         {
-            HidePanel(); // Still hide if called with invalid data
+            HidePanel(); 
             return;
+        }
+
+        // Set panel title
+        if (panelTitleText != null)
+        {
+            panelTitleText.text = title;
         }
 
         foreach (SkillSlotUI slot in _currentSkillSlots)
@@ -137,7 +145,8 @@ public class SkillSelectionUI : MonoBehaviour
 
         if (abilities.Count == 0)
         {
-            Debug.LogWarning($"{caster.unitName} has no abilities to display in SkillSelectionUI.", caster);
+            Debug.LogWarning($"{caster.unitName} has no abilities of type '{title}' to display in SkillSelectionUI.", caster);
+            // Optionally display a "No Spells/Skills" message
         }
 
         foreach (AbilitySO ability in abilities)
@@ -159,7 +168,7 @@ public class SkillSelectionUI : MonoBehaviour
         }
 
         gameObject.SetActive(true);
-        Debug.Log($"SkillSelectionUI: Shown for {caster.unitName} with {abilities.Count} skills near {positionToShowAt}.", this);
+        Debug.Log($"SkillSelectionUI: Shown for {caster.unitName} with {abilities.Count} abilities (Type: {title}) near {positionToShowAt}.", this);
     }
 
     private void HandleSkillSlotClicked(AbilitySO selectedAbility)
@@ -168,13 +177,12 @@ public class SkillSelectionUI : MonoBehaviour
 
         Debug.Log($"SkillSelectionUI: Skill '{selectedAbility.abilityName}' selected by {_caster.unitName}.", this);
         OnSkillAbilitySelected?.Invoke(_caster, selectedAbility);
-        HidePanel(); // When a skill is selected, we still hide immediately and PIH handles state change.
+        HidePanel(); 
     }
 
     public void HidePanel()
     {
-        // This method is now primarily called by PlayerInputHandler or when a skill is selected.
-        if (gameObject.activeSelf) // Only log if it was actually visible
+        if (gameObject.activeSelf) 
         {
             gameObject.SetActive(false);
             Debug.Log("SkillSelectionUI: Panel hidden.", this);

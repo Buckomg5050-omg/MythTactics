@@ -14,5 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   encounterName: Unnamed Encounter
   description: Details about this encounter.
-  playerUnitsToSpawn: []
-  enemyUnitsToSpawn: []
+  playerUnitsToSpawn:
+  - unitTemplate: {fileID: 11400000, guid: 833b236eb062f8d42982d96801b5bd6a, type: 2}
+    level: 1
+    gridPosition: {x: 2, y: 1}
+  enemyUnitsToSpawn:
+  - unitTemplate: {fileID: 11400000, guid: 07f024a8700d2cc4a93db6bbbcd477f6, type: 2}
+    level: 1
+    gridPosition: {x: 2, y: 3}
+  - unitTemplate: {fileID: 11400000, guid: 38862db5304bb2d499a4d9e48183f5fb, type: 2}
+    level: 1
+    gridPosition: {x: 4, y: 2}

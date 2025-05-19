@@ -10,11 +10,12 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 03c22eb5c5793164cb194bc23aced609, type: 3}
-  m_Name: TouchofWeakness
+  m_Name: CurseOfWeakness_Ability
   m_EditorClassIdentifier: 
-  abilityName: Touch of Weakness
-  description: Makes target weak.
-  abilityIcon: {fileID: 21300000, guid: 15ee9509102527544a463853549f16c2, type: 3}
+  abilityName: Curse of Weakness
+  description: Applies a stacking debuff that weakens the target's Core.
+  abilityIcon: {fileID: 21300000, guid: 5719d3a960af97045b194a12ec25ce97, type: 3}
+  abilityType: 1
   apCost: 1
   mpCost: 5
   spCost: 0
@@ -22,10 +23,12 @@ MonoBehaviour:
   ipCost: 0
   targetType: 1
   range: 3
-  baseAccuracy: 90
+  baseAccuracy: 100
+  alwaysHits: 0
+  critChanceModifier: 0
   effectType: 3
   basePower: 0
   damageType: 1
   dealsTrueDamage: 0
   effectsToApplyOnHit:
-  - {fileID: 11400000, guid: 393767867300fae41a72244e92d61a99, type: 2}
+  - {fileID: 11400000, guid: 8464be7b01020b44a82bf19928d91ef5, type: 2}

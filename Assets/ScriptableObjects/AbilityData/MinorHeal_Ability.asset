@@ -15,6 +15,7 @@ MonoBehaviour:
   abilityName: Minor Hea
   description: A simple blessing that restores a small amount of vitality to an ally
   abilityIcon: {fileID: 21300000, guid: 30fe8d031f4ba7c45b6c423f69a7cdbe, type: 3}
+  abilityType: 1
   apCost: 1
   mpCost: 5
   spCost: 0

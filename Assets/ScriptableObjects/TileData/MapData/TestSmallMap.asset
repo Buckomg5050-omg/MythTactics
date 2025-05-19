@@ -12,9 +12,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8b349d4c682045340bfadfede524d576, type: 3}
   m_Name: TestSmallMap
   m_EditorClassIdentifier: 
-  mapDisplayName: Unnamed Map
-  playableWidth: 15
-  playableHeight: 10
-  defaultPlayableTile: {fileID: 0}
-  boundaryTile: {fileID: 0}
-  specificTiles: []
+  mapDisplayName: Test Small Map
+  playableWidth: 5
+  playableHeight: 5
+  defaultPlayableTile: {fileID: 11400000, guid: f22c004078a06b74490e9dc85dc1d47d, type: 2}
+  boundaryTile: {fileID: 11400000, guid: b61c4102f1b019140bdc9da57962d4c3, type: 2}
+  specificTiles:
+  - position: {x: 2, y: 2}
+    tileType: {fileID: 11400000, guid: 733b839df21d6ce4eae8e3b5ce036c63, type: 2}
+    heightLevel: 0
+  - position: {x: 1, y: 3}
+    tileType: {fileID: 11400000, guid: 7ee28e75d888b4f4784ff397e58d7fc6, type: 2}
+    heightLevel: 1

@@ -14,13 +14,20 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   abilityName: Minor Arcane Bolt
   description: Hurls a small bolt of arcane energy at an enemy.
+  abilityIcon: {fileID: 0}
+  abilityType: 1
   apCost: 1
   mpCost: 5
   spCost: 0
+  fpCost: 0
+  ipCost: 0
   targetType: 1
   range: 3
   baseAccuracy: 80
+  alwaysHits: 0
+  critChanceModifier: 0
   effectType: 0
   basePower: 8
   damageType: 1
   dealsTrueDamage: 1
+  effectsToApplyOnHit: []

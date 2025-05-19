@@ -15,6 +15,7 @@ MonoBehaviour:
   unitName: Player Hero
   unitPrefab: {fileID: 5369858329263020711, guid: 5acf772276d1bbd47b334fbaee522ef6, type: 3}
   portrait: {fileID: 21300000, guid: b616ca9e792ac584f95bc6f387092e1a, type: 3}
+  inWorldCombatSprite: {fileID: 21300000, guid: b616ca9e792ac584f95bc6f387092e1a, type: 3}
   defaultFaction: 0
   alignment: 1
   raceData: {fileID: 11400000, guid: a4a37fdc0bafcc842969c6f1060741aa, type: 2}

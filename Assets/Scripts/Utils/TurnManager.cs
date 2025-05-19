@@ -134,12 +134,11 @@ public class TurnManager : MonoBehaviour
     public void StartCombat()
     {
         _combatUnits.RemoveAll(u => u == null);
-        if (_combatUnits.Count(u => u.IsAlive) < 1) // Modified to allow solo testing, but ideally 2
+        if (_combatUnits.Count(u => u.IsAlive) < 1) 
         {
             Debug.LogWarning($"[TurnManager] Not enough alive units ({_combatUnits.Count(u => u.IsAlive)}) to start combat. At least 1 required.", this);
             _isCombatActive = false;
             UpdateTurnDisplay();
-            // return; // Allow to proceed for testing single unit scenarios if needed
         }
 
         bool hasPlayers = _combatUnits.Any(u => u.IsAlive && u.CurrentFaction == FactionType.Player);
@@ -182,6 +181,7 @@ public class TurnManager : MonoBehaviour
     {
         if (!_isCombatActive && ActiveUnit == null)
         {
+            if (turnOrderUI != null) turnOrderUI.UpdateTurnOrderDisplay(new List<Unit>(), null);
             return;
         }
 
@@ -226,8 +226,38 @@ public class TurnManager : MonoBehaviour
         {
             if(unit != null) unit.actionCounter = 0;
         }
-        CombatLogger.LogTurnEvent("Combat Ended!");
+        CombatLogger.LogTurnEvent("Combat Ended!"); // Uses System type via LogTurnEvent's default for general messages
         UpdateTurnDisplay();
+    }
+
+    public void ForceEndCombat()
+    {
+        if (!_isCombatActive)
+        {
+            DebugHelper.Log("[TurnManager] ForceEndCombat called, but combat is not active.", this);
+            return;
+        }
+
+        DebugHelper.Log("[TurnManager] Combat is being forcibly ended (e.g., by Flee action).", this);
+        
+        _isCombatActive = false; 
+
+        if (_advanceTurnsCoroutine != null)
+        {
+            StopCoroutine(_advanceTurnsCoroutine);
+            _advanceTurnsCoroutine = null;
+        }
+
+        if (_previousActiveUnitTile != null)
+        {
+            _previousActiveUnitTile.SetHighlight(TileHighlightState.None);
+            _previousActiveUnitTile = null;
+        }
+        ActiveUnit = null;
+
+        // MODIFIED: Corrected call to CombatLogger
+        CombatLogger.LogEvent("--- Combat Ended (Fled/Forced) ---", Color.gray, LogMessageType.System);
+        UpdateTurnDisplay(); 
     }
 
     public void ResetBattleXP()
@@ -252,7 +282,7 @@ public class TurnManager : MonoBehaviour
                 if (!_combatUnits.Any(u => u.IsAlive))
                 {
                     DebugHelper.Log("TurnManager: No units alive. Ending combat.", this);
-                    EndCombat();
+                    if(_isCombatActive) EndCombat(); 
                     yield break;
                 }
 
@@ -299,7 +329,7 @@ public class TurnManager : MonoBehaviour
 
                 List<Unit> readyUnits = _combatUnits
                     .Where(u => u != null && u.IsAlive && u.actionCounter >= ActionCounterThreshold
-                                && !_unitsThatHaveTakenTurnThisRound.Contains(u) && u.Stats != null) // Added u.Stats != null
+                                && !_unitsThatHaveTakenTurnThisRound.Contains(u) && u.Stats != null) 
                     .OrderByDescending(u => u.actionCounter)
                     .ThenByDescending(u => u.EffectiveSpeed)
                     .ThenByDescending(u => (u.Stats.EffectiveAttributes != null) ? u.Stats.EffectiveAttributes.Echo : 0)
@@ -321,8 +351,6 @@ public class TurnManager : MonoBehaviour
                     {
                         ActiveUnit.Stats.RegenerateActionPointsAtTurnStart();
                         ActiveUnit.Stats.RegenerateResourcesAtTurnStart();
-                        // MODIFIED: Commented out the problematic line
-                        // if(EffectSystem.Instance != null) EffectSystem.Instance.TickTurnStartEffects(ActiveUnit); 
                     }
                     else { DebugHelper.LogError($"TurnManager: ActiveUnit {ActiveUnit.unitName} missing Stats. Cannot regen/tick.", ActiveUnit); }
 
@@ -351,9 +379,9 @@ public class TurnManager : MonoBehaviour
                     }
                 }
             }
-            yield return null;
+            yield return null; 
         }
-        _advanceTurnsCoroutine = null;
+        _advanceTurnsCoroutine = null; 
     }
 
     public void EndUnitTurn(Unit unit)
@@ -370,16 +398,20 @@ public class TurnManager : MonoBehaviour
         }
 
         Tile unitCurrentTile = unit.CurrentTile;
-
-        if (ActiveUnit != unit && unit.IsAlive) {
-            return;
+        
+        if (ActiveUnit != unit && unit.IsAlive && _isCombatActive) { 
+             if (ActiveUnit != null)
+             {
+                Debug.LogWarning($"[TurnManager] EndUnitTurn called for {unit.unitName}, but {ActiveUnit.unitName} is the active unit. Ignoring for {unit.unitName}.", this);
+                return;
+             }
         }
         
         string turnEndMessage = $"Round {_currentRoundNumber} - Unit {unit.unitName}'s Turn End";
         DebugHelper.Log($"TurnManager: --- {turnEndMessage} ---", unit);
         CombatLogger.LogTurnEvent(turnEndMessage);
 
-        if (unit.IsAlive && unit.Stats != null && EffectSystem.Instance != null) // Check EffectSystem.Instance here
+        if (unit.IsAlive && unit.Stats != null && EffectSystem.Instance != null) 
         {
             EffectSystem.Instance.TickUnitEffects(unit);
         }
@@ -398,6 +430,12 @@ public class TurnManager : MonoBehaviour
 
         if (ActiveUnit == unit) ActiveUnit = null;
 
+        if (!_isCombatActive) 
+        {
+            UpdateTurnDisplay();
+            return;
+        }
+
         _combatUnits.RemoveAll(u => u == null || !u.IsAlive);
         int playerCount = _combatUnits.Count(u => u.CurrentFaction == FactionType.Player && u.IsAlive);
         int enemyCount = _combatUnits.Count(u => u.CurrentFaction == FactionType.Enemy && u.IsAlive);
@@ -407,7 +445,7 @@ public class TurnManager : MonoBehaviour
         { DebugHelper.Log("TurnManager: All player units defeated. Ending combat (Player loss).", this); combatShouldEnd = true; }
         else if (enemyCount == 0 && playerCount > 0 && _isCombatActive)
         { DebugHelper.Log("TurnManager: All enemy units defeated. Ending combat (Player win).", this); combatShouldEnd = true; }
-        else if ((playerCount == 0 || enemyCount == 0) && _isCombatActive && _combatUnits.Any(u => u.IsAlive))
+        else if ((playerCount == 0 || enemyCount == 0) && _isCombatActive && _combatUnits.Any(u => u.IsAlive)) 
         { DebugHelper.Log("TurnManager: One faction has no units remaining. Ending combat.", this); combatShouldEnd = true; }
 
         UpdateTurnDisplay();
@@ -463,34 +501,31 @@ public class TurnManager : MonoBehaviour
         
         int maxForecastSlots = (turnOrderUI != null) ? turnOrderUI.numberOfSlotsToDisplay : 5;
 
-        // Temporary list for simulation that we can modify
         List<(Unit unit, int simAC, int effSpeed)> simulationList = tempUnitData
-            .Where(ud => !forecast.Contains(ud.unit)) // Exclude already active unit if it's in forecast
+            .Where(ud => !forecast.Contains(ud.unit)) 
             .Select(ud => (ud.unit, ud.currentAC, ud.effectiveSpeed))
             .ToList();
 
-        // Simulate turns to fill the forecast
         while(forecast.Count < maxForecastSlots && simulationList.Any())
         {
-            // Find the unit(s) that will reach threshold with the minimum number of "global ticks"
             int minTicksToReady = int.MaxValue;
             Unit nextUnitInSim = null;
 
-            if (!simulationList.Any(ud => ud.simAC >= ActionCounterThreshold)) // If no one is currently ready
+            if (!simulationList.Any(ud => ud.simAC >= ActionCounterThreshold)) 
             {
                 foreach (var entry in simulationList)
                 {
-                    if (entry.effSpeed <= 0) continue; // Avoid division by zero or infinite loop for units with no speed
-                    int ticksNeeded = Mathf.Max(0, (ActionCounterThreshold - entry.simAC + entry.effSpeed - 1) / entry.effSpeed); // Ceiling division
+                    if (entry.effSpeed <= 0) continue; 
+                    int ticksNeeded = Mathf.Max(0, (ActionCounterThreshold - entry.simAC + entry.effSpeed - 1) / entry.effSpeed); 
                     if (ticksNeeded < minTicksToReady)
                     {
                         minTicksToReady = ticksNeeded;
                     }
                 }
 
-                if (minTicksToReady == int.MaxValue) break; // No one can become ready
+                if (minTicksToReady == int.MaxValue || minTicksToReady < 0) { break; }
 
-                // Advance all units by minTicksToReady
+
                 for (int i = 0; i < simulationList.Count; i++)
                 {
                     var current = simulationList[i];
@@ -498,7 +533,6 @@ public class TurnManager : MonoBehaviour
                 }
             }
             
-            // Select the best unit among those now ready or already over threshold
             var bestNext = simulationList
                 .Where(ud => ud.simAC >= ActionCounterThreshold)
                 .OrderByDescending(ud => ud.simAC)
@@ -511,25 +545,23 @@ public class TurnManager : MonoBehaviour
             if (bestNext.unit != null)
             {
                 nextUnitInSim = bestNext.unit;
-                if (!forecast.Contains(nextUnitInSim)) // Should always be true due to earlier filter
+                if (!forecast.Contains(nextUnitInSim)) 
                 {
                     forecast.Add(nextUnitInSim);
                 }
-                // Remove from simulation list or mark as "acted" in this forecast
                 simulationList.RemoveAll(ud => ud.unit == nextUnitInSim);
             }
-            else // No one reached threshold even after advancing by minTicksToReady (shouldn't happen if minTicksToReady was calculated correctly unless all speeds are 0)
+            else 
             {
                 break; 
             }
         }
         
-        // If forecast is still not full, add remaining units by their current (original) AC / speed as a fallback
         if (forecast.Count < maxForecastSlots)
         {
-            var remainingUnits = tempUnitData // Use original tempUnitData for this fallback
+            var remainingUnits = tempUnitData 
                 .Where(ud => ud.unit.IsAlive && !forecast.Contains(ud.unit))
-                .OrderByDescending(ud => ud.currentAC) // Order by original AC state
+                .OrderByDescending(ud => ud.currentAC) 
                 .ThenByDescending(ud => ud.effectiveSpeed)
                 .ThenByDescending(ud => (ud.unit.Stats?.EffectiveAttributes != null) ? ud.unit.Stats.EffectiveAttributes.Echo : 0)
                 .ThenByDescending(ud => (ud.unit.Stats?.EffectiveAttributes != null) ? ud.unit.Stats.EffectiveAttributes.Glimmer : 0)

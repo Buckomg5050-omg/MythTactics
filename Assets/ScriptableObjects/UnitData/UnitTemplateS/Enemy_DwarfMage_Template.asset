@@ -15,6 +15,7 @@ MonoBehaviour:
   unitName: Dwarven Runesmith
   unitPrefab: {fileID: 5369858329263020711, guid: 5acf772276d1bbd47b334fbaee522ef6, type: 3}
   portrait: {fileID: 21300000, guid: f5e59a6adcac198459c0b17fc5556d2b, type: 3}
+  inWorldCombatSprite: {fileID: 21300000, guid: f5e59a6adcac198459c0b17fc5556d2b, type: 3}
   defaultFaction: 1
   alignment: 0
   raceData: {fileID: 11400000, guid: f3691685d93530e40b768cafa3616fca, type: 2}

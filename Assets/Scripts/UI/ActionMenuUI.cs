@@ -4,12 +4,7 @@ using UnityEngine.UI;
 using TMPro;
 using System;
 using System.Collections.Generic;
-
-[System.Serializable]
-public class ActionButtonSetup
-{
-    public string actionName;
-}
+using System.Linq;
 
 public class ActionMenuUI : MonoBehaviour
 {
@@ -18,15 +13,23 @@ public class ActionMenuUI : MonoBehaviour
     public float menuRadius = 100f;
     public Vector2 menuCenterOffset = new Vector2(0, 50f);
 
-    [Header("Configurable Actions")]
-    public List<ActionButtonSetup> configurableActions = new List<ActionButtonSetup>();
-
     [Header("Button Text Colors")]
     public Color affordableTextColor = Color.black;
     public Color unaffordableTextColor = new Color(0.4f, 0.4f, 0.4f, 1f);
 
-    // REMOVED: No direct reference to ItemSelectionPanelUI here
-    // public ItemSelectionPanelUI itemSelectionPanelUI;
+    [Header("Wait Sub-Menu Settings")]
+    public float waitSubMenuRadius = 70f;
+    public float waitSubMenuItemScale = 0.65f;
+    public float waitEndTurnButtonAngle = 180f;
+    public float waitFleeButtonAngle = 90f;
+    public float waitBackButtonAngle = 0f;
+
+    [Header("Attack Sub-Menu Settings")]
+    public float attackSubMenuRadius = 70f;
+    public float attackSubMenuItemScale = 0.65f;
+    public float basicAttackButtonAngle = 180f; 
+    public float spellsButtonAngle = 0f;      
+    public float attackBackButtonAngle = 90f;  
 
     private List<GameObject> _activeButtons = new List<GameObject>();
     private Unit _currentUnitInternal;
@@ -34,21 +37,60 @@ public class ActionMenuUI : MonoBehaviour
     public delegate void ActionSelectedHandler(Unit unit, string actionName);
     public static event ActionSelectedHandler OnActionSelected;
 
-    private List<ActionDefinition> _runtimeAvailableActions = new List<ActionDefinition>();
+    private enum ActionButtonType { Skills, Items, Move, Attack, Info, Wait }
+    private enum SubMenuType { None, Wait, Attack } 
 
-    public struct ActionDefinition
+    private struct FixedActionConfig
+    {
+        public ActionButtonType type;
+        public string actionName;
+        public string displayName; 
+        public float angleDegrees;
+
+        public FixedActionConfig(ActionButtonType type, string actionName, string displayName, float angleDegrees)
+        {
+            this.type = type;
+            this.actionName = actionName;
+            this.displayName = displayName;
+            this.angleDegrees = angleDegrees;
+        }
+    }
+    private List<FixedActionConfig> _definedActions;
+    private List<ActionDefinition> _runtimeActiveMainActions = new List<ActionDefinition>();
+
+    private List<GameObject> _activeSubMenuButtons = new List<GameObject>();
+    private SubMenuType _currentOpenSubMenu = SubMenuType.None;
+    private GameObject _currentSubMenuAnchor = null; 
+
+    private const string SUB_ACTION_END_TURN = "ExecuteEndTurn";
+    private const string SUB_ACTION_FLEE = "ExecuteFlee";
+    private const string SUB_ACTION_BACK = "ExecuteBack"; 
+    private const string SUB_ACTION_BASIC_ATTACK = "ExecuteBasicAttack";
+    private const string SUB_ACTION_SHOW_SPELLS = "ShowSpellSelection";
+
+    public const string FLEE_ACTION_NAME = "Flee";
+    public const string BASIC_ATTACK_ACTION_NAME = "BasicAttack"; 
+    public const string SHOW_SPELLS_ACTION_NAME = "ShowSpells"; 
+
+
+    public struct ActionDefinition 
     {
         public string name;
         public string displayName;
-        public bool canAfford; // For actions like Move/Attack, this is AP. For Skills/Items, this is effectively "can open panel".
+        public bool canAfford;
+        public float angleDegrees;
+        public GameObject instance; 
 
-        public ActionDefinition(string name, string displayName, bool canAfford)
+        public ActionDefinition(string name, string displayName, bool canAfford, float angleDegrees, GameObject instance = null)
         {
             this.name = name;
             this.displayName = displayName;
             this.canAfford = canAfford;
+            this.angleDegrees = angleDegrees;
+            this.instance = instance;
         }
     }
+
 
     void Awake()
     {
@@ -60,74 +102,94 @@ public class ActionMenuUI : MonoBehaviour
         {
             Debug.LogWarning("ActionMenuUI.Awake: RadialActionButton_Prefab is missing the TooltipTrigger component. Tooltips for action buttons will not work.", this);
         }
-        // REMOVED: Null check for itemSelectionPanelUI
+
+        _definedActions = new List<FixedActionConfig>
+        {
+            new FixedActionConfig(ActionButtonType.Skills, "Skills", "Skills", 135f),
+            new FixedActionConfig(ActionButtonType.Items,  "Items",  "Items",   45f),
+            new FixedActionConfig(ActionButtonType.Move,   "Move",   "Move",   180f),
+            new FixedActionConfig(ActionButtonType.Attack, "Attack", "Attack Options",   0f), 
+            new FixedActionConfig(ActionButtonType.Info,   "Info",   "Info",   225f),
+            new FixedActionConfig(ActionButtonType.Wait,   "Wait",   "Wait Options",   315f)  
+        };
     }
 
     private int GetAPCostForAction(string actionName)
     {
-        // This returns AP cost for actions that are directly executed.
-        // Opening sub-menus like "Items" or "Skills" via OnActionSelected is considered free at this stage.
-        // The AP cost for using an item or skill will be handled by the respective systems.
         switch (actionName)
         {
             case "Move": return PlayerInputHandler.MoveActionCost;
-            case "Attack": return PlayerInputHandler.AttackActionCost;
-            case "Skills": return 0; // Cost to OPEN panel is 0. Actual skill use has cost.
-            case "Items": return 0;  // Cost to OPEN panel is 0. Actual item use has cost.
-            case "Info": return PlayerInputHandler.InfoActionCost; // Typically 0
-            case "Wait": return PlayerInputHandler.WaitActionCost;
-            default:
-                return 0;
+            case "Attack": return 0; 
+            case SUB_ACTION_BASIC_ATTACK: return PlayerInputHandler.AttackActionCost; 
+            case "Skills": return 0;
+            case SUB_ACTION_SHOW_SPELLS: return 0; 
+            case "Items": return 0;
+            case "Info": return PlayerInputHandler.InfoActionCost;
+            case "Wait": return 0;
+            case SUB_ACTION_END_TURN: return 0;
+            case SUB_ACTION_FLEE: return 0;
+            case SUB_ACTION_BACK: return 0;
+            default: return 0;
         }
     }
 
     private void UpdateAvailableActions(Unit unit)
     {
-        _runtimeAvailableActions.Clear();
-        if (unit == null || configurableActions == null) return;
+        _runtimeActiveMainActions.Clear();
+        if (unit == null || _definedActions == null) return;
 
-        foreach (ActionButtonSetup actionSetup in configurableActions)
+        foreach (FixedActionConfig fixedAction in _definedActions)
         {
-            if (string.IsNullOrEmpty(actionSetup.actionName)) continue;
-
+            bool isActionAvailable = true;
             bool canAffordAction;
 
-            if (actionSetup.actionName == "Skills")
+            switch (fixedAction.type)
             {
-                bool hasSkills = unit.knownAbilities != null && unit.knownAbilities.Count > 0;
-                if (!hasSkills) { continue; } // Don't add "Skills" button if no skills
-                canAffordAction = true; // Opening skill menu is always "affordable"
+                case ActionButtonType.Skills:
+                    // MODIFIED: Check for actual skills
+                    isActionAvailable = unit.knownAbilities != null && unit.knownAbilities.Any(ab => ab.abilityType == AbilityType.Skill); 
+                    canAffordAction = true; // Opening panel is free
+                    break;
+                case ActionButtonType.Attack: 
+                    canAffordAction = true; // Opening sub-menu is free
+                    break;
+                case ActionButtonType.Items:
+                    // Future: Could add a check here if unit has no usable items.
+                    canAffordAction = true; 
+                    break;
+                case ActionButtonType.Info:
+                case ActionButtonType.Wait:
+                    canAffordAction = true;
+                    break;
+                case ActionButtonType.Move:
+                    int apCost = GetAPCostForAction(fixedAction.actionName); 
+                    canAffordAction = unit.CanAffordAPForAction(apCost);
+                    break;
+                default:
+                    isActionAvailable = false;
+                    canAffordAction = false;
+                    break;
             }
-            else if (actionSetup.actionName == "Items")
+
+            if (isActionAvailable)
             {
-                // Future: Could add a check here if unit has no usable items, then 'continue;'
-                // bool hasItems = unit.HasUsableItems(); // Requires inventory system
-                // if (!hasItems) { continue; }
-                canAffordAction = true; // Opening item menu is always "affordable"
+                _runtimeActiveMainActions.Add(new ActionDefinition(fixedAction.actionName, fixedAction.displayName, canAffordAction, fixedAction.angleDegrees, null));
             }
-            else if (actionSetup.actionName == "Info")
-            {
-                canAffordAction = true;
-            }
-            else
-            {
-                int apCost = GetAPCostForAction(actionSetup.actionName); // This will be 0 for Items/Skills now
-                canAffordAction = unit.CanAffordAPForAction(apCost);
-            }
-            _runtimeAvailableActions.Add(new ActionDefinition(actionSetup.actionName, actionSetup.actionName, canAffordAction));
         }
     }
-
-
+    
     public void ShowMenu(Unit unitToShowMenuFor, Vector2 unitScreenPosition)
     {
+        HideSubMenu(); 
+
         if (!gameObject.activeSelf)
         {
             gameObject.SetActive(true);
         }
 
-        foreach (GameObject button in _activeButtons) { if (button != null) Destroy(button); }
-        _activeButtons.Clear();
+        foreach (ActionDefinition ad in _runtimeActiveMainActions) { if (ad.instance != null) Destroy(ad.instance); }
+        _activeButtons.Clear(); 
+        _runtimeActiveMainActions.Clear();
 
         this._currentUnitInternal = unitToShowMenuFor;
 
@@ -136,42 +198,33 @@ public class ActionMenuUI : MonoBehaviour
             HideMenu();
             return;
         }
+        
+        UpdateAvailableActions(this._currentUnitInternal); 
 
-        UpdateAvailableActions(this._currentUnitInternal);
-
-        int numActions = _runtimeAvailableActions.Count;
-        if (numActions == 0)
+        if (_runtimeActiveMainActions.Count == 0)
         {
             HideMenu();
             return;
         }
 
-        List<Vector2> buttonLocalPositions = new List<Vector2>();
-        float minX = float.MaxValue, minY = float.MaxValue;
-        float maxX = float.MinValue, maxY = float.MinValue;
         RectTransform prefabRect = radialActionButtonPrefab.GetComponent<RectTransform>();
-        if (prefabRect == null) {
-            Debug.LogError("ActionMenuUI: radialActionButtonPrefab is missing RectTransform!", radialActionButtonPrefab);
-            HideMenu();
-            return;
-        }
+        if (prefabRect == null) { Debug.LogError("ActionMenuUI: radialActionButtonPrefab is missing RectTransform!", radialActionButtonPrefab); HideMenu(); return; }
         float buttonWidth = prefabRect.sizeDelta.x * prefabRect.transform.localScale.x;
         float buttonHeight = prefabRect.sizeDelta.y * prefabRect.transform.localScale.y;
-        float angleStep = 360f / numActions;
-        float startAngleOffset = 90f;
-        if (numActions == 1) startAngleOffset = 0;
-        else if (numActions > 4) startAngleOffset = 90f - (angleStep / 2f);
 
-        for (int i = 0; i < numActions; i++)
+        float minX = float.MaxValue, minY = float.MaxValue;
+        float maxX = float.MinValue, maxY = float.MinValue;
+        
+        List<Vector2> buttonLocalOffsets = new List<Vector2>();
+        foreach(var actionDef in _runtimeActiveMainActions)
         {
-            float angle = i * angleStep;
-            float currentAngleRad = Mathf.Deg2Rad * (angle + startAngleOffset);
-            Vector2 localPos = new Vector2(Mathf.Cos(currentAngleRad), Mathf.Sin(currentAngleRad)) * menuRadius;
-            buttonLocalPositions.Add(localPos);
-            minX = Mathf.Min(minX, localPos.x - buttonWidth / 2f);
-            minY = Mathf.Min(minY, localPos.y - buttonHeight / 2f);
-            maxX = Mathf.Max(maxX, localPos.x + buttonWidth / 2f);
-            maxY = Mathf.Max(maxY, localPos.y + buttonHeight / 2f);
+            float currentAngleRad = Mathf.Deg2Rad * actionDef.angleDegrees;
+            Vector2 localOffset = new Vector2(Mathf.Cos(currentAngleRad), Mathf.Sin(currentAngleRad)) * menuRadius;
+            buttonLocalOffsets.Add(localOffset);
+            minX = Mathf.Min(minX, localOffset.x - buttonWidth / 2f);
+            minY = Mathf.Min(minY, localOffset.y - buttonHeight / 2f);
+            maxX = Mathf.Max(maxX, localOffset.x + buttonWidth / 2f);
+            maxY = Mathf.Max(maxY, localOffset.y + buttonHeight / 2f);
         }
 
         Vector2 desiredMenuCenter = unitScreenPosition + menuCenterOffset;
@@ -182,34 +235,33 @@ public class ActionMenuUI : MonoBehaviour
         if (desiredMenuCenter.y + maxY > Screen.height) adjustment.y = Screen.height - (desiredMenuCenter.y + maxY);
         Vector2 finalMenuCenter = desiredMenuCenter + adjustment;
 
-        for (int i = 0; i < numActions; i++)
+        for (int i = 0; i < _runtimeActiveMainActions.Count; i++)
         {
+            ActionDefinition currentActionDefData = _runtimeActiveMainActions[i];
+            Vector2 localButtonOffset = buttonLocalOffsets[i];
             GameObject buttonInstance = Instantiate(radialActionButtonPrefab, this.transform);
+            
+            _runtimeActiveMainActions[i] = new ActionDefinition(
+                currentActionDefData.name, currentActionDefData.displayName, 
+                currentActionDefData.canAfford, currentActionDefData.angleDegrees, buttonInstance);
+            _activeButtons.Add(buttonInstance);
+
             RectTransform buttonRect = buttonInstance.GetComponent<RectTransform>();
-            if (buttonRect != null)
-            {
-                buttonRect.anchorMin = Vector2.zero;
-                buttonRect.anchorMax = Vector2.zero;
-                buttonRect.pivot = new Vector2(0.5f, 0.5f);
-            }
-            buttonInstance.transform.position = finalMenuCenter + buttonLocalPositions[i];
-            ActionDefinition currentActionDef = _runtimeAvailableActions[i];
+            if (buttonRect != null) { buttonRect.anchorMin = Vector2.zero; buttonRect.anchorMax = Vector2.zero; buttonRect.pivot = new Vector2(0.5f,0.5f); }
+            buttonInstance.transform.position = finalMenuCenter + localButtonOffset;
+            
             TextMeshProUGUI buttonText = buttonInstance.GetComponentInChildren<TextMeshProUGUI>();
             if (buttonText != null)
             {
-                buttonText.text = currentActionDef.displayName;
-                // For items/skills/info, color is always affordable because opening panel is free.
-                // For other actions, it depends on AP.
-                buttonText.color = currentActionDef.canAfford ? affordableTextColor : unaffordableTextColor;
+                buttonText.text = currentActionDefData.displayName; 
+                buttonText.color = currentActionDefData.canAfford ? affordableTextColor : unaffordableTextColor;
             }
+
             Button buttonComponent = buttonInstance.GetComponent<Button>();
             if (buttonComponent != null)
             {
-                // Interactability for items/skills/info is always true (opening panel is free)
-                // For other actions, it depends on AP.
-                buttonComponent.interactable = currentActionDef.canAfford;
-
-                string capturedActionName = currentActionDef.name;
+                buttonComponent.interactable = currentActionDefData.canAfford;
+                string capturedActionName = currentActionDefData.name;
                 buttonComponent.onClick.AddListener(() => OnActionButtonClicked(capturedActionName));
             }
 
@@ -217,62 +269,197 @@ public class ActionMenuUI : MonoBehaviour
             if (trigger != null)
             {
                 string costString = "";
-                // Tooltip for "Items" and "Skills" should not show AP cost, as opening is free.
-                // The cost is for *using* an item/skill from the subsequent panel.
-                if (currentActionDef.name != "Info" && currentActionDef.name != "Skills" && currentActionDef.name != "Items")
+                string tooltipMainText = currentActionDefData.displayName; 
+
+                if (currentActionDefData.name == "Wait" || currentActionDefData.name == "Attack") 
+                { 
+                    costString = "\n(Free Action)"; 
+                }
+                else if (currentActionDefData.name != "Info" && currentActionDefData.name != "Skills" && currentActionDefData.name != "Items")
                 {
-                    // For other actions, get their direct AP cost for the tooltip
-                    int apCostForDirectAction = 0; // Default to 0
-                     switch (currentActionDef.name) // Re-fetch specific costs for tooltip clarity
-                    {
-                        case "Move": apCostForDirectAction = PlayerInputHandler.MoveActionCost; break;
-                        case "Attack": apCostForDirectAction = PlayerInputHandler.AttackActionCost; break;
-                        case "Wait": apCostForDirectAction = PlayerInputHandler.WaitActionCost; break;
-                        // Info, Skills, Items are handled by the outer if
-                    }
+                    int apCostForDirectAction = GetAPCostForAction(currentActionDefData.name);
                     costString = (apCostForDirectAction > 0) ? $"\n(AP Cost: {apCostForDirectAction})" : "\n(Free Action)";
                 }
-                trigger.tooltipText = $"{currentActionDef.displayName}{costString}";
+                else { costString = "\n(Free Action)"; }
+                trigger.tooltipText = $"{tooltipMainText}{costString}";
             }
-
-            buttonInstance.name = $"ActionButton_{currentActionDef.name}";
+            buttonInstance.name = $"ActionButton_{currentActionDefData.name}";
             buttonInstance.SetActive(true);
-            _activeButtons.Add(buttonInstance);
         }
     }
 
-    public void HideMenu()
+    private void ToggleSubMenu(string mainActionName, GameObject anchorButton, SubMenuType subMenuToOpen)
     {
-        foreach (GameObject button in _activeButtons)
+        if (_currentUnitInternal == null) return; // Added null check for safety
+
+        if (_currentOpenSubMenu == subMenuToOpen && _currentSubMenuAnchor == anchorButton)
+        {
+            HideSubMenu();
+        }
+        else
+        {
+            HideSubMenu(); 
+            _currentOpenSubMenu = subMenuToOpen;
+            _currentSubMenuAnchor = anchorButton;
+
+            foreach (ActionDefinition ad in _runtimeActiveMainActions)
+            {
+                if (ad.instance != null && ad.instance != _currentSubMenuAnchor)
+                {
+                    ad.instance.SetActive(false);
+                }
+            }
+            if (_currentSubMenuAnchor != null) _currentSubMenuAnchor.SetActive(true);
+
+            List<(string actionName, string displayName, float angle, string internalId, float itemScale, float radius, bool interactable)> subActionsConfig =
+                new List<(string, string, float, string, float, float, bool)>();
+
+            if (subMenuToOpen == SubMenuType.Wait)
+            {
+                subActionsConfig.Add(( "End Turn", "End Turn", waitEndTurnButtonAngle, SUB_ACTION_END_TURN, waitSubMenuItemScale, waitSubMenuRadius, true));
+                subActionsConfig.Add(( FLEE_ACTION_NAME, FLEE_ACTION_NAME, waitFleeButtonAngle, SUB_ACTION_FLEE, waitSubMenuItemScale, waitSubMenuRadius, true));
+                subActionsConfig.Add(( "Back", "Back", waitBackButtonAngle, SUB_ACTION_BACK, waitSubMenuItemScale, waitSubMenuRadius, true));
+            }
+            else if (subMenuToOpen == SubMenuType.Attack)
+            {
+                bool canAffordBasicAttack = _currentUnitInternal.CanAffordAPForAction(GetAPCostForAction(SUB_ACTION_BASIC_ATTACK));
+                subActionsConfig.Add(( BASIC_ATTACK_ACTION_NAME, "Basic Attack", basicAttackButtonAngle, SUB_ACTION_BASIC_ATTACK, attackSubMenuItemScale, attackSubMenuRadius, canAffordBasicAttack ));
+
+                // MODIFIED: Check for actual spells
+                bool hasSpells = _currentUnitInternal.knownAbilities != null && _currentUnitInternal.knownAbilities.Any(ab => ab.abilityType == AbilityType.Spell);
+                if (hasSpells)
+                {
+                     subActionsConfig.Add(( SHOW_SPELLS_ACTION_NAME, "Spells", spellsButtonAngle, SUB_ACTION_SHOW_SPELLS, attackSubMenuItemScale, attackSubMenuRadius, true )); 
+                }
+                subActionsConfig.Add(( "Back", "Back", attackBackButtonAngle, SUB_ACTION_BACK, attackSubMenuItemScale, attackSubMenuRadius, true ));
+            }
+            InstantiateSubMenuButtons(anchorButton.transform.position, subActionsConfig);
+        }
+    }
+    
+    private void InstantiateSubMenuButtons(Vector2 anchorPos, List<(string actionName, string displayName, float angle, string internalId, float itemScale, float radius, bool interactable)> configs)
+    {
+        foreach (var config in configs)
+        {
+            float angleRad = Mathf.Deg2Rad * config.angle;
+            Vector2 offset = new Vector2(Mathf.Cos(angleRad), Mathf.Sin(angleRad)) * config.radius; 
+            Vector2 buttonPos = anchorPos + offset;
+
+            GameObject subButtonInstance = Instantiate(radialActionButtonPrefab, this.transform);
+            subButtonInstance.transform.localScale = Vector3.one * config.itemScale;
+
+            RectTransform subButtonRect = subButtonInstance.GetComponent<RectTransform>();
+            if (subButtonRect != null) { subButtonRect.anchorMin = Vector2.zero; subButtonRect.anchorMax = Vector2.zero; subButtonRect.pivot = new Vector2(0.5f,0.5f); }
+            subButtonInstance.transform.position = buttonPos;
+
+            TextMeshProUGUI buttonText = subButtonInstance.GetComponentInChildren<TextMeshProUGUI>();
+            Button buttonComponent = subButtonInstance.GetComponent<Button>();
+            TooltipTrigger tooltip = subButtonInstance.GetComponent<TooltipTrigger>();
+
+            string costString = "";
+            int apCostForTooltip = (config.internalId == SUB_ACTION_BASIC_ATTACK) ? GetAPCostForAction(SUB_ACTION_BASIC_ATTACK) : 0;
+
+
+            if(config.internalId == SUB_ACTION_BASIC_ATTACK) costString = (apCostForTooltip > 0) ? $"\n(AP Cost: {apCostForTooltip})" : "\n(Free Action)";
+            else if (config.internalId == SUB_ACTION_SHOW_SPELLS) costString = "\n(Select Spell)";
+            else if (config.internalId == SUB_ACTION_FLEE) costString = "\n(Attempt Flee)";
+            else if (config.internalId == SUB_ACTION_BACK) costString = "\n(Return)";
+            else costString = "\n(Free Action)";
+
+
+            if (buttonText != null) { buttonText.text = config.displayName; buttonText.color = config.interactable ? affordableTextColor : unaffordableTextColor; }
+            if (buttonComponent != null) { buttonComponent.interactable = config.interactable; string id = config.internalId; buttonComponent.onClick.AddListener(() => OnSubMenuActionButtonClicked(id)); }
+            if (tooltip != null) { tooltip.tooltipText = $"{config.displayName}{costString}"; }
+
+            subButtonInstance.name = $"SubActionButton_{config.displayName.Replace(" ", "")}";
+            subButtonInstance.SetActive(true);
+            _activeSubMenuButtons.Add(subButtonInstance);
+        }
+    }
+
+    private void HideSubMenu() 
+    {
+        foreach (GameObject button in _activeSubMenuButtons)
         {
             if (button != null) Destroy(button);
         }
-        _activeButtons.Clear();
-        _currentUnitInternal = null;
-        if (gameObject.activeSelf)
+        _activeSubMenuButtons.Clear();
+
+        if (_currentOpenSubMenu != SubMenuType.None)
         {
-            gameObject.SetActive(false);
+            foreach (ActionDefinition ad in _runtimeActiveMainActions)
+            {
+                if (ad.instance != null) ad.instance.SetActive(true);
+            }
         }
+        _currentOpenSubMenu = SubMenuType.None;
+        _currentSubMenuAnchor = null;
+    }
+
+    public void HideMenu() 
+    {
+        HideSubMenu();
+        foreach (GameObject button in _activeButtons) { if (button != null) Destroy(button); }
+        _activeButtons.Clear();
+        _runtimeActiveMainActions.Clear();
+        _currentUnitInternal = null;
+        if (gameObject.activeSelf) gameObject.SetActive(false);
     }
 
     private void OnActionButtonClicked(string actionName)
     {
         if (_currentUnitInternal == null) return;
 
-        // ALL actions now simply invoke OnActionSelected.
-        // The PlayerInputHandler (or other listeners) will decide how to react,
-        // e.g., open the ItemSelectionPanelUI or SkillSelectionPanelUI.
-        // DebugHelper.Log($"ActionMenuUI: Button '{actionName}' clicked for unit '{_currentUnitInternal?.unitName}'. Invoking OnActionSelected.", this.gameObject);
-        OnActionSelected?.Invoke(_currentUnitInternal, actionName);
+        ActionDefinition actionDef = _runtimeActiveMainActions.FirstOrDefault(ad => ad.name == actionName && ad.instance != null);
+        if (actionDef.instance == null && (actionName == "Wait" || actionName == "Attack")) {
+             Debug.LogError($"ActionMenuUI: Could not find instance for main action button '{actionName}'.", this);
+             return;
+        }
 
-        // The ActionMenuUI usually hides after an action is selected and PlayerInputHandler takes over.
-        // If PlayerInputHandler doesn't hide it, it might need to be hidden explicitly
-        // when sub-panels like ItemSelectionPanelUI are shown.
-        // For now, we assume PlayerInputHandler will manage hiding this menu when appropriate.
+        if (actionName == "Wait")
+        {
+            ToggleSubMenu(actionName, actionDef.instance, SubMenuType.Wait);
+        }
+        else if (actionName == "Attack")
+        {
+            ToggleSubMenu(actionName, actionDef.instance, SubMenuType.Attack);
+        }
+        else
+        {
+            HideSubMenu(); 
+            OnActionSelected?.Invoke(_currentUnitInternal, actionName);
+        }
+    }
+
+    private void OnSubMenuActionButtonClicked(string subActionInternalId)
+    {
+        if (_currentUnitInternal == null) return;
+        
+        HideSubMenu(); 
+
+        if (subActionInternalId == SUB_ACTION_BACK)
+        {
+            return; 
+        }
+        
+        string actionToForward = "";
+
+        switch (subActionInternalId)
+        {
+            case SUB_ACTION_END_TURN:       actionToForward = "Wait"; break;
+            case SUB_ACTION_FLEE:           actionToForward = FLEE_ACTION_NAME; break;
+            case SUB_ACTION_BASIC_ATTACK:   actionToForward = BASIC_ATTACK_ACTION_NAME; break;
+            case SUB_ACTION_SHOW_SPELLS:    actionToForward = SHOW_SPELLS_ACTION_NAME; break;
+        }
+
+        if (!string.IsNullOrEmpty(actionToForward))
+        {
+            OnActionSelected?.Invoke(_currentUnitInternal, actionToForward);
+        }
     }
 
     public bool IsVisible()
     {
-        return gameObject.activeSelf && _activeButtons.Count > 0;
+        return gameObject.activeSelf && (_runtimeActiveMainActions.Any(ad => ad.instance != null && ad.instance.activeSelf) || _activeSubMenuButtons.Count > 0);
     }
 }

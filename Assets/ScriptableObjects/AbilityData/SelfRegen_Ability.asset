@@ -10,22 +10,26 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 03c22eb5c5793164cb194bc23aced609, type: 3}
-  m_Name: CurseOfWeakness_AbilitySO
+  m_Name: SelfRegen_Ability
   m_EditorClassIdentifier: 
-  abilityName: Curse of Weakness
-  description: Applies a stacking debuff that weakens the target's Core.
-  abilityIcon: {fileID: 21300000, guid: 5719d3a960af97045b194a12ec25ce97, type: 3}
+  abilityName: Self Regeneration
+  description: The user focuses inward, gaining a minor healing effect over several
+    turns.
+  abilityIcon: {fileID: 21300000, guid: f97874e2b452420479ecbd8c76da63eb, type: 3}
+  abilityType: 1
   apCost: 1
-  mpCost: 5
+  mpCost: 8
   spCost: 0
   fpCost: 0
   ipCost: 0
-  targetType: 1
-  range: 3
+  targetType: 0
+  range: 0
   baseAccuracy: 100
-  effectType: 3
+  alwaysHits: 0
+  critChanceModifier: 0
+  effectType: 0
   basePower: 0
   damageType: 1
   dealsTrueDamage: 0
   effectsToApplyOnHit:
-  - {fileID: 11400000, guid: 8464be7b01020b44a82bf19928d91ef5, type: 2}
+  - {fileID: 11400000, guid: 3d2285953a4e4b34d926635b81191dcf, type: 2}

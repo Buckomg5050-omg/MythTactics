@@ -8,25 +8,26 @@ using System.Collections;
 
 public class PlayerInputHandler : MonoBehaviour
 {
+    // ... (Header("UI References") and other fields up to Action Costs ... )
     [Header("UI References")]
     public ActionMenuUI actionMenuUI;
-    public GameObject skillSelectionPanelPrefab;
+    public GameObject skillSelectionPanelPrefab; 
     public GameObject unitInfoPanelPrefab;
     public GameObject itemSelectionPanelPrefab;
 
     [Header("Tooltip Settings")]
     public float unitTooltipDelay = 0.5f;
 
-    private SkillSelectionUI _skillSelectionPanelInstance;
+    private SkillSelectionUI _skillSelectionPanelInstance; 
     private UnitInfoPanelUI _unitInfoPanelInstance;
     private ItemSelectionPanelUI _itemSelectionPanelInstance;
 
     [Header("Action Costs")]
     public static int MoveActionCost = 1;
-    public static int WaitActionCost = 1;
-    public static int AttackActionCost = 1;
-    public static int SkillsActionCost = 0;
-    public static int ItemsActionCost = 0;
+    public static int WaitActionCost = 0; 
+    public static int AttackActionCost = 1; 
+    public static int SkillsActionCost = 0; 
+    public static int ItemsActionCost = 0;  
     public static int InfoActionCost = 0;
 
     private PlayerInputStateBase _currentStateObject;
@@ -68,7 +69,7 @@ public class PlayerInputHandler : MonoBehaviour
         if (GridManager.Instance == null) { DebugHelper.LogError("PIH: GridManager.Instance is missing!", this); enabled = false; return; }
         if (TurnManager.Instance == null) { DebugHelper.LogError("PIH: TurnManager.Instance is missing!", this); enabled = false; return; }
         if (actionMenuUI == null) { DebugHelper.LogError("PIH: ActionMenuUI reference is not set in the Inspector!", this); enabled = false; return; }
-        if (skillSelectionPanelPrefab == null) { DebugHelper.LogError("PIH: SkillSelectionPanelPrefab not assigned in Inspector!", this); enabled = false; return; }
+        if (skillSelectionPanelPrefab == null) { DebugHelper.LogError("PIH: SkillSelectionPanelPrefab not assigned in Inspector! Skills/Spells will not function.", this); enabled = false; return; }
         if (unitInfoPanelPrefab == null) { DebugHelper.LogWarning("PIH: UnitInfoPanelPrefab not assigned in Inspector. Info panel functionality will be limited.", this); }
         if (itemSelectionPanelPrefab == null) { DebugHelper.LogWarning("PIH: ItemSelectionPanelPrefab not assigned in Inspector. Items functionality will be limited.", this); }
 
@@ -263,7 +264,12 @@ public class PlayerInputHandler : MonoBehaviour
             _itemSelectionPanelInstance?.HidePanel();
         }
 
-        if (!(_currentStateObject is PIH_SelectingAbilityTargetState) && !(_currentStateObject is PIH_UnitActionPhaseState && _skillSelectionPanelInstance != null && _skillSelectionPanelInstance.IsVisible()))
+        bool isViewingSkillsOrSpells = (_currentStateObject is PIH_UnitActionPhaseState && 
+                                        _skillSelectionPanelInstance != null && 
+                                        _skillSelectionPanelInstance.IsVisible());
+        bool isSelectingAbilityTarget = (_currentStateObject is PIH_SelectingAbilityTargetState);
+
+        if (!isViewingSkillsOrSpells && !isSelectingAbilityTarget)
         {
             _skillSelectionPanelInstance?.HidePanel();
         }
@@ -468,15 +474,25 @@ public class PlayerInputHandler : MonoBehaviour
     private void HandleActionMenuSelection(Unit unit, string actionName) 
     {
         if (unit != _selectedUnit || _selectedUnit == null) return; 
-        _skillSelectionPanelInstance?.HidePanel(); 
-        _unitInfoPanelInstance?.HidePanel(); 
-        _itemSelectionPanelInstance?.HidePanel();
+        
+        if (actionName != ActionMenuUI.SHOW_SPELLS_ACTION_NAME && actionName != "Skills")
+        {
+            _skillSelectionPanelInstance?.HidePanel();
+        }
+        if (actionName != "Info")
+        {
+            _unitInfoPanelInstance?.HidePanel();
+        }
+        if (actionName != "Items")
+        {
+            _itemSelectionPanelInstance?.HidePanel();
+        }
+        
         ProcessActionSelection(actionName);
     }
 
     private void ProcessActionSelection(string actionName)
     {
-        bool actionPotentiallyEndsTurnOrRequiresApCheck = false;
         switch (actionName)
         {
             case "Move":
@@ -484,17 +500,23 @@ public class PlayerInputHandler : MonoBehaviour
                 { ChangeState(new PIH_SelectingMoveTargetState()); } 
                 else { ChangeState(new PIH_UnitActionPhaseState()); }
                 break;
-            case "Attack":
+            // Case "Attack" (main button) is removed as it now opens a sub-menu
+            case ActionMenuUI.BASIC_ATTACK_ACTION_NAME: 
                 if (_selectedUnit.CanAffordAPForAction(AttackActionCost)) 
                 { ShowAttackRange(_selectedUnit); ChangeState(new PIH_SelectingAttackTargetState()); } 
                 else { ChangeState(new PIH_UnitActionPhaseState()); }
                 break;
-            case "Wait":
-                if (_selectedUnit.CanAffordAPForAction(WaitActionCost)) { _selectedUnit.SpendAPForAction(WaitActionCost); actionPotentiallyEndsTurnOrRequiresApCheck = true; ChangeState(new PIH_UnitActionPhaseState()); }
-                else { ChangeState(new PIH_UnitActionPhaseState()); }
+            case "Wait": 
+                if (_selectedUnit != null && TurnManager.Instance != null)
+                {
+                    TurnManager.Instance.EndUnitTurn(_selectedUnit);
+                }
                 break;
             case "Skills":
-                ShowSkillSelectionPanel(); 
+                ShowSkillSelectionPanel(false); // false indicates it's for Skills
+                break;
+            case ActionMenuUI.SHOW_SPELLS_ACTION_NAME: 
+                ShowSkillSelectionPanel(true); // true indicates it's for Spells
                 break;
             case "Items": 
                 ShowItemSelectionPanel(); 
@@ -503,16 +525,32 @@ public class PlayerInputHandler : MonoBehaviour
                 if (_unitInfoPanelInstance != null) { ChangeState(new PIH_ViewingUnitInfoState()); }
                 else { ChangeState(new PIH_UnitActionPhaseState());}
                 break;
+            case ActionMenuUI.FLEE_ACTION_NAME: 
+                DebugHelper.Log($"PIH: Player selected Flee for unit {_selectedUnit.unitName}.", this.gameObject);
+                if (_selectedUnit != null && TurnManager.Instance != null)
+                {
+                    DebugHelper.Log($"PIH: {_selectedUnit.unitName} attempts to flee. Ending combat (Placeholder).", this.gameObject);
+                    CombatLogger.LogEvent($"{_selectedUnit.unitName} flees the battle!", Color.magenta, LogMessageType.System);
+                    TurnManager.Instance.ForceEndCombat(); 
+                }
+                break;
             default: 
                 ChangeState(new PIH_UnitActionPhaseState());
                 break;
         }
-        if (actionPotentiallyEndsTurnOrRequiresApCheck) { CheckAndHandleEndOfTurnActionsPIH(); }
+
+        if (actionName != "Wait" && actionName != ActionMenuUI.FLEE_ACTION_NAME &&
+            actionName != "Skills" && actionName != ActionMenuUI.SHOW_SPELLS_ACTION_NAME && 
+            actionName != "Items" && actionName != "Info")
+        {
+             CheckAndHandleEndOfTurnActionsPIH();
+        }
     }
 
-    private void ShowSkillSelectionPanel()
+    private void ShowSkillSelectionPanel(bool forSpells)
     {
-        if (_selectedUnit == null || skillSelectionPanelPrefab == null) return;
+        if (_selectedUnit == null || skillSelectionPanelPrefab == null || _selectedUnit.knownAbilities == null) return;
+        
         if (_skillSelectionPanelInstance == null)
         {
             Canvas mainCanvas = FindFirstObjectByType<Canvas>(); 
@@ -521,8 +559,26 @@ public class PlayerInputHandler : MonoBehaviour
             _skillSelectionPanelInstance = panelGO.GetComponent<SkillSelectionUI>();
             if (_skillSelectionPanelInstance == null) { Debug.LogError("PIH: SkillSelectionPanelPrefab missing SkillSelectionUI!", panelGO); Destroy(panelGO); return; }
         }
+
+        // MODIFIED: Filter abilities based on type
+        List<AbilitySO> abilitiesToShow;
+        string panelTitle;
+
+        if (forSpells)
+        {
+            abilitiesToShow = _selectedUnit.knownAbilities.Where(ab => ab != null && ab.abilityType == AbilityType.Spell).ToList();
+            panelTitle = "Select Spell";
+        }
+        else // For Skills
+        {
+            // Assuming BasicAttack is a type of Skill for this panel, or adjust as needed
+            abilitiesToShow = _selectedUnit.knownAbilities.Where(ab => ab != null && (ab.abilityType == AbilityType.Skill || ab.abilityType == AbilityType.BasicAttack)).ToList();
+            panelTitle = "Select Skill";
+        }
+        
         Vector2 panelPosition = (Vector2)_mainCamera.WorldToScreenPoint(_selectedUnit.transform.position) + new Vector2(150, 0); 
-        _skillSelectionPanelInstance.ShowPanel(_selectedUnit, panelPosition, _selectedUnit.knownAbilities);
+        _skillSelectionPanelInstance.ShowPanel(_selectedUnit, panelPosition, abilitiesToShow, panelTitle); 
+        
         actionMenuUI?.HideMenu(); 
         _unitInfoPanelInstance?.HidePanel(); 
         _itemSelectionPanelInstance?.HidePanel(); 
@@ -593,24 +649,21 @@ public class PlayerInputHandler : MonoBehaviour
             }
         }
         
-        // MODIFIED: Item Consumption Logic
         if (selectedItem.consumeOnUse)
         {
-            if (user.inventory != null) // Ensure inventory list exists
+            if (user.inventory != null) 
             {
-                bool removed = user.inventory.Remove(selectedItem); // Remove the first instance of this ItemSO
+                bool removed = user.inventory.Remove(selectedItem); 
                 if (removed)
                 {
                     Debug.Log($"PIH: Consumed and removed '{selectedItem.itemName}' from {user.unitName}'s inventory.", this);
                 }
                 else
                 {
-                    // This might happen if the item wasn't actually in the inventory, though it should be if it was displayed.
                     Debug.LogWarning($"PIH: Tried to consume '{selectedItem.itemName}' but it was not found in {user.unitName}'s inventory for removal.", this);
                 }
             }
         }
-        // End of Item Consumption Logic
         
         _itemSelectionPanelInstance?.HidePanel();
         ChangeState(new PIH_UnitActionPhaseState());
@@ -698,6 +751,7 @@ public class PlayerInputHandler : MonoBehaviour
     {
         if (_selectedUnit?.IsAlive == false || _selectedUnit.Movement == null || TurnManager.Instance?.ActiveUnit != _selectedUnit) return;
         if (_selectedUnit.Combat == null) { DebugHelper.LogError($"PIH: SelectedUnit {_selectedUnit.unitName} missing UnitCombat!", _selectedUnit); TurnManager.Instance.EndUnitTurn(_selectedUnit); return; }
+        
         bool canTakeAnyOneAPAction = _selectedUnit.CurrentActionPoints >= 1; 
         if (!canTakeAnyOneAPAction) 
         {
