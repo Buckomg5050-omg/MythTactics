@@ -9,29 +9,30 @@ using System.Linq;
 public class ActionMenuUI : MonoBehaviour
 {
     [Header("Prefab & Settings")]
-    public GameObject radialActionButtonPrefab;
-    public float menuRadius = 100f;
-    public Vector2 menuCenterOffset = new Vector2(0, 50f);
+    public GameObject radialActionButtonPrefab; 
+
+    [Header("Action Bar Layout Settings")]
+    public float buttonSpacing = 10f; 
 
     [Header("Button Text Colors")]
     public Color affordableTextColor = Color.black;
     public Color unaffordableTextColor = new Color(0.4f, 0.4f, 0.4f, 1f);
 
-    [Header("Wait Sub-Menu Settings")]
+    [Header("Wait Sub-Menu Settings")] 
     public float waitSubMenuRadius = 70f;
     public float waitSubMenuItemScale = 0.65f;
     public float waitEndTurnButtonAngle = 180f;
     public float waitFleeButtonAngle = 90f;
     public float waitBackButtonAngle = 0f;
 
-    [Header("Attack Sub-Menu Settings")]
+    [Header("Attack Sub-Menu Settings")] 
     public float attackSubMenuRadius = 70f;
     public float attackSubMenuItemScale = 0.65f;
     public float basicAttackButtonAngle = 180f; 
     public float spellsButtonAngle = 0f;      
     public float attackBackButtonAngle = 90f;  
 
-    private List<GameObject> _activeButtons = new List<GameObject>();
+    private List<GameObject> _activeMainButtonInstances = new List<GameObject>(); 
     private Unit _currentUnitInternal;
 
     public delegate void ActionSelectedHandler(Unit unit, string actionName);
@@ -43,9 +44,9 @@ public class ActionMenuUI : MonoBehaviour
     private struct FixedActionConfig
     {
         public ActionButtonType type;
-        public string actionName;
+        public string actionName; 
         public string displayName; 
-        public float angleDegrees;
+        public float angleDegrees; 
 
         public FixedActionConfig(ActionButtonType type, string actionName, string displayName, float angleDegrees)
         {
@@ -72,13 +73,12 @@ public class ActionMenuUI : MonoBehaviour
     public const string BASIC_ATTACK_ACTION_NAME = "BasicAttack"; 
     public const string SHOW_SPELLS_ACTION_NAME = "ShowSpells"; 
 
-
     public struct ActionDefinition 
     {
         public string name;
         public string displayName;
         public bool canAfford;
-        public float angleDegrees;
+        public float angleDegrees; 
         public GameObject instance; 
 
         public ActionDefinition(string name, string displayName, bool canAfford, float angleDegrees, GameObject instance = null)
@@ -86,35 +86,67 @@ public class ActionMenuUI : MonoBehaviour
             this.name = name;
             this.displayName = displayName;
             this.canAfford = canAfford;
-            this.angleDegrees = angleDegrees;
+            this.angleDegrees = angleDegrees; 
             this.instance = instance;
         }
     }
-
+    
+    private RectTransform _rectTransform; 
 
     void Awake()
     {
-        if (radialActionButtonPrefab == null)
+        _rectTransform = GetComponent<RectTransform>();
+        if (_rectTransform == null)
         {
-            Debug.LogError("ActionMenuUI.Awake: RadialActionButton_Prefab not assigned in Inspector! Menu will not function.", this);
+            Debug.LogError("ActionMenuUI: RectTransform component not found on this GameObject!", this);
         }
-        if (radialActionButtonPrefab != null && radialActionButtonPrefab.GetComponent<TooltipTrigger>() == null)
+
+        // DEBUG: Check GraphicRaycaster
+        Canvas parentCanvas = GetComponentInParent<Canvas>();
+        if (parentCanvas != null)
         {
-            Debug.LogWarning("ActionMenuUI.Awake: RadialActionButton_Prefab is missing the TooltipTrigger component. Tooltips for action buttons will not work.", this);
+            GraphicRaycaster gr = parentCanvas.GetComponent<GraphicRaycaster>();
+            if (gr == null)
+            {
+                Debug.LogError("ActionMenuUI: Parent Canvas is MISSING GraphicRaycaster component! UI clicks will not work.", parentCanvas.gameObject);
+            }
+            else if (!gr.enabled)
+            {
+                Debug.LogWarning("ActionMenuUI: Parent Canvas has GraphicRaycaster, but it is DISABLED! UI clicks will not work.", parentCanvas.gameObject);
+            }
+            else
+            {
+                Debug.Log("ActionMenuUI: Parent Canvas has an ENABLED GraphicRaycaster.", parentCanvas.gameObject);
+            }
         }
+        else
+        {
+            Debug.LogError("ActionMenuUI: NO PARENT CANVAS FOUND! UI clicks will not work.", this.gameObject);
+        }
+
+
+        if (radialActionButtonPrefab == null) { Debug.LogError("ActionMenuUI: RadialActionButtonPrefab is null", this); }
+        if (radialActionButtonPrefab != null && radialActionButtonPrefab.GetComponent<TooltipTrigger>() == null) { Debug.LogWarning("ActionMenuUI: RadialActionButtonPrefab missing TooltipTrigger.", this); }
 
         _definedActions = new List<FixedActionConfig>
         {
-            new FixedActionConfig(ActionButtonType.Skills, "Skills", "Skills", 135f),
-            new FixedActionConfig(ActionButtonType.Items,  "Items",  "Items",   45f),
-            new FixedActionConfig(ActionButtonType.Move,   "Move",   "Move",   180f),
-            new FixedActionConfig(ActionButtonType.Attack, "Attack", "Attack Options",   0f), 
-            new FixedActionConfig(ActionButtonType.Info,   "Info",   "Info",   225f),
-            new FixedActionConfig(ActionButtonType.Wait,   "Wait",   "Wait Options",   315f)  
+            new FixedActionConfig(ActionButtonType.Move,   "Move",   "Move",   0f), 
+            new FixedActionConfig(ActionButtonType.Attack, "Attack", "Attack",   0f),
+            new FixedActionConfig(ActionButtonType.Skills, "Skills", "Skills", 0f),
+            new FixedActionConfig(ActionButtonType.Items,  "Items",  "Items",   0f),
+            new FixedActionConfig(ActionButtonType.Info,   "Info",   "Info",   0f),
+            new FixedActionConfig(ActionButtonType.Wait,   "Wait",   "Wait",   0f)  
         };
     }
 
-    private int GetAPCostForAction(string actionName)
+    // Test method for direct listener assignment
+    public void TestMoveButtonClicked()
+    {
+        Debug.Log("ActionMenuUI: TestMoveButtonClicked() CALLED DIRECTLY!", this.gameObject);
+        OnActionButtonClicked("Move"); 
+    }
+
+    private int GetAPCostForAction(string actionName) 
     {
         switch (actionName)
         {
@@ -125,7 +157,7 @@ public class ActionMenuUI : MonoBehaviour
             case SUB_ACTION_SHOW_SPELLS: return 0; 
             case "Items": return 0;
             case "Info": return PlayerInputHandler.InfoActionCost;
-            case "Wait": return 0;
+            case "Wait": return 0; 
             case SUB_ACTION_END_TURN: return 0;
             case SUB_ACTION_FLEE: return 0;
             case SUB_ACTION_BACK: return 0;
@@ -133,9 +165,9 @@ public class ActionMenuUI : MonoBehaviour
         }
     }
 
-    private void UpdateAvailableActions(Unit unit)
+    private void UpdateAvailableActions(Unit unit) 
     {
-        _runtimeActiveMainActions.Clear();
+        _runtimeActiveMainActions.Clear(); 
         if (unit == null || _definedActions == null) return;
 
         foreach (FixedActionConfig fixedAction in _definedActions)
@@ -146,15 +178,13 @@ public class ActionMenuUI : MonoBehaviour
             switch (fixedAction.type)
             {
                 case ActionButtonType.Skills:
-                    // MODIFIED: Check for actual skills
                     isActionAvailable = unit.knownAbilities != null && unit.knownAbilities.Any(ab => ab.abilityType == AbilityType.Skill); 
-                    canAffordAction = true; // Opening panel is free
+                    canAffordAction = true; 
                     break;
                 case ActionButtonType.Attack: 
-                    canAffordAction = true; // Opening sub-menu is free
+                    canAffordAction = true; 
                     break;
                 case ActionButtonType.Items:
-                    // Future: Could add a check here if unit has no usable items.
                     canAffordAction = true; 
                     break;
                 case ActionButtonType.Info:
@@ -178,24 +208,20 @@ public class ActionMenuUI : MonoBehaviour
         }
     }
     
-    public void ShowMenu(Unit unitToShowMenuFor, Vector2 unitScreenPosition)
+    public void RefreshActionBar(Unit unitToShowMenuFor) 
     {
         HideSubMenu(); 
 
-        if (!gameObject.activeSelf)
-        {
-            gameObject.SetActive(true);
-        }
+        if (!gameObject.activeSelf) gameObject.SetActive(true);
 
-        foreach (ActionDefinition ad in _runtimeActiveMainActions) { if (ad.instance != null) Destroy(ad.instance); }
-        _activeButtons.Clear(); 
+        foreach (GameObject btnGO in _activeMainButtonInstances) { if (btnGO != null) Destroy(btnGO); }
+        _activeMainButtonInstances.Clear(); 
         _runtimeActiveMainActions.Clear();
 
         this._currentUnitInternal = unitToShowMenuFor;
 
         if (this._currentUnitInternal == null || radialActionButtonPrefab == null)
         {
-            HideMenu();
             return;
         }
         
@@ -203,53 +229,44 @@ public class ActionMenuUI : MonoBehaviour
 
         if (_runtimeActiveMainActions.Count == 0)
         {
-            HideMenu();
             return;
         }
 
-        RectTransform prefabRect = radialActionButtonPrefab.GetComponent<RectTransform>();
-        if (prefabRect == null) { Debug.LogError("ActionMenuUI: radialActionButtonPrefab is missing RectTransform!", radialActionButtonPrefab); HideMenu(); return; }
-        float buttonWidth = prefabRect.sizeDelta.x * prefabRect.transform.localScale.x;
-        float buttonHeight = prefabRect.sizeDelta.y * prefabRect.transform.localScale.y;
-
-        float minX = float.MaxValue, minY = float.MaxValue;
-        float maxX = float.MinValue, maxY = float.MinValue;
+        RectTransform buttonPrefabRect = radialActionButtonPrefab.GetComponent<RectTransform>();
+        if (buttonPrefabRect == null) { Debug.LogError("ActionMenuUI: radialActionButtonPrefab is missing RectTransform!", radialActionButtonPrefab); return; }
         
-        List<Vector2> buttonLocalOffsets = new List<Vector2>();
-        foreach(var actionDef in _runtimeActiveMainActions)
-        {
-            float currentAngleRad = Mathf.Deg2Rad * actionDef.angleDegrees;
-            Vector2 localOffset = new Vector2(Mathf.Cos(currentAngleRad), Mathf.Sin(currentAngleRad)) * menuRadius;
-            buttonLocalOffsets.Add(localOffset);
-            minX = Mathf.Min(minX, localOffset.x - buttonWidth / 2f);
-            minY = Mathf.Min(minY, localOffset.y - buttonHeight / 2f);
-            maxX = Mathf.Max(maxX, localOffset.x + buttonWidth / 2f);
-            maxY = Mathf.Max(maxY, localOffset.y + buttonHeight / 2f);
-        }
+        float buttonWidth = buttonPrefabRect.sizeDelta.x * buttonPrefabRect.transform.localScale.x;
+        
+        float totalWidthOfButtons = (_runtimeActiveMainActions.Count * buttonWidth) + (Mathf.Max(0, _runtimeActiveMainActions.Count - 1) * buttonSpacing);
+        float currentX = -(totalWidthOfButtons / 2f) + (buttonWidth / 2f); 
 
-        Vector2 desiredMenuCenter = unitScreenPosition + menuCenterOffset;
-        Vector2 adjustment = Vector2.zero;
-        if (desiredMenuCenter.x + minX < 0) adjustment.x = -(desiredMenuCenter.x + minX);
-        if (desiredMenuCenter.x + maxX > Screen.width) adjustment.x = Screen.width - (desiredMenuCenter.x + maxX);
-        if (desiredMenuCenter.y + minY < 0) adjustment.y = -(desiredMenuCenter.y + minY);
-        if (desiredMenuCenter.y + maxY > Screen.height) adjustment.y = Screen.height - (desiredMenuCenter.y + maxY);
-        Vector2 finalMenuCenter = desiredMenuCenter + adjustment;
+        List<ActionDefinition> newRuntimeActions = new List<ActionDefinition>();
 
         for (int i = 0; i < _runtimeActiveMainActions.Count; i++)
         {
             ActionDefinition currentActionDefData = _runtimeActiveMainActions[i];
-            Vector2 localButtonOffset = buttonLocalOffsets[i];
-            GameObject buttonInstance = Instantiate(radialActionButtonPrefab, this.transform);
             
-            _runtimeActiveMainActions[i] = new ActionDefinition(
-                currentActionDefData.name, currentActionDefData.displayName, 
-                currentActionDefData.canAfford, currentActionDefData.angleDegrees, buttonInstance);
-            _activeButtons.Add(buttonInstance);
+            GameObject buttonInstance = Instantiate(radialActionButtonPrefab, this.transform); 
+            
+            newRuntimeActions.Add(new ActionDefinition(
+                currentActionDefData.name, 
+                currentActionDefData.displayName, 
+                currentActionDefData.canAfford, 
+                currentActionDefData.angleDegrees, 
+                buttonInstance));
+            _activeMainButtonInstances.Add(buttonInstance);
 
             RectTransform buttonRect = buttonInstance.GetComponent<RectTransform>();
-            if (buttonRect != null) { buttonRect.anchorMin = Vector2.zero; buttonRect.anchorMax = Vector2.zero; buttonRect.pivot = new Vector2(0.5f,0.5f); }
-            buttonInstance.transform.position = finalMenuCenter + localButtonOffset;
+            if (buttonRect != null) 
+            {
+                buttonRect.anchorMin = new Vector2(0.5f, 0.5f); 
+                buttonRect.anchorMax = new Vector2(0.5f, 0.5f);
+                buttonRect.pivot = new Vector2(0.5f, 0.5f);
+                buttonRect.anchoredPosition = new Vector2(currentX, 0); 
+            }
             
+            currentX += buttonWidth + buttonSpacing;
+
             TextMeshProUGUI buttonText = buttonInstance.GetComponentInChildren<TextMeshProUGUI>();
             if (buttonText != null)
             {
@@ -262,7 +279,25 @@ public class ActionMenuUI : MonoBehaviour
             {
                 buttonComponent.interactable = currentActionDefData.canAfford;
                 string capturedActionName = currentActionDefData.name;
-                buttonComponent.onClick.AddListener(() => OnActionButtonClicked(capturedActionName));
+                
+                buttonComponent.onClick.RemoveAllListeners(); 
+
+                if (currentActionDefData.name == "Move") // Specific test for "Move"
+                {
+                    buttonComponent.onClick.AddListener(TestMoveButtonClicked);
+                    Debug.Log($"ActionMenuUI: Added DIRECT listener (TestMoveButtonClicked) for '{currentActionDefData.name}' button.", this.gameObject);
+                }
+                else // For all other buttons, use the lambda
+                {
+                    buttonComponent.onClick.AddListener(() => {
+                        Debug.Log($"ActionMenuUI: LAMBDA for button '{capturedActionName}' TRIGGERED. Calling OnActionButtonClicked.", this.gameObject);
+                        OnActionButtonClicked(capturedActionName);
+                    });
+                }
+            }
+            else
+            {
+                Debug.LogError($"ActionMenuUI: Button component MISSING on instantiated button for '{currentActionDefData.name}'!", buttonInstance);
             }
 
             TooltipTrigger trigger = buttonInstance.GetComponent<TooltipTrigger>();
@@ -270,6 +305,8 @@ public class ActionMenuUI : MonoBehaviour
             {
                 string costString = "";
                 string tooltipMainText = currentActionDefData.displayName; 
+                if (currentActionDefData.name == "Attack") tooltipMainText = "Attack Options"; 
+                else if (currentActionDefData.name == "Wait") tooltipMainText = "Wait Options"; 
 
                 if (currentActionDefData.name == "Wait" || currentActionDefData.name == "Attack") 
                 { 
@@ -286,11 +323,12 @@ public class ActionMenuUI : MonoBehaviour
             buttonInstance.name = $"ActionButton_{currentActionDefData.name}";
             buttonInstance.SetActive(true);
         }
+        _runtimeActiveMainActions = newRuntimeActions; 
     }
-
-    private void ToggleSubMenu(string mainActionName, GameObject anchorButton, SubMenuType subMenuToOpen)
+    
+    private void ToggleSubMenu(string mainActionName, GameObject anchorButton, SubMenuType subMenuToOpen) 
     {
-        if (_currentUnitInternal == null) return; // Added null check for safety
+        if (_currentUnitInternal == null || anchorButton == null) return; 
 
         if (_currentOpenSubMenu == subMenuToOpen && _currentSubMenuAnchor == anchorButton)
         {
@@ -325,7 +363,6 @@ public class ActionMenuUI : MonoBehaviour
                 bool canAffordBasicAttack = _currentUnitInternal.CanAffordAPForAction(GetAPCostForAction(SUB_ACTION_BASIC_ATTACK));
                 subActionsConfig.Add(( BASIC_ATTACK_ACTION_NAME, "Basic Attack", basicAttackButtonAngle, SUB_ACTION_BASIC_ATTACK, attackSubMenuItemScale, attackSubMenuRadius, canAffordBasicAttack ));
 
-                // MODIFIED: Check for actual spells
                 bool hasSpells = _currentUnitInternal.knownAbilities != null && _currentUnitInternal.knownAbilities.Any(ab => ab.abilityType == AbilityType.Spell);
                 if (hasSpells)
                 {
@@ -336,8 +373,8 @@ public class ActionMenuUI : MonoBehaviour
             InstantiateSubMenuButtons(anchorButton.transform.position, subActionsConfig);
         }
     }
-    
-    private void InstantiateSubMenuButtons(Vector2 anchorPos, List<(string actionName, string displayName, float angle, string internalId, float itemScale, float radius, bool interactable)> configs)
+        
+    private void InstantiateSubMenuButtons(Vector2 anchorPos, List<(string actionName, string displayName, float angle, string internalId, float itemScale, float radius, bool interactable)> configs) 
     {
         foreach (var config in configs)
         {
@@ -359,16 +396,27 @@ public class ActionMenuUI : MonoBehaviour
             string costString = "";
             int apCostForTooltip = (config.internalId == SUB_ACTION_BASIC_ATTACK) ? GetAPCostForAction(SUB_ACTION_BASIC_ATTACK) : 0;
 
-
             if(config.internalId == SUB_ACTION_BASIC_ATTACK) costString = (apCostForTooltip > 0) ? $"\n(AP Cost: {apCostForTooltip})" : "\n(Free Action)";
             else if (config.internalId == SUB_ACTION_SHOW_SPELLS) costString = "\n(Select Spell)";
             else if (config.internalId == SUB_ACTION_FLEE) costString = "\n(Attempt Flee)";
             else if (config.internalId == SUB_ACTION_BACK) costString = "\n(Return)";
             else costString = "\n(Free Action)";
 
-
             if (buttonText != null) { buttonText.text = config.displayName; buttonText.color = config.interactable ? affordableTextColor : unaffordableTextColor; }
-            if (buttonComponent != null) { buttonComponent.interactable = config.interactable; string id = config.internalId; buttonComponent.onClick.AddListener(() => OnSubMenuActionButtonClicked(id)); }
+            if (buttonComponent != null) 
+            { 
+                buttonComponent.interactable = config.interactable; 
+                string id = config.internalId; 
+                buttonComponent.onClick.RemoveAllListeners();
+                buttonComponent.onClick.AddListener(() => {
+                    Debug.Log($"ActionMenuUI: LAMBDA for SUB-button '{id}' TRIGGERED. Calling OnSubMenuActionButtonClicked.", this.gameObject);
+                    OnSubMenuActionButtonClicked(id);
+                });
+            }
+            else
+            {
+                 Debug.LogError($"ActionMenuUI: Button component MISSING on instantiated SUB-button for '{config.displayName}'!", subButtonInstance);
+            }
             if (tooltip != null) { tooltip.tooltipText = $"{config.displayName}{costString}"; }
 
             subButtonInstance.name = $"SubActionButton_{config.displayName.Replace(" ", "")}";
@@ -377,7 +425,7 @@ public class ActionMenuUI : MonoBehaviour
         }
     }
 
-    private void HideSubMenu() 
+    public void HideSubMenu() 
     {
         foreach (GameObject button in _activeSubMenuButtons)
         {
@@ -385,34 +433,43 @@ public class ActionMenuUI : MonoBehaviour
         }
         _activeSubMenuButtons.Clear();
 
-        if (_currentOpenSubMenu != SubMenuType.None)
+        if (_currentOpenSubMenu != SubMenuType.None) 
         {
             foreach (ActionDefinition ad in _runtimeActiveMainActions)
             {
-                if (ad.instance != null) ad.instance.SetActive(true);
+                if (ad.instance != null) ad.instance.SetActive(true); 
             }
         }
         _currentOpenSubMenu = SubMenuType.None;
         _currentSubMenuAnchor = null;
     }
 
-    public void HideMenu() 
+    public void HideActionBar() 
     {
-        HideSubMenu();
-        foreach (GameObject button in _activeButtons) { if (button != null) Destroy(button); }
-        _activeButtons.Clear();
-        _runtimeActiveMainActions.Clear();
-        _currentUnitInternal = null;
+        HideSubMenu(); 
+        foreach (GameObject buttonGO in _activeMainButtonInstances) 
+        {
+            if (buttonGO != null) Destroy(buttonGO);
+        }
+        _activeMainButtonInstances.Clear();
+        _runtimeActiveMainActions.Clear(); 
         if (gameObject.activeSelf) gameObject.SetActive(false);
+        _currentUnitInternal = null; 
     }
-
-    private void OnActionButtonClicked(string actionName)
+    
+    private void OnActionButtonClicked(string actionName) 
     {
-        if (_currentUnitInternal == null) return;
+        Debug.Log($"ActionMenuUI: OnActionButtonClicked ENTERED with actionName: '{actionName}', _currentUnitInternal: {_currentUnitInternal?.unitName ?? "NULL"}", this.gameObject); 
+        if (_currentUnitInternal == null) 
+        {
+            Debug.LogWarning("ActionMenuUI: OnActionButtonClicked - _currentUnitInternal is NULL. Aborting.", this.gameObject);
+            return;
+        }
 
         ActionDefinition actionDef = _runtimeActiveMainActions.FirstOrDefault(ad => ad.name == actionName && ad.instance != null);
+        
         if (actionDef.instance == null && (actionName == "Wait" || actionName == "Attack")) {
-             Debug.LogError($"ActionMenuUI: Could not find instance for main action button '{actionName}'.", this);
+             Debug.LogError($"ActionMenuUI: Could not find instance for main action button '{actionName}' to anchor sub-menu.", this);
              return;
         }
 
@@ -431,9 +488,14 @@ public class ActionMenuUI : MonoBehaviour
         }
     }
 
-    private void OnSubMenuActionButtonClicked(string subActionInternalId)
+    private void OnSubMenuActionButtonClicked(string subActionInternalId) 
     {
-        if (_currentUnitInternal == null) return;
+        Debug.Log($"ActionMenuUI: OnSubMenuActionButtonClicked ENTERED with subActionInternalId: '{subActionInternalId}', _currentUnitInternal: {_currentUnitInternal?.unitName ?? "NULL"}", this.gameObject);
+        if (_currentUnitInternal == null) 
+        {
+            Debug.LogWarning("ActionMenuUI: OnSubMenuActionButtonClicked - _currentUnitInternal is NULL. Aborting.", this.gameObject);
+            return;
+        }
         
         HideSubMenu(); 
 
@@ -458,8 +520,39 @@ public class ActionMenuUI : MonoBehaviour
         }
     }
 
-    public bool IsVisible()
-    {
+    public bool IsVisible() 
+    { 
         return gameObject.activeSelf && (_runtimeActiveMainActions.Any(ad => ad.instance != null && ad.instance.activeSelf) || _activeSubMenuButtons.Count > 0);
+    }
+
+    public bool IsSubMenuOpen()
+    {
+        return _currentOpenSubMenu != SubMenuType.None && _activeSubMenuButtons.Count > 0;
+    }
+
+    public void SimulateMainActionClick(string actionName)
+    {
+        Debug.Log($"ActionMenuUI: SimulateMainActionClick for '{actionName}' called.", this.gameObject); 
+        if (gameObject.activeSelf && _currentUnitInternal != null)
+        {
+            ActionDefinition actionDef = _runtimeActiveMainActions.FirstOrDefault(ad => ad.name == actionName);
+            if (actionDef.name == actionName) 
+            {
+                OnActionButtonClicked(actionName);
+            }
+            else
+            {
+                Debug.LogWarning($"ActionMenuUI.SimulateMainActionClick: Action '{actionName}' not found or not currently available.", this);
+            }
+        }
+    }
+
+    public void SimulateSubMenuActionClick(string subActionInternalIdToSimulate)
+    {
+        Debug.Log($"ActionMenuUI: SimulateSubMenuActionClick for '{subActionInternalIdToSimulate}' called.", this.gameObject); 
+        if (gameObject.activeSelf && _currentUnitInternal != null)
+        {
+            OnSubMenuActionButtonClicked(subActionInternalIdToSimulate);
+        }
     }
 }

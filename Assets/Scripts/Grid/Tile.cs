@@ -13,15 +13,15 @@ public class Tile : MonoBehaviour
     public bool IsOccupied => occupyingUnit != null;
 
     [Header("Data Source")]
-    public TileTypeSO tileTypeData; // This SO should define movementCost and other terrain properties
+    public TileTypeSO tileTypeData; 
 
     [Header("Visuals & Highlighting")]
     [SerializeField]
     private SpriteRenderer _spriteRenderer;
     private TileHighlightState _currentHighlightState = TileHighlightState.None;
-    public TileHighlightState CurrentHighlightState => _currentHighlightState; // Public getter for current highlight state
+    public TileHighlightState CurrentHighlightState => _currentHighlightState; 
 
-    public const int IMPASSABLE_COST = 255; // Standard value for impassable from GDD
+    public const int IMPASSABLE_COST = 255; 
 
     void Awake()
     {
@@ -39,7 +39,7 @@ public class Tile : MonoBehaviour
         this.tileTypeData = data;
         if (data != null)
         {
-            this.currentTerrainType = data.type; // Assuming TileTypeSO has a 'type' field of enum TerrainType
+            this.currentTerrainType = data.type; 
             this.name = $"Tile_{position.x}_{position.y} ({data.type})";
         }
         else
@@ -50,7 +50,7 @@ public class Tile : MonoBehaviour
         }
         this.heightLevel = height;
         UpdateVisualsFromData();
-        _currentHighlightState = TileHighlightState.None; // Ensure it starts as None
+        _currentHighlightState = TileHighlightState.None; 
     }
 
     public void UpdateVisualsFromData()
@@ -63,19 +63,22 @@ public class Tile : MonoBehaviour
             }
             else
             {
-                _spriteRenderer.sprite = null; // Or a default "unknown" sprite
+                _spriteRenderer.sprite = null; 
             }
         }
-        SetHighlight(_currentHighlightState); // Re-apply current highlight (e.g. if visuals were rebuilt)
+        SetHighlight(_currentHighlightState); 
     }
 
     public void SetHighlight(TileHighlightState newState)
     {
-        _currentHighlightState = newState; // Update the internal state tracker
+        // REMOVED: Verbose Debug.Log($"Tile ({gridPosition}): SetHighlight called with newState = {newState}...");
+        if (_currentHighlightState == newState && newState != TileHighlightState.Hovered) return; 
+
+        _currentHighlightState = newState; 
 
         if (_spriteRenderer != null)
         {
-            Color baseColor = Color.white; // Assuming base sprite color is white or you manage it differently
+            Color baseColor = Color.white; 
 
             switch (newState)
             {
@@ -90,19 +93,12 @@ public class Tile : MonoBehaviour
                 default: _spriteRenderer.color = baseColor; break;
             }
         }
-        // DebugHelper.Log($"Tile {gridPosition} highlight set to {newState}", this);
     }
 
-    /// <summary>
-    /// Gets the movement cost for this tile. Considers the TileTypeSO.
-    /// Unit parameter can be used for unit-specific costs (e.g., flying).
-    /// </summary>
-    public int GetMovementCost(Unit unit = null) // unit parameter is optional for now
+    public int GetMovementCost(Unit unit = null) 
     {
         if (tileTypeData != null)
         {
-            // TODO: Future - if unit is not null, check for specific interactions
-            // e.g., if (unit.IsFlying && tileTypeData.isWater) return 1;
             return tileTypeData.movementCost;
         }
         DebugHelper.LogWarning($"Tile {gridPosition} has no TileTypeData. Returning IMPASSABLE_COST.", this);
@@ -119,70 +115,22 @@ public class Tile : MonoBehaviour
         this.occupyingUnit = null;
     }
 
-    /// <summary>
-    /// Checks if the tile is generally walkable based on its terrain cost.
-    /// Does not check for occupancy here; that's separate.
-    /// </summary>
-    public bool IsWalkableFor(Unit unit) // unit parameter can be used for specific checks
+    public bool IsWalkableFor(Unit unit) 
     {
         if (tileTypeData == null) return false;
         return GetMovementCost(unit) < IMPASSABLE_COST;
     }
 
-    /// <summary>
-    /// NEW METHOD: Checks if the tile is occupied by another unit OR if the terrain is impassable.
-    /// </summary>
-    /// <param name="unit">The unit attempting to check this tile (can be null if just checking general impassability).</param>
-    /// <returns>True if occupied by another unit or if terrain is impassable.</returns>
     public bool IsOccupiedOrImpassableFor(Unit unit)
     {
-        // Check if occupied by another unit (different from the one asking, if 'unit' is provided)
         if (this.occupyingUnit != null && (unit == null || this.occupyingUnit != unit))
         {
-            return true; // Tile is occupied by someone else
+            return true; 
         }
-
-        // Check if terrain itself is impassable
         if (GetMovementCost(unit) >= IMPASSABLE_COST)
         {
-            // Optional: Add unit-specific traversal checks here if a unit is provided
-            // e.g., if (unit != null && unit.CanFly() && tileTypeData.AllowsFlyingOverImpassableTerrain) return false;
-            return true; // Terrain is impassable
+            return true; 
         }
-
-        return false; // Tile is not occupied by another unit (or is occupied by 'unit') and terrain is passable
+        return false; 
     }
 }
-
-// Ensure TileHighlightState enum is defined and accessible
-// (Often in its own file, or alongside related enums)
-/*
-public enum TileHighlightState
-{
-    None,
-    MovementRange,
-    AttackRange,
-    AbilityRange,
-    SelectedUnit,
-    Path,
-    Hovered,
-    ActiveTurnUnit // Example of another state you might have
-}
-*/
-
-// Ensure TerrainType enum is defined and accessible (matching TileTypeSO.type)
-/*
-public enum TerrainType 
-{
-    Plains, 
-    Forest, 
-    Hills, 
-    RockyGround, 
-    Swamp, 
-    ShallowWater, 
-    MountainPeak, 
-    DeepWater, 
-    Boundary 
-    // Add any other types you have
-}
-*/

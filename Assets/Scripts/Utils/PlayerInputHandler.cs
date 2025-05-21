@@ -3,12 +3,12 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using System.Collections.Generic;
 using System.Linq;
-using MythTactics.Combat;
-using System.Collections;
+using MythTactics.Combat; 
+using UnityEngine.EventSystems; 
+using System.Collections; 
 
 public class PlayerInputHandler : MonoBehaviour
 {
-    // ... (Header("UI References") and other fields up to Action Costs ... )
     [Header("UI References")]
     public ActionMenuUI actionMenuUI;
     public GameObject skillSelectionPanelPrefab; 
@@ -43,9 +43,9 @@ public class PlayerInputHandler : MonoBehaviour
 
     private Unit _hoveredUnitOnTileForTooltip = null;
     private Coroutine _unitTooltipCoroutine = null;
-    private Tile _lastHoveredTileWithUnit = null;
-
-    private bool _isPointerOverUIThisFrame;
+    
+    private bool _isPointerOverUIFromUpdate; 
+    private bool _actionBarNeedsRefresh = false;
 
     public Unit SelectedUnit => _selectedUnit;
     public Pathfinder Pathfinder => _pathfinder;
@@ -79,7 +79,7 @@ public class PlayerInputHandler : MonoBehaviour
 
         if (unitInfoPanelPrefab != null)
         {
-            Canvas mainCanvas = FindFirstObjectByType<Canvas>();
+            Canvas mainCanvas = FindFirstObjectByType<Canvas>(); 
             if (mainCanvas != null)
             {
                 GameObject panelGO = Instantiate(unitInfoPanelPrefab, mainCanvas.transform);
@@ -99,6 +99,7 @@ public class PlayerInputHandler : MonoBehaviour
                 Debug.LogError("PIH: No Canvas found in scene to instantiate UnitInfoPanel!", this);
             }
         }
+        actionMenuUI?.HideActionBar(); 
         ChangeState(new PIH_WaitingForTurnState());
     }
 
@@ -108,29 +109,39 @@ public class PlayerInputHandler : MonoBehaviour
 
         if (UnityEngine.EventSystems.EventSystem.current != null)
         {
-            _isPointerOverUIThisFrame = UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject();
+            _isPointerOverUIFromUpdate = UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject();
+            // REMOVED: Per-frame log for IsPointerOverUI during targeting states
+            // if (_isPointerOverUIFromUpdate && 
+            //     (_currentStateObject is PIH_SelectingMoveTargetState || 
+            //      _currentStateObject is PIH_SelectingAttackTargetState || 
+            //      _currentStateObject is PIH_SelectingAbilityTargetState) )
+            // { // Detailed logging of hit UI objects was here, now only in GetTileUnderMouse for actual clicks }
         }
         else
         {
-            _isPointerOverUIThisFrame = false;
+            _isPointerOverUIFromUpdate = false;
         }
 
         if (TurnManager.Instance == null) { if (!(_currentStateObject is PIH_WaitingForTurnState)) ChangeState(new PIH_WaitingForTurnState()); return; }
-        if (!CombatActive) { if (!(_currentStateObject is PIH_WaitingForTurnState)) { _selectedUnit = null; ChangeState(new PIH_WaitingForTurnState()); } return; }
+        
+        if (!CombatActive) 
+        { 
+            if (!(_currentStateObject is PIH_WaitingForTurnState)) 
+            { 
+                _selectedUnit = null; 
+                ChangeState(new PIH_WaitingForTurnState()); 
+            }
+            return; 
+        }
 
         Unit currentTurnManagerActiveUnit = TurnManager.Instance.ActiveUnit;
 
         if (currentTurnManagerActiveUnit != null && currentTurnManagerActiveUnit.IsAlive && currentTurnManagerActiveUnit.CompareTag("Player") && currentTurnManagerActiveUnit.Movement != null)
         {
-            if (_selectedUnit != currentTurnManagerActiveUnit)
+            if (_selectedUnit != currentTurnManagerActiveUnit) 
             {
                 _selectedUnit = currentTurnManagerActiveUnit;
-                if (!(_currentStateObject is PIH_SelectingMoveTargetState) &&
-                    !(_currentStateObject is PIH_UnitMovingState) &&
-                    !(_currentStateObject is PIH_SelectingAbilityTargetState) &&
-                    !(_currentStateObject is PIH_SelectingAttackTargetState) &&
-                    !(_currentStateObject is PIH_ViewingUnitInfoState))
-                { ChangeState(new PIH_UnitActionPhaseState()); }
+                ChangeState(new PIH_UnitActionPhaseState()); 
             }
             else if (!(_currentStateObject is PIH_UnitActionPhaseState ||
                        _currentStateObject is PIH_SelectingAttackTargetState ||
@@ -138,100 +149,103 @@ public class PlayerInputHandler : MonoBehaviour
                        _currentStateObject is PIH_UnitMovingState ||
                        _currentStateObject is PIH_SelectingAbilityTargetState ||
                        _currentStateObject is PIH_ViewingUnitInfoState ))
-            { ChangeState(new PIH_UnitActionPhaseState()); }
+            { 
+                ChangeState(new PIH_UnitActionPhaseState()); 
+            }
+
+            if (_actionBarNeedsRefresh && _currentStateObject is PIH_UnitActionPhaseState && actionMenuUI != null && _selectedUnit != null)
+            {
+                if(!actionMenuUI.gameObject.activeSelf) actionMenuUI.gameObject.SetActive(true);
+                actionMenuUI.RefreshActionBar(_selectedUnit);
+                _actionBarNeedsRefresh = false;
+            }
         }
-        else { if (_selectedUnit != null || !(_currentStateObject is PIH_WaitingForTurnState)) { _selectedUnit = null; SelectedAbility = null; ChangeState(new PIH_WaitingForTurnState()); } }
+        else 
+        { 
+            if (_selectedUnit != null || !(_currentStateObject is PIH_WaitingForTurnState)) 
+            { 
+                _selectedUnit = null; 
+                SelectedAbility = null; 
+                ChangeState(new PIH_WaitingForTurnState()); 
+            }
+        }
 
         _currentStateObject?.UpdateState();
         HandleTileHoverForTooltip();
     }
     
-    private void HandleTileHoverForTooltip()
-    {
-        if (TooltipUI.Instance == null) return;
-
-        bool actionMenuVisible = (actionMenuUI != null && actionMenuUI.IsVisible());
-        bool skillPanelVisible = (_skillSelectionPanelInstance != null && _skillSelectionPanelInstance.IsVisible());
-        bool infoPanelVisible = (_unitInfoPanelInstance != null && _unitInfoPanelInstance.IsVisible());
-        bool itemPanelVisible = (_itemSelectionPanelInstance != null && _itemSelectionPanelInstance.IsVisible());
-        bool majorUIIsOpen = actionMenuVisible || skillPanelVisible || infoPanelVisible || itemPanelVisible;
-
-        if (majorUIIsOpen || _isPointerOverUIThisFrame)
-        {
-            if (_hoveredUnitOnTileForTooltip != null)
-            {
-                if (_unitTooltipCoroutine != null) StopCoroutine(_unitTooltipCoroutine);
-                _unitTooltipCoroutine = null;
-                TooltipUI.Instance.HideTooltip();
-                _hoveredUnitOnTileForTooltip = null;
-                _lastHoveredTileWithUnit = null;
-            }
-            return;
-        }
-
-        Tile hoveredTile = GetTileUnderMouse(false);
-        Unit unitOnHoveredTile = hoveredTile?.occupyingUnit;
-
-        if (unitOnHoveredTile != null)
-        {
-            if (_hoveredUnitOnTileForTooltip != unitOnHoveredTile || _lastHoveredTileWithUnit != hoveredTile)
-            {
-                if (_hoveredUnitOnTileForTooltip != null) TooltipUI.Instance.HideTooltip();
-                if (_unitTooltipCoroutine != null) StopCoroutine(_unitTooltipCoroutine);
-                
-                _hoveredUnitOnTileForTooltip = unitOnHoveredTile;
-                _lastHoveredTileWithUnit = hoveredTile;
-                if (gameObject.activeInHierarchy)
-                {
-                    _unitTooltipCoroutine = StartCoroutine(ShowUnitTooltipAfterDelay(unitOnHoveredTile, Mouse.current.position.ReadValue()));
-                }
-            }
-        }
-        else
-        {
-            if (_hoveredUnitOnTileForTooltip != null)
-            {
-                if (_unitTooltipCoroutine != null) StopCoroutine(_unitTooltipCoroutine);
-                _unitTooltipCoroutine = null;
-                TooltipUI.Instance.HideTooltip();
-                _hoveredUnitOnTileForTooltip = null;
-                _lastHoveredTileWithUnit = null;
-            }
-        }
-    }
-
     private IEnumerator ShowUnitTooltipAfterDelay(Unit unit, Vector2 screenPosition)
     {
         yield return new WaitForSeconds(unitTooltipDelay);
+        
+        bool stillHoveringSameUnit = (_hoveredUnitOnTileForTooltip == unit);
+        bool currentPointerOverUI = (EventSystem.current != null) && EventSystem.current.IsPointerOverGameObject();
 
-        Tile currentTileUnderMouse = GetTileUnderMouse(false);
-        bool stillHoveringSameUnitAndTile = (_hoveredUnitOnTileForTooltip == unit && currentTileUnderMouse == _lastHoveredTileWithUnit);
-        bool currentPointerOverUI = UnityEngine.EventSystems.EventSystem.current != null && UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject();
-
-        bool conditionsMet = stillHoveringSameUnitAndTile && 
-                             TooltipUI.Instance != null && 
-                             unit != null && unit.Stats != null && 
-                             !currentPointerOverUI; 
+        bool conditionsMet = stillHoveringSameUnit && TooltipUI.Instance != null && 
+                             unit != null && unit.Stats != null && !currentPointerOverUI; 
 
         if (conditionsMet)
         {
             string tooltipText = $"{unit.unitName}\nVP: {unit.Stats.currentVitalityPoints} / {unit.Stats.MaxVitalityPoints}";
-            if (unit.IsAlive)
-            {
-                 tooltipText += $"\nAP: {unit.CurrentActionPoints} / {unit.MaxActionPoints}";
-            } else {
-                 tooltipText += "\n(Defeated)";
-            }
+            if (unit.IsAlive) { tooltipText += $"\nAP: {unit.CurrentActionPoints} / {unit.MaxActionPoints}"; } 
+            else { tooltipText += "\n(Defeated)"; }
             TooltipUI.Instance.ShowTooltip(tooltipText, screenPosition);
         }
         else
         {
-            if (TooltipUI.Instance != null && _hoveredUnitOnTileForTooltip == unit) 
-            {
-                TooltipUI.Instance.HideTooltip();
-            }
+            if (TooltipUI.Instance != null && _hoveredUnitOnTileForTooltip == unit) { TooltipUI.Instance.HideTooltip(); }
         }
         _unitTooltipCoroutine = null;
+    }
+    
+    private void HandleTileHoverForTooltip() 
+    { 
+        if (TooltipUI.Instance == null) return;
+
+        bool anyMajorPanelOpen = (_skillSelectionPanelInstance != null && _skillSelectionPanelInstance.IsVisible()) ||
+                                 (_itemSelectionPanelInstance != null && _itemSelectionPanelInstance.IsVisible()) ||
+                                 (_unitInfoPanelInstance != null && _unitInfoPanelInstance.IsVisible()) ||
+                                 (actionMenuUI != null && actionMenuUI.IsSubMenuOpen()); 
+
+        if (anyMajorPanelOpen || _isPointerOverUIFromUpdate) 
+        {
+            if (_hoveredUnitOnTileForTooltip != null) 
+            {
+                if (_unitTooltipCoroutine != null) StopCoroutine(_unitTooltipCoroutine);
+                _unitTooltipCoroutine = null;
+                TooltipUI.Instance.HideTooltip();
+                _hoveredUnitOnTileForTooltip = null;
+            }
+            return;
+        }
+        
+        Tile hoveredTileDirectly = GetTileUnderMouse(false, false); 
+        Unit unitOnHoveredTile = hoveredTileDirectly?.occupyingUnit;
+
+        if (unitOnHoveredTile != null)
+        {
+            if (_hoveredUnitOnTileForTooltip != unitOnHoveredTile) 
+            {
+                if (_hoveredUnitOnTileForTooltip != null) TooltipUI.Instance.HideTooltip(); 
+                if (_unitTooltipCoroutine != null) StopCoroutine(_unitTooltipCoroutine);
+                
+                _hoveredUnitOnTileForTooltip = unitOnHoveredTile;
+                if (gameObject.activeInHierarchy) 
+                {
+                     _unitTooltipCoroutine = StartCoroutine(ShowUnitTooltipAfterDelay(unitOnHoveredTile, Mouse.current.position.ReadValue()));
+                }
+            }
+        }
+        else 
+        {
+            if (_hoveredUnitOnTileForTooltip != null) 
+            {
+                if (_unitTooltipCoroutine != null) StopCoroutine(_unitTooltipCoroutine);
+                _unitTooltipCoroutine = null;
+                TooltipUI.Instance.HideTooltip();
+                _hoveredUnitOnTileForTooltip = null;
+            }
+        }
     }
 
     public void ChangeState(PlayerInputStateBase newState)
@@ -239,7 +253,6 @@ public class PlayerInputHandler : MonoBehaviour
         if (_unitTooltipCoroutine != null) { StopCoroutine(_unitTooltipCoroutine); _unitTooltipCoroutine = null; }
         if (TooltipUI.Instance != null) TooltipUI.Instance.HideTooltip();
         _hoveredUnitOnTileForTooltip = null;
-        _lastHoveredTileWithUnit = null;
 
         _currentStateObject?.ExitState(); 
         _currentStateObject = newState;
@@ -252,11 +265,13 @@ public class PlayerInputHandler : MonoBehaviour
             TurnManager.Instance != null && 
             TurnManager.Instance.ActiveUnit == _selectedUnit)
         {
-            ShowActionMenuForSelectedUnitPublic();
+            if(actionMenuUI != null && !actionMenuUI.gameObject.activeSelf) actionMenuUI.gameObject.SetActive(true);
+            _actionBarNeedsRefresh = true; 
         }
         else 
         {
-            actionMenuUI?.HideMenu();
+            actionMenuUI?.HideActionBar(); 
+            _actionBarNeedsRefresh = false;
         }
         
         if (!(_currentStateObject is PIH_UnitActionPhaseState && _itemSelectionPanelInstance != null && _itemSelectionPanelInstance.IsVisible()))
@@ -282,7 +297,7 @@ public class PlayerInputHandler : MonoBehaviour
         _currentStateObject.EnterState(this); 
     }
 
-    private void OnEnable()
+    private void OnEnable() 
     {
         if (_playerControls == null) _playerControls = new PlayerControls();
         _playerControls.Gameplay.Enable();
@@ -298,8 +313,7 @@ public class PlayerInputHandler : MonoBehaviour
         SkillSelectionUI.OnSkillPanelClosedByButton += HandleSkillPanelClosedByButton; 
         ItemSelectionPanelUI.OnItemSelectedForUse += HandleItemSelectedFromPanel;
     }
-
-    private void OnDisable()
+    private void OnDisable() 
     {
         if (_playerControls == null) return;
         _playerControls.Gameplay.Click.performed -= OnClickPerformedHandler; 
@@ -316,33 +330,47 @@ public class PlayerInputHandler : MonoBehaviour
 
         if (_playerControls.Gameplay.enabled) _playerControls.Gameplay.Disable();
 
-        if (_unitTooltipCoroutine != null) 
-        { 
-            StopCoroutine(_unitTooltipCoroutine); 
-            _unitTooltipCoroutine = null; 
-        }
+        if (_unitTooltipCoroutine != null) { StopCoroutine(_unitTooltipCoroutine); _unitTooltipCoroutine = null; }
         if (TooltipUI.Instance != null) TooltipUI.Instance.HideTooltip(); 
         _hoveredUnitOnTileForTooltip = null;
-        _lastHoveredTileWithUnit = null;
     }
     
-    private Tile GetTileUnderMouse(bool blockIfOverUI = true)
+    private Tile GetTileUnderMouse(bool blockIfOverUI = true, bool forceUICheckNow = false)
     {
-        if (_mainCamera == null || GridManager.Instance == null) return null;
+        if (_mainCamera == null || GridManager.Instance == null)
+        {
+            // Debug.LogWarning("PIH.GetTileUnderMouse: MainCamera or GridManager is null.", this.gameObject); // Can be noisy
+            return null;
+        }
         Vector2 screenPosition = _playerControls.Gameplay.Point.ReadValue<Vector2>();
         
-        if (blockIfOverUI && _isPointerOverUIThisFrame)
+        bool pointerIsCurrentlyOverUI;
+        if (forceUICheckNow)
         {
-            if (!(_currentStateObject is PIH_SelectingMoveTargetState || 
-                  _currentStateObject is PIH_SelectingAttackTargetState ||
-                  _currentStateObject is PIH_SelectingAbilityTargetState))
-            {
-                return null; 
-            }
+            pointerIsCurrentlyOverUI = (EventSystem.current != null) && EventSystem.current.IsPointerOverGameObject();
         }
-        else if (!blockIfOverUI && _isPointerOverUIThisFrame) 
+        else
         {
-            return null;
+            pointerIsCurrentlyOverUI = _isPointerOverUIFromUpdate; 
+        }
+
+        if (blockIfOverUI && pointerIsCurrentlyOverUI)
+        {
+            // This log is useful for debugging UI blocking issues, but can be noisy during normal play.
+            // Keep it commented unless actively debugging this specific problem.
+            /*
+            if (forceUICheckNow) 
+            {
+                PointerEventData eventDataCurrentPosition = new PointerEventData(EventSystem.current);
+                eventDataCurrentPosition.position = screenPosition; 
+                List<RaycastResult> results = new List<RaycastResult>();
+                EventSystem.current.RaycastAll(eventDataCurrentPosition, results);
+                string hitObjects = results.Count > 0 ? "" : "None (IsPointerOverGameObject was true but RaycastAll returned no results - check Canvas GraphicRaycaster settings OR a non-UI object with a physics raycaster is blocking)";
+                foreach(var result in results) { hitObjects += result.gameObject.name + " (layer " + LayerMask.LayerToName(result.gameObject.layer) + "); "; }
+                Debug.Log($"PIH.GetTileUnderMouse: Returning NULL because pointer is over UI. IsPointerOverGameObject = {pointerIsCurrentlyOverUI}. Hit UI Objects: [{hitObjects}]", this.gameObject);
+            }
+            */
+            return null; 
         }
 
         Ray ray = _mainCamera.ScreenPointToRay(screenPosition);
@@ -350,130 +378,114 @@ public class PlayerInputHandler : MonoBehaviour
 
         if (!groundPlane.Raycast(ray, out float distance)) 
         {
+            // This log can also be noisy if the mouse often leaves the 'hittable' area.
+            // if (forceUICheckNow) { // Only log on actual click attempts if raycast fails
+            //    Debug.LogWarning($"PIH.GetTileUnderMouse: Ground plane raycast FAILED. Ray origin: {ray.origin}, Ray direction: {ray.direction}. Plane normal: {groundPlane.normal}, Plane point: {groundPlane.distance}", this.gameObject);
+            // }
             return null;
         }
         
         Vector3 worldPoint = ray.GetPoint(distance);
-        Vector2Int gridPos = GridManager.Instance.WorldToGrid(worldPoint);
-        return GridManager.Instance.GetTile(gridPos);
+        Vector2Int gridPos = GridManager.Instance.WorldToGrid(worldPoint); 
+        Tile foundTile = GridManager.Instance.GetTile(gridPos);
+        
+        return foundTile;
     }
 
-    private void HandleInfoPanelClosedByButton()
-    {
-        if (_currentStateObject is PIH_ViewingUnitInfoState)
-        {
-            ChangeState(new PIH_UnitActionPhaseState());
-        }
+    private void HandleInfoPanelClosedByButton() 
+    { 
+        _unitInfoPanelInstance?.HidePanel();
+        ChangeState(new PIH_UnitActionPhaseState()); 
     }
     
-    private void HandleSkillPanelClosedByButton()
+    private void HandleSkillPanelClosedByButton() 
     {
         _skillSelectionPanelInstance?.HidePanel(); 
-        ChangeState(new PIH_UnitActionPhaseState());
+        ChangeState(new PIH_UnitActionPhaseState()); 
     }
-
-    private void HandleItemPanelClosedByButton()
+    private void HandleItemPanelClosedByButton() 
     {
         _itemSelectionPanelInstance?.HidePanel();
-        ChangeState(new PIH_UnitActionPhaseState());
+        ChangeState(new PIH_UnitActionPhaseState()); 
     }
     
-    private void OnClickPerformedHandler(InputAction.CallbackContext context) { _currentStateObject?.OnClickInput(context, GetTileUnderMouse(true)); } 
-    private void OnToggleAttackModeInputHandler(InputAction.CallbackContext context) { _currentStateObject?.OnToggleAttackModeInput(context); }
-    private void OnSelectAbilityInputHandler(InputAction.CallbackContext context) { _currentStateObject?.OnSelectAbilityInput(context); }
-    private void OnEndTurnInputHandler(InputAction.CallbackContext context) { _currentStateObject?.OnEndTurnInput(context); }
+    private void OnClickPerformedHandler(InputAction.CallbackContext context) 
+    { 
+        _currentStateObject?.OnClickInput(context, GetTileUnderMouse(true, true)); 
+    } 
+    private void OnToggleAttackModeInputHandler(InputAction.CallbackContext context) 
+    { 
+        // Debug.Log("PlayerInputHandler: OnToggleAttackModeInputHandler (hotkey) triggered", this.gameObject); // Keep if hotkeys are actively used
+        _currentStateObject?.OnToggleAttackModeInput(context); 
+    }
+    private void OnSelectAbilityInputHandler(InputAction.CallbackContext context) 
+    { 
+        // Debug.Log("PlayerInputHandler: OnSelectAbilityInputHandler (hotkey) triggered", this.gameObject); // Keep if hotkeys are actively used
+        _currentStateObject?.OnSelectAbilityInput(context); 
+    }
+    private void OnEndTurnInputHandler(InputAction.CallbackContext context) 
+    { 
+        // Debug.Log("PlayerInputHandler: OnEndTurnInputHandler (hotkey for End Turn / Wait) triggered", this.gameObject); // Keep if hotkeys are actively used
+        _currentStateObject?.OnEndTurnInput(context); 
+    }
     
     private void OnToggleActionMenuPerformedHandler(InputAction.CallbackContext context)
     {
-        bool stateHandledToggle = false;
-        if (_currentStateObject != null)
-        {
-            var stateBeforeToggle = _currentStateObject.GetType();
-            _currentStateObject.OnToggleActionMenuInput(context);
-            if (_currentStateObject.GetType() != stateBeforeToggle) 
-            {
-                stateHandledToggle = true;
-            }
-        }
-
-        if (stateHandledToggle) return; 
-
-        if (_selectedUnit == null || !CombatActive || !_selectedUnit.CompareTag("Player") || TurnManager.Instance.ActiveUnit != _selectedUnit)
-        {
-            actionMenuUI?.HideMenu(); 
-            _skillSelectionPanelInstance?.HidePanel();
-            _unitInfoPanelInstance?.HidePanel();
-            _itemSelectionPanelInstance?.HidePanel();
-            return;
-        }
-
-        if (_unitInfoPanelInstance != null && _unitInfoPanelInstance.IsVisible())
-        {
-            _unitInfoPanelInstance.HidePanel();
-            if (!(_currentStateObject is PIH_UnitActionPhaseState)) ChangeState(new PIH_UnitActionPhaseState());
-            else ShowActionMenuForSelectedUnitPublic(); 
-            return;
-        }
-
+        bool panelWasClosed = false;
         if (_skillSelectionPanelInstance != null && _skillSelectionPanelInstance.IsVisible())
         {
-            _skillSelectionPanelInstance.HidePanel(); 
-            ChangeState(new PIH_UnitActionPhaseState()); 
+            _skillSelectionPanelInstance.HidePanel();
+            panelWasClosed = true;
+        }
+        else if (_itemSelectionPanelInstance != null && _itemSelectionPanelInstance.IsVisible())
+        {
+            _itemSelectionPanelInstance.HidePanel();
+            panelWasClosed = true;
+        }
+        else if (_unitInfoPanelInstance != null && _unitInfoPanelInstance.IsVisible())
+        {
+            _unitInfoPanelInstance.HidePanel();
+            panelWasClosed = true;
+        }
+        
+        if (panelWasClosed)
+        {
+            if (_currentStateObject is PIH_UnitActionPhaseState && _selectedUnit != null)
+            {
+                 _actionBarNeedsRefresh = true; 
+            }
             return; 
         }
         
-        if (_itemSelectionPanelInstance != null && _itemSelectionPanelInstance.IsVisible())
+        if (actionMenuUI != null && actionMenuUI.IsVisible() && actionMenuUI.IsSubMenuOpen())
         {
-            _itemSelectionPanelInstance.HidePanel();
-            ChangeState(new PIH_UnitActionPhaseState());
+            actionMenuUI.HideSubMenu(); 
             return;
         }
-        
-        if (actionMenuUI.IsVisible())
-        {
-            actionMenuUI.HideMenu();
-            if(_currentStateObject is PIH_UnitActionPhaseState && _selectedUnit.Movement.CurrentTile != null)
-            { _selectedUnit.Movement.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit); }
-        }
-        else 
-        {
-            if (_currentStateObject is PIH_UnitActionPhaseState) { ShowActionMenuForSelectedUnitPublic(); }
-            else { ChangeState(new PIH_UnitActionPhaseState()); }
-        }
+        // DebugHelper.Log("PIH: ToggleActionMenu input received, no specific sub-panel to close or sub-menu on bar. Action bar visibility managed by turn/state.", this.gameObject);
     }
-    
-    public void ShowActionMenuForSelectedUnitPublic()
-    {
-        if (_selectedUnit != null && actionMenuUI != null && _mainCamera != null && 
-            TurnManager.Instance != null && TurnManager.Instance.ActiveUnit == _selectedUnit) 
-        {
-            _skillSelectionPanelInstance?.HidePanel(); 
-            _unitInfoPanelInstance?.HidePanel(); 
-            _itemSelectionPanelInstance?.HidePanel();
             
-            Vector2 screenPos = _mainCamera.WorldToScreenPoint(_selectedUnit.transform.position);
-            actionMenuUI.ShowMenu(_selectedUnit, screenPos); 
-            
-            if (_selectedUnit.Movement.CurrentTile != null)
-            { 
-                _selectedUnit.Movement.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit); 
-            }
-        }
-    }
-    
-    public void HandleActionFromHotKey(string actionName)
+    public void HandleActionFromHotKey(string actionName) 
     {
+        // Debug.Log($"PlayerInputHandler: HandleActionFromHotKey for action: {actionName}", this.gameObject); // Keep if useful
         if (_selectedUnit == null) return;
-        actionMenuUI?.HideMenu(); 
+        
         _skillSelectionPanelInstance?.HidePanel();
         _unitInfoPanelInstance?.HidePanel(); 
         _itemSelectionPanelInstance?.HidePanel();
+        actionMenuUI?.HideSubMenu(); 
+
         ProcessActionSelection(actionName); 
     }
     
     private void HandleActionMenuSelection(Unit unit, string actionName) 
     {
-        if (unit != _selectedUnit || _selectedUnit == null) return; 
+        // Debug.Log($"PlayerInputHandler: HandleActionMenuSelection received. Unit: {unit?.unitName ?? "NULL"}, Action: {actionName}", this.gameObject); // Keep this
+        if (unit != _selectedUnit || _selectedUnit == null) 
+        {
+            Debug.LogWarning($"PlayerInputHandler: HandleActionMenuSelection - Mismatched unit or null selected unit. Event unit: {unit?.unitName}, Selected unit: {_selectedUnit?.unitName}. Ignoring.", this.gameObject);
+            return; 
+        }
         
         if (actionName != ActionMenuUI.SHOW_SPELLS_ACTION_NAME && actionName != "Skills")
         {
@@ -493,18 +505,25 @@ public class PlayerInputHandler : MonoBehaviour
 
     private void ProcessActionSelection(string actionName)
     {
+        // Debug.Log($"PlayerInputHandler: ProcessActionSelection for action: {actionName}", this.gameObject); // Keep this
+
+        bool actionOpenedPanel = false;
+        if (actionName != "Wait" && actionName != "Attack") 
+        {
+             actionMenuUI?.HideSubMenu(); 
+        }
+
         switch (actionName)
         {
             case "Move":
                 if (_selectedUnit.CanAffordAPForAction(MoveActionCost))
                 { ChangeState(new PIH_SelectingMoveTargetState()); } 
-                else { ChangeState(new PIH_UnitActionPhaseState()); }
+                else { _actionBarNeedsRefresh = true; } 
                 break;
-            // Case "Attack" (main button) is removed as it now opens a sub-menu
             case ActionMenuUI.BASIC_ATTACK_ACTION_NAME: 
                 if (_selectedUnit.CanAffordAPForAction(AttackActionCost)) 
                 { ShowAttackRange(_selectedUnit); ChangeState(new PIH_SelectingAttackTargetState()); } 
-                else { ChangeState(new PIH_UnitActionPhaseState()); }
+                else { _actionBarNeedsRefresh = true; }
                 break;
             case "Wait": 
                 if (_selectedUnit != null && TurnManager.Instance != null)
@@ -513,17 +532,23 @@ public class PlayerInputHandler : MonoBehaviour
                 }
                 break;
             case "Skills":
-                ShowSkillSelectionPanel(false); // false indicates it's for Skills
+                ShowSkillSelectionPanel(false); 
+                actionOpenedPanel = true;
                 break;
             case ActionMenuUI.SHOW_SPELLS_ACTION_NAME: 
-                ShowSkillSelectionPanel(true); // true indicates it's for Spells
+                ShowSkillSelectionPanel(true); 
+                actionOpenedPanel = true;
                 break;
             case "Items": 
                 ShowItemSelectionPanel(); 
+                actionOpenedPanel = true;
                 break;
             case "Info": 
-                if (_unitInfoPanelInstance != null) { ChangeState(new PIH_ViewingUnitInfoState()); }
-                else { ChangeState(new PIH_UnitActionPhaseState());}
+                if (_unitInfoPanelInstance != null) 
+                {
+                    ChangeState(new PIH_ViewingUnitInfoState()); 
+                    actionOpenedPanel = true;
+                }
                 break;
             case ActionMenuUI.FLEE_ACTION_NAME: 
                 DebugHelper.Log($"PIH: Player selected Flee for unit {_selectedUnit.unitName}.", this.gameObject);
@@ -535,19 +560,22 @@ public class PlayerInputHandler : MonoBehaviour
                 }
                 break;
             default: 
-                ChangeState(new PIH_UnitActionPhaseState());
+                _actionBarNeedsRefresh = true; 
                 break;
         }
 
-        if (actionName != "Wait" && actionName != ActionMenuUI.FLEE_ACTION_NAME &&
-            actionName != "Skills" && actionName != ActionMenuUI.SHOW_SPELLS_ACTION_NAME && 
-            actionName != "Items" && actionName != "Info")
+        if (!actionOpenedPanel && (actionName == ActionMenuUI.BASIC_ATTACK_ACTION_NAME || actionName == "Move"))
         {
+             _actionBarNeedsRefresh = true;
              CheckAndHandleEndOfTurnActionsPIH();
+        } 
+        else if (!actionOpenedPanel && actionName != "Wait" && actionName != ActionMenuUI.FLEE_ACTION_NAME)
+        {
+            _actionBarNeedsRefresh = true;
         }
     }
 
-    private void ShowSkillSelectionPanel(bool forSpells)
+    private void ShowSkillSelectionPanel(bool forSpells) 
     {
         if (_selectedUnit == null || skillSelectionPanelPrefab == null || _selectedUnit.knownAbilities == null) return;
         
@@ -560,7 +588,6 @@ public class PlayerInputHandler : MonoBehaviour
             if (_skillSelectionPanelInstance == null) { Debug.LogError("PIH: SkillSelectionPanelPrefab missing SkillSelectionUI!", panelGO); Destroy(panelGO); return; }
         }
 
-        // MODIFIED: Filter abilities based on type
         List<AbilitySO> abilitiesToShow;
         string panelTitle;
 
@@ -569,9 +596,8 @@ public class PlayerInputHandler : MonoBehaviour
             abilitiesToShow = _selectedUnit.knownAbilities.Where(ab => ab != null && ab.abilityType == AbilityType.Spell).ToList();
             panelTitle = "Select Spell";
         }
-        else // For Skills
+        else 
         {
-            // Assuming BasicAttack is a type of Skill for this panel, or adjust as needed
             abilitiesToShow = _selectedUnit.knownAbilities.Where(ab => ab != null && (ab.abilityType == AbilityType.Skill || ab.abilityType == AbilityType.BasicAttack)).ToList();
             panelTitle = "Select Skill";
         }
@@ -579,17 +605,15 @@ public class PlayerInputHandler : MonoBehaviour
         Vector2 panelPosition = (Vector2)_mainCamera.WorldToScreenPoint(_selectedUnit.transform.position) + new Vector2(150, 0); 
         _skillSelectionPanelInstance.ShowPanel(_selectedUnit, panelPosition, abilitiesToShow, panelTitle); 
         
-        actionMenuUI?.HideMenu(); 
+        actionMenuUI?.HideActionBar(); 
         _unitInfoPanelInstance?.HidePanel(); 
         _itemSelectionPanelInstance?.HidePanel(); 
     }
 
-    private void ShowItemSelectionPanel()
+    private void ShowItemSelectionPanel() 
     {
-        if (_selectedUnit == null || itemSelectionPanelPrefab == null)
-        {
-            return;
-        }
+        if (_selectedUnit == null || itemSelectionPanelPrefab == null) return;
+        
         if (_itemSelectionPanelInstance == null)
         {
             Canvas mainCanvas = FindFirstObjectByType<Canvas>(); 
@@ -599,18 +623,17 @@ public class PlayerInputHandler : MonoBehaviour
             if (_itemSelectionPanelInstance == null)
             {
                 Debug.LogError("PIH: ItemSelectionPanelPrefab is missing the ItemSelectionPanelUI script!", panelGO);
-                Destroy(panelGO);
-                return;
+                Destroy(panelGO); return;
             }
         }
         _itemSelectionPanelInstance.ShowPanel(_selectedUnit); 
         
-        actionMenuUI?.HideMenu();
+        actionMenuUI?.HideActionBar(); 
         _unitInfoPanelInstance?.HidePanel();
         _skillSelectionPanelInstance?.HidePanel();
     }
 
-    private void HandleSkillSelectedFromPanel(Unit caster, AbilitySO selectedAbility)
+    private void HandleSkillSelectedFromPanel(Unit caster, AbilitySO selectedAbility) 
     {
         if (caster != _selectedUnit || selectedAbility == null) return;
         if (!_selectedUnit.Combat.CanAffordAbility(selectedAbility, true)) 
@@ -623,14 +646,14 @@ public class PlayerInputHandler : MonoBehaviour
         ChangeState(new PIH_SelectingAbilityTargetState()); 
     }
     
-    private void HandleItemSelectedFromPanel(Unit user, ItemSO selectedItem)
+    private void HandleItemSelectedFromPanel(Unit user, ItemSO selectedItem) 
     {
         if (user != _selectedUnit || selectedItem == null) return;
 
         if (!user.CanAffordAPForAction(selectedItem.apCostToUse))
         {
             _itemSelectionPanelInstance?.HidePanel(); 
-            ChangeState(new PIH_UnitActionPhaseState());
+            ChangeState(new PIH_UnitActionPhaseState()); 
             return;
         }
 
@@ -666,11 +689,11 @@ public class PlayerInputHandler : MonoBehaviour
         }
         
         _itemSelectionPanelInstance?.HidePanel();
-        ChangeState(new PIH_UnitActionPhaseState());
-        CheckAndHandleEndOfTurnActionsPIH(); 
+        _actionBarNeedsRefresh = true; 
+        ChangeState(new PIH_UnitActionPhaseState()); 
     }
 
-    public void ClearAllHighlights()
+    public void ClearAllHighlights() 
     {
         List<Tile> tilesToClearReach = new List<Tile>(_highlightedReachableTiles);
         List<Tile> tilesToClearPath = new List<Tile>(_highlightedPathTiles);
@@ -690,30 +713,54 @@ public class PlayerInputHandler : MonoBehaviour
         if (_selectedUnit?.Movement?.CurrentTile != null)
         {
             bool isSelectedUnitsTurn = TurnManager.Instance?.ActiveUnit == _selectedUnit;
-            bool maintainHighlight = (_currentStateObject is PIH_UnitActionPhaseState || _currentStateObject is PIH_ViewingUnitInfoState) && isSelectedUnitsTurn;
+            bool maintainHighlightAsSelected = (_currentStateObject is PIH_UnitActionPhaseState || 
+                                                _currentStateObject is PIH_ViewingUnitInfoState) && isSelectedUnitsTurn;
+            bool maintainHighlightAsActive = (_currentStateObject is PIH_SelectingMoveTargetState || 
+                                             _currentStateObject is PIH_SelectingAttackTargetState ||
+                                             _currentStateObject is PIH_SelectingAbilityTargetState) && isSelectedUnitsTurn;
 
-            if (!maintainHighlight && _selectedUnit.Movement.CurrentTile.CurrentHighlightState == TileHighlightState.SelectedUnit)
+            if (maintainHighlightAsSelected && _selectedUnit.Movement.CurrentTile.CurrentHighlightState != TileHighlightState.SelectedUnit)
             {
-                 _selectedUnit.Movement.CurrentTile.SetHighlight(TileHighlightState.None);
+                _selectedUnit.Movement.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit);
             }
-            else if (maintainHighlight && _selectedUnit.Movement.CurrentTile.CurrentHighlightState != TileHighlightState.SelectedUnit)
+            else if (maintainHighlightAsActive && _selectedUnit.Movement.CurrentTile.CurrentHighlightState != TileHighlightState.ActiveTurnUnit && _selectedUnit.Movement.CurrentTile.CurrentHighlightState != TileHighlightState.SelectedUnit)
             {
                 _selectedUnit.Movement.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit);
             }
         }
     }
-    
-    public void ShowReachableRange(Vector2Int startPos, int range, Unit requestingUnit)
-    {
-        if (_pathfinder == null || requestingUnit?.IsAlive == false || requestingUnit.Movement?.CurrentTile == null) return;
-        ClearReachableHighlight(true); 
-        _highlightedReachableTiles.AddRange(_pathfinder.GetReachableTiles(requestingUnit.Movement.CurrentTile.gridPosition, range, requestingUnit));
-        foreach (Tile tile in _highlightedReachableTiles) { if (tile != null && tile != requestingUnit.Movement.CurrentTile) tile.SetHighlight(TileHighlightState.MovementRange); }
-        if (requestingUnit.Movement.CurrentTile != null) requestingUnit.Movement.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit); 
-    }
 
-    public void ShowPathHighlight(List<Tile> path)
+    public void ShowReachableRange(Vector2Int startPos, int range, Unit requestingUnit) 
     {
+        if (_pathfinder == null || requestingUnit?.IsAlive == false || requestingUnit.Movement?.CurrentTile == null)
+        {
+            // Debug.LogWarning($"PIH.ShowReachableRange: Aborting. Unit: {requestingUnit?.unitName}", this.gameObject);
+            return;
+        }
+        ClearReachableHighlight(true); 
+        
+        List<Tile> reachable = _pathfinder.GetReachableTiles(requestingUnit.Movement.CurrentTile.gridPosition, range, requestingUnit);
+        // Debug.Log($"PIH.ShowReachableRange: Pathfinder returned {reachable.Count} reachable tiles for {requestingUnit.unitName} from {startPos} with range {range}.", this.gameObject); // Keep this one if needed
+
+        _highlightedReachableTiles.AddRange(reachable);
+        // int highlightedCount = 0; 
+        foreach (Tile tile in _highlightedReachableTiles) 
+        { 
+            if (tile != null && tile != requestingUnit.Movement.CurrentTile) 
+            {
+                tile.SetHighlight(TileHighlightState.MovementRange); 
+                // highlightedCount++; 
+            }
+        }
+        // Debug.Log($"PIH.ShowReachableRange: Attempted to highlight {highlightedCount} tiles as MovementRange.", this.gameObject); // Commented out
+
+        if (requestingUnit.Movement.CurrentTile != null) 
+        {
+            requestingUnit.Movement.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit); 
+        }
+    }
+    public void ShowPathHighlight(List<Tile> path) 
+    { 
         ClearPathHighlight(); 
         if (path == null || path.Count == 0) return;
         _highlightedPathTiles.AddRange(path); 
@@ -726,15 +773,16 @@ public class PlayerInputHandler : MonoBehaviour
             }
         }
     }
-
-    public void ShowAttackRange(Unit attacker) { 
+    public void ShowAttackRange(Unit attacker) 
+    { 
         if (attacker?.IsAlive == false || attacker.Movement?.CurrentTile == null || !attacker.CanAffordAPForAction(AttackActionCost) || GridManager.Instance == null) return;
         ClearAttackRangeHighlight(true); 
         _highlightedAttackRangeTiles.AddRange(GridManager.Instance.GetTilesInRange(attacker.Movement.CurrentTile.gridPosition, attacker.CalculatedAttackRange));
         foreach (Tile tile in _highlightedAttackRangeTiles) { if (tile != null && tile != attacker.Movement.CurrentTile) tile.SetHighlight(TileHighlightState.AttackRange); }
         if (attacker.Movement.CurrentTile != null) attacker.Movement.CurrentTile.SetHighlight(TileHighlightState.SelectedUnit);
     }
-    public void ShowAbilityRange(Unit caster, AbilitySO ability) { 
+    public void ShowAbilityRange(Unit caster, AbilitySO ability) 
+    { 
         if (caster?.IsAlive == false || caster.Movement?.CurrentTile == null || ability == null || caster.Combat == null || !caster.Combat.CanAffordAbility(ability) || GridManager.Instance == null) return;
         ClearAbilityRangeHighlight(true); 
         _highlightedAbilityRangeTiles.AddRange(GridManager.Instance.GetTilesInRange(caster.Movement.CurrentTile.gridPosition, ability.range));
@@ -743,11 +791,37 @@ public class PlayerInputHandler : MonoBehaviour
     }
 
     public void ClearReachableHighlight(bool clearList) { foreach (Tile tile in _highlightedReachableTiles) { if (tile != null && tile.CurrentHighlightState == TileHighlightState.MovementRange ) tile.SetHighlight(TileHighlightState.None); } if (clearList) _highlightedReachableTiles.Clear(); }
-    public void ClearPathHighlight() { foreach (Tile tile in _highlightedPathTiles) { if (tile != null && tile.CurrentHighlightState == TileHighlightState.Path) tile.SetHighlight(TileHighlightState.None); } _highlightedPathTiles.Clear(); }
+    public void ClearPathHighlight() 
+    { 
+        foreach (Tile tile in _highlightedPathTiles) 
+        { 
+            if (tile != null && tile.CurrentHighlightState == TileHighlightState.Path) 
+            {
+                if (_highlightedReachableTiles.Contains(tile) && tile != _selectedUnit?.Movement?.CurrentTile)
+                {
+                    tile.SetHighlight(TileHighlightState.MovementRange);
+                }
+                else if (tile == _selectedUnit?.Movement?.CurrentTile && _selectedUnit != null && _selectedUnit.IsAlive)
+                {
+                    if (_currentStateObject is PIH_SelectingMoveTargetState || _currentStateObject is PIH_UnitActionPhaseState)
+                    {
+                        tile.SetHighlight(TileHighlightState.SelectedUnit);
+                    } else {
+                        tile.SetHighlight(TileHighlightState.None);
+                    }
+                }
+                else
+                {
+                    tile.SetHighlight(TileHighlightState.None);
+                }
+            }
+        } 
+        _highlightedPathTiles.Clear(); 
+    }
     public void ClearAttackRangeHighlight(bool clearList) { foreach (Tile tile in _highlightedAttackRangeTiles) { if (tile != null && tile.CurrentHighlightState == TileHighlightState.AttackRange) tile.SetHighlight(TileHighlightState.None); } if (clearList) _highlightedAttackRangeTiles.Clear(); }
     public void ClearAbilityRangeHighlight(bool clearList) { foreach (Tile tile in _highlightedAbilityRangeTiles) { if (tile != null && tile.CurrentHighlightState == TileHighlightState.AbilityRange) tile.SetHighlight(TileHighlightState.None); } if (clearList) _highlightedAbilityRangeTiles.Clear(); }
 
-    public void CheckAndHandleEndOfTurnActionsPIH()
+    public void CheckAndHandleEndOfTurnActionsPIH() 
     {
         if (_selectedUnit?.IsAlive == false || _selectedUnit.Movement == null || TurnManager.Instance?.ActiveUnit != _selectedUnit) return;
         if (_selectedUnit.Combat == null) { DebugHelper.LogError($"PIH: SelectedUnit {_selectedUnit.unitName} missing UnitCombat!", _selectedUnit); TurnManager.Instance.EndUnitTurn(_selectedUnit); return; }
@@ -755,7 +829,7 @@ public class PlayerInputHandler : MonoBehaviour
         bool canTakeAnyOneAPAction = _selectedUnit.CurrentActionPoints >= 1; 
         if (!canTakeAnyOneAPAction) 
         {
-            actionMenuUI?.HideMenu(); 
+            actionMenuUI?.HideActionBar(); 
             _skillSelectionPanelInstance?.HidePanel(); 
             _unitInfoPanelInstance?.HidePanel(); 
             _itemSelectionPanelInstance?.HidePanel(); 

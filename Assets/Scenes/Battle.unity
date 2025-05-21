@@ -1564,11 +1564,11 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 1026800289}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 100, y: 100}
-  m_Pivot: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0.5, y: 0}
+  m_AnchorMax: {x: 0.5, y: 0}
+  m_AnchoredPosition: {x: 0, y: 20}
+  m_SizeDelta: {x: 600, y: 150}
+  m_Pivot: {x: 0.5, y: 0}
 --- !u!114 &833739196
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1582,16 +1582,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   radialActionButtonPrefab: {fileID: 2243105095909431339, guid: 74d2bc0b05e29784e8b68cdba2f749dd, type: 3}
-  menuRadius: 180
-  menuCenterOffset: {x: 0, y: 0}
+  buttonSpacing: 10
   affordableTextColor: {r: 0, g: 0, b: 0, a: 1}
   unaffordableTextColor: {r: 0.4, g: 0.4, b: 0.4, a: 1}
-  waitSubMenuRadius: 70
+  waitSubMenuRadius: 100
   waitSubMenuItemScale: 0.65
   waitEndTurnButtonAngle: 180
   waitFleeButtonAngle: 90
   waitBackButtonAngle: 0
-  attackSubMenuRadius: 70
+  attackSubMenuRadius: 100
   attackSubMenuItemScale: 0.65
   basicAttackButtonAngle: 180
   spellsButtonAngle: 0
@@ -1705,7 +1704,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: aa40f7fa7553fb245b3eabcc14820489, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  encounterConfiguration: {fileID: 11400000, guid: d5abdfaa424b94740b7f43e3e996372f, type: 2}
+  encounterConfiguration: {fileID: 11400000, guid: 4922bd5356874ab438bc84c4a7728848, type: 2}
   turnManager: {fileID: 900138082}
 --- !u!4 &870770251
 Transform:
@@ -2254,9 +2253,9 @@ RectTransform:
   m_LocalScale: {x: 0, y: 0, z: 0}
   m_ConstrainProportionsScale: 0
   m_Children:
+  - {fileID: 833739195}
   - {fileID: 135577234}
   - {fileID: 226554429}
-  - {fileID: 833739195}
   - {fileID: 683151986}
   - {fileID: 537202113}
   m_Father: {fileID: 0}
@@ -3453,7 +3452,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d3385135f3f596e46a26f3dbc438344a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  currentMapData: {fileID: 11400000, guid: 1de5e6ea31859284c95744c775301feb, type: 2}
+  currentMapData: {fileID: 11400000, guid: f2affe41a2a4e084faae8b7d7a7168a8, type: 2}
   tilePrefab: {fileID: 2319915755598643760, guid: 683eb67ca4e65df4d88e850d6cdd0a46, type: 3}
   fallbackDefaultPlayableTileType: {fileID: 0}
   fallbackBoundaryTileType: {fileID: 0}

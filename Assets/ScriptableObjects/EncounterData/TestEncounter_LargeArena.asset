@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4726727aacb8c54b841d5b08c265b99, type: 3}
+  m_Name: TestEncounter_LargeArena
+  m_EditorClassIdentifier: 
+  encounterName: Test Battle - Large Arena
+  description: A test encounter on a larger map with diverse terrain and 5 units.
+  playerUnitsToSpawn:
+  - unitTemplate: {fileID: 11400000, guid: 833b236eb062f8d42982d96801b5bd6a, type: 2}
+    level: 1
+    gridPosition: {x: 1, y: 1}
+  - unitTemplate: {fileID: 11400000, guid: 07f024a8700d2cc4a93db6bbbcd477f6, type: 2}
+    level: 1
+    gridPosition: {x: 1, y: 2}
+  enemyUnitsToSpawn:
+  - unitTemplate: {fileID: 11400000, guid: 07f024a8700d2cc4a93db6bbbcd477f6, type: 2}
+    level: 1
+    gridPosition: {x: 13, y: 8}
+  - unitTemplate: {fileID: 11400000, guid: 38862db5304bb2d499a4d9e48183f5fb, type: 2}
+    level: 1
+    gridPosition: {x: 13, y: 7}
+  - unitTemplate: {fileID: 11400000, guid: 07f024a8700d2cc4a93db6bbbcd477f6, type: 2}
+    level: 1
+    gridPosition: {x: 12, y: 8}

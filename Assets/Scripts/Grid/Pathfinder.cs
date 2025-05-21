@@ -8,18 +8,17 @@ public class Pathfinder
     private GridManager _gridManager;
     private List<PathNode> _openList;
     private HashSet<Vector2Int> _closedSet;
-    private PathNode[,] _pathNodeGrid; // Stores the PathNode data for the current search
+    private PathNode[,] _pathNodeGrid; 
 
-    // Nested struct for pathfinding nodes
     private struct PathNode
     {
         public Vector2Int gridPosition;
-        public int gCost; // Cost from start to this node
-        public int hCost; // Heuristic cost from this node to end
-        public Vector2Int parentPosition; // Position of the node this one came from
-        public bool isWalkable; // Is this tile generally walkable (considering terrain cost for the requesting unit)
+        public int gCost; 
+        public int hCost; 
+        public Vector2Int parentPosition; 
+        public bool isWalkable; 
 
-        public int FCost => gCost + hCost; // Total estimated cost
+        public int FCost => gCost + hCost; 
 
         public PathNode(Vector2Int pos, bool walkableInitial)
         {
@@ -27,7 +26,7 @@ public class Pathfinder
             isWalkable = walkableInitial; 
             gCost = int.MaxValue;
             hCost = 0;
-            parentPosition = new Vector2Int(-1, -1); // Using -1,-1 to denote no parent
+            parentPosition = new Vector2Int(-1, -1); 
         }
     }
 
@@ -45,6 +44,8 @@ public class Pathfinder
 
     public List<Tile> FindPath(Vector2Int startPosPlayable, Vector2Int endPosPlayable, Unit requestingUnit = null, bool findAdjacentToTargetInstead = false)
     {
+        // REMOVED: Initial verbose Debug.Log for FindPath parameters
+
         List<Tile> finalPath = new List<Tile>();
         if (_gridManager == null) { Debug.LogError("Pathfinder Error: GridManager is null."); return finalPath; }
 
@@ -89,7 +90,7 @@ public class Pathfinder
         _openList.Add(startNode);
 
         int iterations = 0;
-        int maxIterations = _gridManager.PlayableWidth * _gridManager.PlayableHeight + 100; // Uses capitalized properties
+        int maxIterations = _gridManager.PlayableWidth * _gridManager.PlayableHeight + 100; 
 
         while (_openList.Count > 0)
         {
@@ -113,7 +114,8 @@ public class Pathfinder
                     if (currentNode.isWalkable && 
                         (currentTileAsDestination == null || !currentTileAsDestination.IsOccupied || currentTileAsDestination.occupyingUnit == requestingUnit))
                     {
-                        DebugHelper.Log($"Pathfinder (Adjacent): Path found to {currentNode.gridPosition} (adjacent to {endPosPlayable}).", _gridManager);
+                        // COMMENTED OUT for noise reduction during path preview
+                        // DebugHelper.Log($"Pathfinder (Adjacent): Path found to {currentNode.gridPosition} (adjacent to {endPosPlayable}). Iterations: {iterations}", _gridManager);
                         return ReconstructPath(_pathNodeGrid[currentNode.gridPosition.x, currentNode.gridPosition.y], startNode);
                     }
                 }
@@ -122,7 +124,8 @@ public class Pathfinder
             {
                 if (currentNode.gridPosition == endPosPlayable)
                 {
-                    DebugHelper.Log($"Pathfinder (Direct): Path found to {endPosPlayable}.", _gridManager);
+                    // COMMENTED OUT for noise reduction during path preview
+                    // DebugHelper.Log($"Pathfinder (Direct): Path found to {endPosPlayable}. Iterations: {iterations}", _gridManager);
                     return ReconstructPath(_pathNodeGrid[currentNode.gridPosition.x, currentNode.gridPosition.y], startNode);
                 }
             }
@@ -175,15 +178,17 @@ public class Pathfinder
                 }
             }
         }
-
+        // Keep this one as it's a significant outcome
         DebugHelper.LogWarning($"Pathfinder: No path found from {startPosPlayable} to " +
                                $"{(findAdjacentToTargetInstead ? "adjacent of " : "")}{endPosPlayable} " +
-                               $"for unit {requestingUnit?.unitName}.", _gridManager);
+                               $"for unit {requestingUnit?.unitName}. Iterations: {iterations}", _gridManager);
         return finalPath; 
     }
 
     public List<Tile> GetReachableTiles(Vector2Int startPosPlayable, int movementPoints, Unit requestingUnit = null)
     {
+        // Debug.Log($"Pathfinder.GetReachableTiles: StartPos={startPosPlayable}, MaxMove={movementPoints}, Unit={requestingUnit?.unitName ?? "N/A"}", _gridManager); // Already logged by PIH.ShowReachableRange
+
         List<Tile> reachableTiles = new List<Tile>();
         if (_gridManager == null) { Debug.LogError("Pathfinder Error: GridManager is null."); return reachableTiles; }
         if (movementPoints < 0) return reachableTiles;
@@ -211,7 +216,7 @@ public class Pathfinder
         _openList.Add(startNode);
 
         int iterations = 0;
-        int maxIterations = _gridManager.PlayableWidth * _gridManager.PlayableHeight + 100; // Uses capitalized properties
+        int maxIterations = _gridManager.PlayableWidth * _gridManager.PlayableHeight + 100;
 
         while (_openList.Count > 0)
         {
@@ -266,13 +271,15 @@ public class Pathfinder
                 }
             }
         }
+        // This is logged by PIH.ShowReachableRange
+        // Debug.Log($"Pathfinder.GetReachableTiles: Returning {reachableTiles.Count} tiles. Iterations: {iterations}", _gridManager);
         return reachableTiles;
     }
 
     private void InitializePathNodeGrid(Unit requestingUnit = null)
     {
-        int width = _gridManager.PlayableWidth;   // Uses capitalized property
-        int height = _gridManager.PlayableHeight; // Uses capitalized property
+        int width = _gridManager.PlayableWidth;   
+        int height = _gridManager.PlayableHeight; 
         _pathNodeGrid = new PathNode[width, height];
 
         for (int x = 0; x < width; x++)
@@ -300,14 +307,14 @@ public class Pathfinder
         List<Tile> path = new List<Tile>();
         PathNode currentNode = endNode;
         int safetyCounter = 0;
-        int maxPathLength = _gridManager.PlayableWidth * _gridManager.PlayableHeight; // Uses capitalized properties
+        int maxPathLength = _gridManager.PlayableWidth * _gridManager.PlayableHeight; 
 
         while (currentNode.gridPosition != startNode.gridPosition)
         {
             safetyCounter++;
             if (safetyCounter > maxPathLength)
             {
-                DebugHelper.LogError("Pathfinder Error: Max path length exceeded in ReconstructPath. Possible loop or broken parent chain.", _gridManager);
+                DebugHelper.LogError("Pathfinder Error: Max path length exceeded in ReconstructPath.", _gridManager);
                 return new List<Tile>(); 
             }
 
